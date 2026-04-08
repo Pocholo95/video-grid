@@ -217,18 +217,30 @@ let cancelRequested = false;
 // ---------------------------------------------------------------------------
 // Preview URL cache
 // ---------------------------------------------------------------------------
-const previewUrlCache = new Map<string, string>();
+const previewUrlCache = new Map<string, { url: string; blob: Blob }>();
 
 const getOrCreatePreviewUrl = (item: OutputItem): string | null => {
   if (!item.outputBlob) return null;
-  if (!previewUrlCache.has(item.id))
-    previewUrlCache.set(item.id, URL.createObjectURL(item.outputBlob));
-  return previewUrlCache.get(item.id)!;
+  const cached = previewUrlCache.get(item.id);
+  if (cached && cached.blob !== item.outputBlob) {
+    URL.revokeObjectURL(cached.url);
+    previewUrlCache.delete(item.id);
+  }
+  if (!previewUrlCache.has(item.id)) {
+    previewUrlCache.set(item.id, {
+      url: URL.createObjectURL(item.outputBlob),
+      blob: item.outputBlob,
+    });
+  }
+  return previewUrlCache.get(item.id)!.url;
 };
 
 const revokePreviewUrl = (id: string) => {
-  const url = previewUrlCache.get(id);
-  if (url) { URL.revokeObjectURL(url); previewUrlCache.delete(id); }
+  const entry = previewUrlCache.get(id);
+  if (entry) {
+    URL.revokeObjectURL(entry.url);
+    previewUrlCache.delete(id);
+  }
 };
 
 const revokeAllPreviewUrls = () => {
