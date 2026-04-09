@@ -22,11 +22,73 @@ type OutputItem = {
   };
 };
 
+// ---------------------------------------------------------------------------
+// Settings persistence — localStorage
+// ---------------------------------------------------------------------------
+const SETTINGS_KEY = "vidgrid_options";
+
+type SavedOptions = {
+  width: number;
+  cols: number;
+  rows: number;
+  spacing: number;
+  position: Position;
+  bgColor: string;
+  textColor: string;
+  header: boolean;
+  preview: boolean;
+};
+
+const saveOptions = (): void => {
+  try {
+    const opts: SavedOptions = {
+      width:     Number(els.width.value)   || 1600,
+      cols:      Number(els.cols.value)    || 4,
+      rows:      Number(els.rows.value)    || 3,
+      spacing:   Number(els.spacing.value) || 0,
+      position:  els.position.value as Position,
+      bgColor:   els.bgColor.value,
+      textColor: els.textColor.value,
+      header:    els.header.checked,
+      preview:   els.preview.checked,
+    };
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify(opts));
+    setStatus("✅ Options saved.");
+  } catch (e) {
+    setStatus("⚠️ Could not save options.");
+    console.warn("localStorage write failed:", e);
+  }
+};
+
+const loadOptions = (): SavedOptions | null => {
+  try {
+    const raw = localStorage.getItem(SETTINGS_KEY);
+    return raw ? (JSON.parse(raw) as SavedOptions) : null;
+  } catch {
+    return null;
+  }
+};
+
+const applyOptions = (opts: SavedOptions): void => {
+  els.width.value   = String(opts.width   ?? 1600);
+  els.cols.value    = String(opts.cols    ?? 4);
+  els.rows.value    = String(opts.rows    ?? 3);
+  els.spacing.value = String(opts.spacing ?? 0);
+  if (opts.position)  els.position.value  = opts.position;
+  if (opts.bgColor)  { els.bgColor.value    = opts.bgColor;   els.bgColorHex.textContent   = opts.bgColor; }
+  if (opts.textColor){ els.textColor.value  = opts.textColor; els.textColorHex.textContent = opts.textColor; }
+  els.header.checked  = opts.header  ?? true;
+  els.preview.checked = opts.preview ?? true;
+};
+
+// ---------------------------------------------------------------------------
+// FFmpeg — shared instance, loaded on demand
+// ---------------------------------------------------------------------------
 let ffmpeg: FFmpeg | null = null;
 let ffmpegLoadPromise: Promise<FFmpeg> | null = null;
 let currentFFmpegInputKey: string | null = null;
 
-const getFFmpeg = async () => {
+const getFFmpeg = async (): Promise<FFmpeg> => {
   if (ffmpeg) return ffmpeg;
 
   if (!ffmpegLoadPromise) {
@@ -41,176 +103,224 @@ const getFFmpeg = async () => {
   return ffmpegLoadPromise;
 };
 
-const prepareFFmpegInput = async (file: File) => {
-  const ff = await getFFmpeg();
+/**
+ * Fully tear down the FFmpeg instance and clear all cached state.
+ * Called on "Clear files" and available as a recovery path if ever needed.
+ * NOT called automatically on every error (that made batch processing slow).
+ */
+const resetFFmpeg = (): void => {
+  if (ffmpeg) {
+    try { ffmpeg.terminate(); } catch { /* already dead */ }
+    ffmpeg = null;
+  }
+  ffmpegLoadPromise     = null;
+  currentFFmpegInputKey = null;
+};
 
-  const inputKey = `${file.name}:${file.size}:${file.lastModified}`;
-  if (currentFFmpegInputKey !== inputKey) {
-    try { await ff.deleteFile("input.mp4"); } catch {}
+/** Returns true for WASM heap / OOM error messages. */
+const isMemoryError = (e: unknown): boolean =>
+  /out.of.bounds|memory|unreachable|OOM|heap|abort/i.test(
+    e instanceof Error ? e.message : String(e),
+  );
+
+const prepareFFmpegInput = async (file: File): Promise<FFmpeg> => {
+  const ff  = await getFFmpeg();
+  const key = `${file.name}:${file.size}:${file.lastModified}`;
+
+  if (currentFFmpegInputKey !== key) {
+    try { await ff.deleteFile("input.mp4"); } catch { /* ignore */ }
+    log(`  Writing "${file.name}" (${humanSize(file.size)}) into FFmpeg FS…`);
     await ff.writeFile("input.mp4", await fetchFile(file));
-    currentFFmpegInputKey = inputKey;
+    currentFFmpegInputKey = key;
+    log("  FFmpeg FS write complete.");
+  } else {
+    log("  Reusing cached FFmpeg FS entry.");
   }
 
   return ff;
 };
 
-const cleanupFFmpeg = async () => {
+const cleanupFFmpeg = async (): Promise<void> => {
   if (!ffmpeg) return;
-
-  try { await ffmpeg.deleteFile("input.mp4"); } catch {}
+  try { await ffmpeg.deleteFile("input.mp4"); } catch { /* ignore */ }
   currentFFmpegInputKey = null;
 };
 
-const extractFrameFFmpeg = async (
-  file: File,
-  time: number,
-  outputName: string,
-): Promise<ImageBitmap | null> => {
-  const ff = await prepareFFmpegInput(file);
+// ---------------------------------------------------------------------------
+// FFmpeg metadata extraction
+//
+// Optimisations vs the naive approach:
+//
+// 1. PARTIAL PROBE FIRST: slice only the first PROBE_BYTES of the file.
+//    Most containers (MP4, MKV, MOV) store the stream header at the start,
+//    so a 16 MB slice is enough for virtually all well-muxed files and takes
+//    milliseconds to copy into WASM instead of many seconds for a 3 GB file.
+//
+// 2. NO FULL DECODE: run `ffmpeg -i probe.mp4` with no output argument.
+//    FFmpeg prints stream info and exits with code 1 immediately, without
+//    decoding a single frame.  The old `-f null -` forced a complete decode
+//    of the entire file just to confirm its duration — completely wasteful.
+//
+// 3. CACHE REUSE: if the partial probe fails (moov-at-end MP4 or exotic
+//    container), we fall back to prepareFFmpegInput which writes the full
+//    file as "input.mp4" and caches it.  Any subsequent frame extraction
+//    on the same file then reuses that cache entry — no second full copy.
+// ---------------------------------------------------------------------------
+const PROBE_BYTES = 16 * 1024 * 1024; // 16 MB — sufficient for any normal header
 
-  try {
-    await ff.exec([
-      "-ss", String(time),
-      "-i", "input.mp4",
-      "-frames:v", "1",
-      "-q:v", "2",
-      "-loglevel", "error",
-      outputName,
-    ]);
-
-    const data = await ff.readFile(outputName) as Uint8Array;
-    const blob = new Blob([data], { type: "image/jpeg" });
-    return await createImageBitmap(blob);
-  } catch (e) {
-    console.error("FFmpeg extraction failed:", e);
-    return null;
-  }
-};
-
-const extractFramesFFmpegBatch = async (
-  file: File,
-  times: number[],
-): Promise<(ImageBitmap | null)[]> => {
-  const ff = await prepareFFmpegInput(file);
-
-  const outputs = times.map((_, i) => `frame_${i}.jpg`);
-
-  try {
-    for (const [i, t] of times.entries()) {
-      await ff.exec([
-        "-ss", String(t),
-        "-i", "input.mp4",
-        "-frames:v", "1",
-        "-q:v", "2",
-        outputs[i],
-      ]);
-    }
-  } catch (e) {
-    console.error("FFmpeg batch frame extraction failed:", e);
-    return outputs.map(() => null);
-  }
-
-  const bitmaps = await Promise.all(
-    outputs.map(async (name) => {
-      try {
-        const data = await ff.readFile(name);
-        const blob = new Blob([data], { type: "image/jpeg" });
-        return await createImageBitmap(blob);
-      } catch {
-        return null;
-      } finally {
-        try { await ff.deleteFile(name); } catch {}
-      }
-    }),
-  );
-
-  return bitmaps;
-};
-
-const hasUsableMetadata = (meta: {
-  duration: number; width: number; height: number; bitrate: number;
-}): boolean => {
-  return meta && meta.duration > 0 && meta.width > 0 && meta.height > 0;
-};
-
-const readMetadataFFmpeg = async (file: File, onProgress?: (pct: number, status: string) => void) => {
-  const ff = await prepareFFmpegInput(file);
-
-  let logs = "";
-  let totalDuration = 0;
-
-  const logHandler = ({ message }: { message: string }) => {
-    logs += message + "\n";
-    
-    if (message.includes("Opening")) {
-      onProgress?.(10, "Opening video file...");
-    }
-    if (message.includes("Probing")) {
-      onProgress?.(25, "Probing stream data...");
-    }
-    
-    const durationMatch = message.match(/Duration: (\d+):(\d+):(\d+\.\d+)/);
-    if (durationMatch) {
-      const [, h, m, s] = durationMatch;
-      totalDuration = (+h) * 3600 + (+m) * 60 + parseFloat(s);
-      onProgress?.(50, `Found duration: ${formatTime(totalDuration)}`);
-    }
-  };
-
-  const progressHandler = ({ progress, time }: { progress: number; time: number }) => {
-    const pct = Math.min(progress * 100, 95);
-    const timeSec = time / 1000000;
-    onProgress?.(pct, `Reading ${timeSec.toFixed(1)}s...`);
-  };
-
-  ff.on("log", logHandler);
-  ff.on("progress", progressHandler);
-
-  try {
-    await ff.exec(["-i", "input.mp4", "-f", "null", "-", "-loglevel", "info"]);
-  } catch {
-  } finally {
-    ff.off("log", logHandler);
-    ff.off("progress", progressHandler);
-  }
-
-  const durationMatch = logs.match(/Duration: (\d+):(\d+):(\d+\.\d+)/);
-  const resMatch = logs.match(/, (\d+)x(\d+)[, ]/);
-  const bitrateMatch = logs.match(/bitrate: (\d+) kb\/s/);
+const parseMetaFromLogs = (logs: string) => {
+  const durationMatch = logs.match(/Duration:\s*(\d+):(\d+):(\d+\.\d+)/);
+  const resMatch      = logs.match(/,\s*(\d+)x(\d+)[,\s]/);
+  const bitrateMatch  = logs.match(/bitrate:\s*(\d+)\s*kb\/s/);
 
   let duration = 0;
   if (durationMatch) {
     const [, h, m, s] = durationMatch;
     duration = (+h) * 3600 + (+m) * 60 + parseFloat(s);
   }
-
-  onProgress?.(100, "Metadata ready");
-
   return {
     duration,
-    width: resMatch ? parseInt(resMatch[1]) : 0,
-    height: resMatch ? parseInt(resMatch[2]) : 0,
+    width:   resMatch     ? parseInt(resMatch[1])     : 0,
+    height:  resMatch     ? parseInt(resMatch[2])     : 0,
     bitrate: bitrateMatch ? parseInt(bitrateMatch[1]) * 1000 : 0,
   };
 };
 
+const readMetadataFFmpeg = async (
+  file: File,
+  onProgress?: (pct: number, status: string) => void,
+) => {
+  const ff = await getFFmpeg();
+
+  // ── Phase 1: partial-file probe (fast path) ──────────────────────────────
+  onProgress?.(5, "Reading file header…");
+
+  const probeBlob = file.size > PROBE_BYTES ? file.slice(0, PROBE_BYTES) : file;
+  await ff.writeFile("probe.mp4", await fetchFile(probeBlob));
+  onProgress?.(20, "Parsing stream info…");
+
+  let logs = "";
+  const logHandler = ({ message }: { message: string }) => {
+    logs += message + "\n";
+
+    // Surface live progress during probing
+    const durationMatch = message.match(/Duration:\s*(\d+):(\d+):(\d+\.\d+)/);
+    if (durationMatch) {
+      const [, h, m, s] = durationMatch;
+      const dur = (+h) * 3600 + (+m) * 60 + parseFloat(s);
+      onProgress?.(50, `Found duration: ${formatTime(dur)}`);
+    }
+  };
+
+  ff.on("log", logHandler);
+  try {
+    // No output arg → FFmpeg prints stream info and exits 1 without decoding.
+    await ff.exec(["-i", "probe.mp4", "-loglevel", "info"]);
+  } catch { /* expected exit code 1 */ } finally {
+    ff.off("log", logHandler);
+    try { await ff.deleteFile("probe.mp4"); } catch { /* ignore */ }
+  }
+
+  const meta = parseMetaFromLogs(logs);
+  onProgress?.(60, "Stream info parsed");
+
+  if (hasUsableMetadata(meta)) {
+    onProgress?.(100, "Metadata ready");
+    return meta;
+  }
+
+  // ── Phase 2: fallback — full-file write (moov-at-end or exotic container) ─
+  warn("Partial probe insufficient; loading full file for metadata…");
+  onProgress?.(65, "Header incomplete — loading full file (may take a moment for large files)…");
+
+  // prepareFFmpegInput writes "input.mp4" and caches it, so any subsequent
+  // frame extraction won't copy the file a second time.
+  const ff2 = await prepareFFmpegInput(file);
+  onProgress?.(85, "Parsing full stream info…");
+
+  let logs2 = "";
+  const logHandler2 = ({ message }: { message: string }) => { logs2 += message + "\n"; };
+  ff2.on("log", logHandler2);
+  try {
+    await ff2.exec(["-i", "input.mp4", "-loglevel", "info"]);
+  } catch { /* expected */ } finally {
+    ff2.off("log", logHandler2);
+  }
+
+  onProgress?.(100, "Metadata ready");
+  return parseMetaFromLogs(logs2);
+};
+
+/**
+ * Extract ALL frames in one pass — prepareFFmpegInput is called once;
+ * subsequent calls for the same file are cache hits (no second full copy).
+ * Each frame has its own try/catch so one bad seek doesn't abort the rest.
+ */
+const extractFramesFFmpegBatch = async (
+  file: File,
+  times: number[],
+  onFrameExtracted?: (index: number, total: number, error?: string) => void,
+): Promise<(ImageBitmap | null)[]> => {
+  const ff      = await prepareFFmpegInput(file);
+  const outputs = times.map((_, i) => `frame_${i}.jpg`);
+  const results: (ImageBitmap | null)[] = new Array(times.length).fill(null);
+
+  for (let i = 0; i < times.length; i++) {
+    const t    = times[i];
+    const name = outputs[i];
+    log(`  [FFmpeg] Frame ${i + 1}/${times.length} at t=${t.toFixed(3)}s`);
+    try {
+      await ff.exec([
+        "-ss", String(t),
+        "-i", "input.mp4",
+        "-frames:v", "1",
+        "-q:v", "1",
+        "-loglevel", "error",
+        name,
+      ]);
+      const data = await ff.readFile(name);
+      const blob = new Blob([data], { type: "image/jpeg" });
+      results[i] = await createImageBitmap(blob);
+      onFrameExtracted?.(i, times.length);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      errlog(`  [FFmpeg] Frame ${i + 1} failed:`, msg);
+      onFrameExtracted?.(i, times.length, msg);
+    } finally {
+      try { await ff.deleteFile(name); } catch { /* ignore */ }
+    }
+  }
+
+  return results;
+};
+
+const hasUsableMetadata = (meta: {
+  duration: number; width: number; height: number; bitrate: number;
+}): boolean => meta != null && meta.duration > 0 && meta.width > 0 && meta.height > 0;
+
+// ---------------------------------------------------------------------------
+// Header constants — match Python VidGrid defaults
+// ---------------------------------------------------------------------------
 const HEADER_HEIGHT       = 160;
 const HEADER_PADDING_LEFT = 12;
 const HEADER_TEXT_SIZE    = 24;
 const HEADER_LINE_SPACING = 26;
 
-const DEBUG = true;
+const DEBUG  = true;
 const log    = (...a: unknown[]) => DEBUG && console.log("[VidGrid]", ...a);
 const warn   = (...a: unknown[]) => DEBUG && console.warn("[VidGrid]", ...a);
 const errlog = (...a: unknown[]) => DEBUG && console.error("[VidGrid]", ...a);
 
+// ---------------------------------------------------------------------------
+// DOM
+// ---------------------------------------------------------------------------
 const app = document.querySelector<HTMLDivElement>("#app");
 if (!app) throw new Error("App root not found");
 
 app.innerHTML = `
   <main class="app-shell">
     <header class="app-header">
-      <div class="brand-mark" aria-hidden="true"></div>
+      <div class="brand-mark" aria-hidden="true"><img src="public/favicon.svg" alt="Logo" /></div>
       <div>
         <h1>VidGrid-HTML</h1>
         <p class="subtitle">Client-side JPG thumbnail grid generator</p>
@@ -281,9 +391,11 @@ app.innerHTML = `
         </label>
 
         <div class="actions">
-          <button id="start" class="primary">Start Processing</button>
-          <button id="cancel">Cancel Current Processing</button>
-          <button id="clear">Clear Selected Files</button>
+          <button id="start"    class="primary">▶️ Start Processing</button>
+          <button id="cancel">⏹️ Cancel</button>
+          <button id="clear">🗑️ Clear Files</button>
+          <button id="saveOpts">💾 Save Options</button>
+          <button id="loadOpts">↩️ Restore Saved Options</button>
         </div>
       </div>
 
@@ -327,7 +439,7 @@ app.innerHTML = `
           position:absolute;top:10px;right:10px;z-index:2;
           border-radius:999px;padding:6px 10px;border:0;cursor:pointer;
           background:rgba(15,23,42,0.85);color:#e2e8f0;font-size:0.8rem;
-        ">Close</button>
+        ">✕ Close</button>
         <img id="previewModalImg" src="" alt="Preview"
              style="display:block;max-width:100%;max-height:100%;" />
       </div>
@@ -351,6 +463,8 @@ const els = {
   start:           document.querySelector<HTMLButtonElement>("#start")!,
   cancel:          document.querySelector<HTMLButtonElement>("#cancel")!,
   clear:           document.querySelector<HTMLButtonElement>("#clear")!,
+  saveOpts:        document.querySelector<HTMLButtonElement>("#saveOpts")!,
+  loadOpts:        document.querySelector<HTMLButtonElement>("#loadOpts")!,
   currentPct:      document.querySelector<HTMLSpanElement>("#currentPct")!,
   batchPct:        document.querySelector<HTMLSpanElement>("#batchPct")!,
   currentProgress: document.querySelector<HTMLProgressElement>("#currentProgress")!,
@@ -370,9 +484,15 @@ const syncColorHex = (input: HTMLInputElement, label: HTMLSpanElement) => {
 syncColorHex(els.bgColor,   els.bgColorHex);
 syncColorHex(els.textColor, els.textColorHex);
 
+// Auto-load saved options on startup (silent — no status message)
+{
+  const saved = loadOptions();
+  if (saved) applyOptions(saved);
+}
+
 const selectedFiles: File[] = [];
 const results = new Map<string, OutputItem>();
-let isProcessing  = false;
+let isProcessing    = false;
 let cancelRequested = false;
 
 // ---------------------------------------------------------------------------
@@ -389,7 +509,7 @@ const getOrCreatePreviewUrl = (item: OutputItem): string | null => {
   }
   if (!previewUrlCache.has(item.id)) {
     previewUrlCache.set(item.id, {
-      url: URL.createObjectURL(item.outputBlob),
+      url:  URL.createObjectURL(item.outputBlob),
       blob: item.outputBlob,
     });
   }
@@ -398,10 +518,7 @@ const getOrCreatePreviewUrl = (item: OutputItem): string | null => {
 
 const revokePreviewUrl = (id: string) => {
   const entry = previewUrlCache.get(id);
-  if (entry) {
-    URL.revokeObjectURL(entry.url);
-    previewUrlCache.delete(id);
-  }
+  if (entry) { URL.revokeObjectURL(entry.url); previewUrlCache.delete(id); }
 };
 
 const revokeAllPreviewUrls = () => {
@@ -422,9 +539,9 @@ const humanSize = (bytes: number) => {
 
 const formatTime = (seconds: number) => {
   if (!Number.isFinite(seconds) || seconds < 0) return "00:00:00";
-  const h  = Math.floor(seconds / 3600);
-  const m  = Math.floor((seconds % 3600) / 60);
-  const s  = Math.floor(seconds % 60);
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = Math.floor(seconds % 60);
   const pad = (n: number) => String(n).padStart(2, "0");
   return `${pad(h)}:${pad(m)}:${pad(s)}`;
 };
@@ -435,17 +552,17 @@ const safeName = (name: string) =>
 const makeId = () => crypto.randomUUID();
 
 // ---------------------------------------------------------------------------
-// Metadata via <video> element (unchanged — fast, no full-file load)
+// Native metadata via <video> element — fast, no file copy
 // ---------------------------------------------------------------------------
 const readMetadata = async (file: File) => {
   const objectURL = URL.createObjectURL(file);
   return new Promise<{ duration: number; width: number; height: number; bitrate: number }>((resolve) => {
     const video = document.createElement("video");
-    video.preload  = "metadata";
-    video.muted    = true;
+    video.preload     = "metadata";
+    video.muted       = true;
     video.playsInline = true;
-    video.src      = objectURL;
-    const cleanup  = () => {
+    video.src         = objectURL;
+    const cleanup = () => {
       video.removeAttribute("src");
       video.load();
       setTimeout(() => URL.revokeObjectURL(objectURL), 250);
@@ -460,17 +577,15 @@ const readMetadata = async (file: File) => {
       });
       cleanup();
     };
-    video.onerror = () => { 
+    video.onerror = () => {
       cleanup();
-      resolve({ duration: 0, width: 0, height: 0, bitrate: 0 }); };
+      resolve({ duration: 0, width: 0, height: 0, bitrate: 0 });
+    };
   });
 };
 
 // ---------------------------------------------------------------------------
-// Native video seeking – no FFmpeg, no full-file copy
-//
-// seekVideo(video, t) sets currentTime and resolves when the browser has
-// decoded the frame at that timestamp.  A per-frame timeout catches stalls.
+// Native video seeking
 // ---------------------------------------------------------------------------
 const SEEK_TIMEOUT_MS = 10_000;
 
@@ -481,11 +596,7 @@ const seekVideo = (video: HTMLVideoElement, t: number): Promise<void> =>
       reject(new Error(`Seek timeout at ${t.toFixed(3)}s`));
     }, SEEK_TIMEOUT_MS);
 
-    const onSeeked = () => {
-      clearTimeout(tid);
-      resolve();
-    };
-
+    const onSeeked = () => { clearTimeout(tid); resolve(); };
     video.addEventListener("seeked", onSeeked, { once: true });
     video.currentTime = t;
   });
@@ -493,26 +604,24 @@ const seekVideo = (video: HTMLVideoElement, t: number): Promise<void> =>
 // ---------------------------------------------------------------------------
 // Grid generation
 //
-// Uses the browser's <video> element for frame seeking — the browser reads
-// only the keyframes it needs, using hardware decoding. No file is loaded
-// into WASM/JS memory. This is equivalent to Python's `ffmpeg -ss <t> -i`.
-//
-// onFrameDone(frameIndex, totalFrames, timestampSec) fires after every frame.
+// onFrameDone  — called after every frame (drives progress bar + status)
+// onWarning    — called when something non-fatal goes wrong (shown to user)
 // ---------------------------------------------------------------------------
 const createGridJpg = async (
   file: File,
   meta: { duration: number; width: number; height: number; bitrate: number },
   opts: {
-    width:    number;
-    cols:     number;
-    rows:     number;
-    spacing:  number;
-    position: Position;
-    header:   boolean;
-    bgColor:  string;
-    textColor:string;
+    width:     number;
+    cols:      number;
+    rows:      number;
+    spacing:   number;
+    position:  Position;
+    header:    boolean;
+    bgColor:   string;
+    textColor: string;
   },
   onFrameDone: (frameIndex: number, totalFrames: number, timestampSec: number) => void,
+  onWarning:   (message: string) => void,
 ) => {
   const totalWidth = Math.max(240, opts.width);
   const cols       = Math.max(1, opts.cols);
@@ -521,7 +630,6 @@ const createGridJpg = async (
   const total      = cols * rows;
   const duration   = Math.max(1, meta.duration || 1);
 
-  // Cell dimensions — spacing shrinks cells so total width is always respected.
   const cellWidth  = Math.floor((totalWidth - spacing * (cols - 1)) / cols);
   const aspect     = meta.width > 0 && meta.height > 0 ? meta.height / meta.width : 9 / 16;
   const cellHeight = Math.max(1, Math.floor(cellWidth * aspect));
@@ -535,24 +643,15 @@ const createGridJpg = async (
   canvas.height = canvasHeight;
   const ctx = canvas.getContext("2d")!;
 
-  // Fill entire canvas with background colour.
   ctx.fillStyle = opts.bgColor;
   ctx.fillRect(0, 0, canvasWidth, canvasHeight);
 
-  // ── Header ──────────────────────────────────────────────────────────────
-  // Matches the Python VidGrid create_header() defaults:
-  //   background: black (already filled above)
-  //   font: 24px, white
-  //   lines: Filename / Size / Resolution / Duration / Bitrate
-  //   x = HEADER_PADDING_LEFT (12), y starts at HEADER_PADDING_LEFT (12)
-  //   line spacing = HEADER_LINE_SPACING (26)
+  // ── Header ───────────────────────────────────────────────────────────────
   if (opts.header) {
-    // Black header background (even if bgColor differs for the frame area)
-    ctx.fillStyle = opts.bgColor;
+    ctx.fillStyle    = opts.bgColor;
     ctx.fillRect(0, 0, canvasWidth, headerHeight);
-
-    ctx.fillStyle  = opts.textColor;
-    ctx.font       = `${HEADER_TEXT_SIZE}px system-ui, Arial, sans-serif`;
+    ctx.fillStyle    = opts.textColor;
+    ctx.font         = `${HEADER_TEXT_SIZE}px system-ui, Arial, sans-serif`;
     ctx.textBaseline = "top";
 
     const infoLines = [
@@ -567,7 +666,6 @@ const createGridJpg = async (
     let yPos = HEADER_PADDING_LEFT;
 
     for (const line of infoLines) {
-      // Truncate with ellipsis if too wide (mirrors draw_single_line_text)
       let displayLine = line;
       if (ctx.measureText(displayLine).width > maxTextWidth) {
         while (displayLine.length > 0 && ctx.measureText(displayLine + "…").width > maxTextWidth)
@@ -577,26 +675,23 @@ const createGridJpg = async (
       ctx.fillText(displayLine, HEADER_PADDING_LEFT, yPos);
       yPos += HEADER_LINE_SPACING;
     }
-
     ctx.textBaseline = "alphabetic";
   }
 
   // ── Sample timestamps ────────────────────────────────────────────────────
-  //   margin = max(0.5, duration * 0.02)
-  //   t = margin + (usable_duration * (i + 0.5) / total_slots)
-  const margin   = Math.max(0.5, duration * 0.02);
-  const usable   = Math.max(duration - 2 * margin, 0.1);
-  const times    = Array.from({ length: total }, (_, i) =>
-    Math.min(Math.max(0, margin + usable * ((i + 0.5) / total)), duration)
+  const margin = Math.max(0.5, duration * 0.02);
+  const usable = Math.max(duration - 2 * margin, 0.1);
+  const times  = Array.from({ length: total }, (_, i) =>
+    Math.min(Math.max(0, margin + usable * ((i + 0.5) / total)), duration),
   );
 
-  // ── Open the video for seeking (browser streams only what it needs) ──────
+  // ── Open <video> for native seeking ─────────────────────────────────────
   const videoUrl = URL.createObjectURL(file);
   const video    = document.createElement("video");
-  video.muted        = true;
-  video.playsInline  = true;
-  video.preload      = "metadata";
-  video.src          = videoUrl;
+  video.muted       = true;
+  video.playsInline = true;
+  video.preload     = "metadata";
+  video.src         = videoUrl;
 
   const videoCleanup = () => {
     video.removeAttribute("src");
@@ -604,17 +699,17 @@ const createGridJpg = async (
     URL.revokeObjectURL(videoUrl);
   };
 
-  // Wait for the browser to be ready to seek (very fast — metadata only).
   let videoUsable = true;
-
   try {
     await new Promise<void>((resolve, reject) => {
       const tid = setTimeout(() => reject(new Error("Video open timeout")), 15_000);
-      video.addEventListener("loadedmetadata", () => { clearTimeout(tid);  resolve(); }, { once: true });
-      video.addEventListener("error",           () => {  clearTimeout(tid); reject(new Error("Video failed to open")); }, { once: true });
+      video.addEventListener("loadedmetadata", () => { clearTimeout(tid); resolve(); }, { once: true });
+      video.addEventListener("error",          () => { clearTimeout(tid); reject(new Error("Video failed to open")); }, { once: true });
     });
   } catch (e) {
-    warn("Video element failed → switching to FFmpeg mode", e);
+    const msg = e instanceof Error ? e.message : String(e);
+    warn(`Native video failed (${msg}), switching to FFmpeg`);
+    onWarning(`Native decoder unavailable (${msg}) — using FFmpeg fallback`);
     videoUsable = false;
   }
 
@@ -626,7 +721,26 @@ const createGridJpg = async (
     "bottom-right": { x: "right", y: "bottom" },
   };
   const pos = posMap[opts.position];
-  let nativeFailedCount = 0;
+
+  // FFmpeg batch results — extracted once on first need, reused per frame.
+  // BUG FIX: the previous code called extractFramesFFmpegBatch() inside the
+  // loop, triggering a full file copy + all seeks on every iteration.
+  let ffmpegBitmaps: (ImageBitmap | null)[] | null = null;
+  let ffmpegFailedFrames = 0;
+
+  const ensureFFmpegBitmaps = async (): Promise<void> => {
+    if (ffmpegBitmaps !== null) return;
+    log(`  Switching to FFmpeg batch extraction for all ${total} frames…`);
+    ffmpegBitmaps = await extractFramesFFmpegBatch(file, times, (idx, _total, err) => {
+      if (err) {
+        ffmpegFailedFrames++;
+        onWarning(`FFmpeg frame ${idx + 1}/${total} failed: ${err}`);
+        if (ffmpegFailedFrames > 2) {
+          throw new Error("FFmpeg decoding failed repeatedly — likely OOM or unsupported codec.");
+        }
+      }
+    });
+  };
 
   for (let i = 0; i < times.length; i++) {
     if (cancelRequested) break;
@@ -637,105 +751,92 @@ const createGridJpg = async (
     const x    = col * (cellWidth  + spacing);
     const y    = headerHeight + row * (cellHeight + spacing);
 
-    log(`  Frame ${i + 1}/${total} — seeking to ${formatTime(tSec)} (${tSec.toFixed(3)}s) from "${file.name}"`);
+    log(`  Frame ${i + 1}/${total} — t=${tSec.toFixed(3)}s (${formatTime(tSec)}) from "${file.name}"`);
 
-    try {
-      if (videoUsable) {
-        try {
-          await seekVideo(video, tSec);
-          ctx.drawImage(video, x, y, cellWidth, cellHeight);
-        } catch {
-          videoUsable = false;
-        }
-      }
-      if (!videoUsable) {
-        const bitmaps = await extractFramesFFmpegBatch(file, times);
+    let frameDrawn = false;
 
-        for (let i = 0; i < times.length; i++) {
-          const col = i % cols;
-          const row = Math.floor(i / cols);
-          const x = col * (cellWidth + spacing);
-          const y = headerHeight + row * (cellHeight + spacing);
-
-          const bitmap = bitmaps[i];
-          if (bitmap) {
-            ctx.drawImage(bitmap, x, y, cellWidth, cellHeight);
-            bitmap.close();
-          }
-        }
-      }
-
-      // Timecode overlay (semi-transparent background pill)
-      const label     = formatTime(tSec);
-      const tcFontSz  = Math.max(11, Math.round(totalWidth * 0.012));
-      ctx.font        = `${tcFontSz}px system-ui, Arial, sans-serif`;
-      ctx.textBaseline = "top";
-      const textW     = ctx.measureText(label).width;
-      const pad       = 6;
-      const bgW       = textW + pad * 2;
-      const bgH       = tcFontSz + pad * 2;
-      const bgX       = pos.x === "left"
-        ? x + pad
-        : x + cellWidth - bgW - pad;
-      const bgY       = pos.y === "top"
-        ? y + pad
-        : y + cellHeight - bgH - pad;
-
-      ctx.fillStyle = "rgba(0,0,0,0.6)";
-      ctx.fillRect(bgX, bgY, bgW, bgH);
-      ctx.fillStyle = "#ffffff";
-      ctx.fillText(label, bgX + pad, bgY + pad);
-      ctx.textBaseline = "alphabetic";
-
-    } catch (frameErr) {
-      nativeFailedCount++;
-      errlog(`  Frame ${i + 1}/${total} FAILED at t=${tSec.toFixed(3)}s → fallback to FFmpeg`, frameErr);
-
+    // ── Native path ──────────────────────────────────────────────────────
+    if (videoUsable) {
       try {
-        // 🔁 Fallback
-        const outputName = `frame-${i}.jpg`;
-        const bitmap = await extractFrameFFmpeg(file, tSec, outputName);
-
-        if (bitmap) {
-          ctx.drawImage(bitmap, x, y, cellWidth, cellHeight);
-          bitmap.close();
-        } else {
-          throw new Error("FFmpeg returned null");
-        }
-
-      } catch (ffErr) {
-        errlog(`FFmpeg also failed:`, ffErr);
-
-        // ❌ Final fallback
-        ctx.fillStyle = opts.bgColor;
-        ctx.fillRect(x, y, cellWidth, cellHeight);
-
-        ctx.fillStyle = "#555";
-        ctx.font = "18px system-ui";
-        ctx.textAlign = "center";
-        ctx.textBaseline = "middle";
-        ctx.fillText("FAILED", x + cellWidth / 2, y + cellHeight / 2);
-
-        ctx.textAlign = "left";
-        ctx.textBaseline = "alphabetic";
+        await seekVideo(video, tSec);
+        ctx.drawImage(video, x, y, cellWidth, cellHeight);
+        frameDrawn = true;
+      } catch (seekErr) {
+        const msg = seekErr instanceof Error ? seekErr.message : String(seekErr);
+        warn(`  Native seek failed at frame ${i + 1}: ${msg}`);
+        onWarning(`Native seek failed at frame ${i + 1} (${msg}) — switching to FFmpeg`);
+        videoUsable = false;
       }
     }
 
-    onFrameDone(i + 1, total, tSec);
+    // ── FFmpeg path ──────────────────────────────────────────────────────
+    if (!videoUsable) {
+      try {
+        await ensureFFmpegBitmaps();
+        const bitmap = ffmpegBitmaps![i];
+        if (bitmap) {
+          ctx.drawImage(bitmap, x, y, cellWidth, cellHeight);
+          bitmap.close();
+          ffmpegBitmaps![i] = null;
+          frameDrawn = true;
+        } else {
+          onWarning(`FFmpeg returned no image for frame ${i + 1} — cell left blank`);
+        }
+      } catch (ffErr) {
+        const msg = ffErr instanceof Error ? ffErr.message : String(ffErr);
+        errlog(`  FFmpeg frame ${i + 1} error:`, msg);
+        onWarning(`FFmpeg error at frame ${i + 1}: ${msg}`);
+        // Surface OOM errors prominently
+        if (isMemoryError(ffErr)) {
+          onWarning(`⚠️ Out of memory at frame ${i + 1}. Try reducing output width, columns, or rows.`);
+        }
+      }
+    }
 
+    // Error placeholder if both paths failed
+    if (!frameDrawn) {
+      ctx.fillStyle    = opts.bgColor;
+      ctx.fillRect(x, y, cellWidth, cellHeight);
+      ctx.fillStyle    = "#555";
+      ctx.font         = "18px system-ui";
+      ctx.textAlign    = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText("FAILED", x + cellWidth / 2, y + cellHeight / 2);
+      ctx.textAlign    = "left";
+      ctx.textBaseline = "alphabetic";
+    }
+
+    // ── Timecode overlay ─────────────────────────────────────────────────
+    const label    = formatTime(tSec);
+    const tcFontSz = Math.max(11, Math.round(totalWidth * 0.012));
+    ctx.font        = `${tcFontSz}px system-ui, Arial, sans-serif`;
+    ctx.textBaseline = "top";
+    const textW    = ctx.measureText(label).width;
+    const pad      = 6;
+    const bgW      = textW + pad * 2;
+    const bgH      = tcFontSz + pad * 2;
+    const bgX      = pos.x === "left" ? x + pad : x + cellWidth  - bgW - pad;
+    const bgY      = pos.y === "top"  ? y + pad : y + cellHeight - bgH - pad;
+
+    ctx.fillStyle = "rgba(0,0,0,0.6)";
+    ctx.fillRect(bgX, bgY, bgW, bgH);
+    ctx.fillStyle = "#ffffff";
+    ctx.fillText(label, bgX + pad, bgY + pad);
+    ctx.textBaseline = "alphabetic";
+
+    onFrameDone(i + 1, total, tSec);
     await new Promise<void>((r) => requestAnimationFrame(() => r()));
   }
 
   videoCleanup();
   await cleanupFFmpeg();
-  
-  // Encode output JPEG.
+  resetFFmpeg();
+
   const outputName = `${safeName(file.name)}.jpg`;
   const jpgBlob = await new Promise<Blob>((resolve) => {
     canvas.toBlob((b) => resolve(b ?? new Blob()), "image/jpeg", 0.95);
   });
 
-  // Free canvas pixel buffer — we only need the blob now.
   canvas.width  = 0;
   canvas.height = 0;
 
@@ -782,7 +883,7 @@ const renderOutputs = () => {
     return `
       <article class="output-card output-${item.status}">
         <div class="output-top">
-          <div>
+          <div class="output-top-text">
             <h3>${item.file.name}</h3>
             ${item.warning ? `<p class="warning">${item.warning}</p>` : ""}
             <p class="small">${details.join("<br />")}</p>
@@ -792,7 +893,7 @@ const renderOutputs = () => {
         <div class="output-grid">
           <div class="output-preview">
             ${previewUrl
-              ? `<img data-preview-url="${previewUrl}" alt="Preview for ${item.file.name}" width="240" />`
+              ? `<img data-preview-url="${previewUrl}" alt="Preview for ${item.file.name}" />`
               : `<div class="preview-placeholder">${els.preview.checked ? "No preview" : "Preview off"}</div>`
             }
           </div>
@@ -803,7 +904,7 @@ const renderOutputs = () => {
             ${item.error ? `<p class="error">${item.error}</p>` : ""}
             <div class="download-row">
               ${item.status === "done" && item.outputBlob && item.outputName
-                ? `<button class="button-link" data-download-id="${item.id}">Download JPG</button>`
+                ? `<button class="button-link" data-download-id="${item.id}">⬇️ Download JPG</button>`
                 : `<span class="muted">No download</span>`
               }
             </div>
@@ -845,7 +946,9 @@ const closePreviewModal = () => {
   els.previewModalImg.src = "";
 };
 els.previewClose.addEventListener("click", closePreviewModal);
-els.previewModal.addEventListener("click", (e) => { if (e.target === els.previewModal) closePreviewModal(); });
+els.previewModal.addEventListener("click", (e) => {
+  if (e.target === els.previewModal) closePreviewModal();
+});
 window.addEventListener("keydown", (e) => {
   if (e.key === "Escape" && els.previewModal.style.display === "flex") closePreviewModal();
 });
@@ -854,7 +957,7 @@ window.addEventListener("keydown", (e) => {
 // File queueing
 // ---------------------------------------------------------------------------
 const addFile = async (file: File) => {
-  const id = makeId();
+  const id   = makeId();
   const item: OutputItem = { id, file, status: "queued" };
   results.set(id, item);
   renderOutputs();
@@ -863,8 +966,8 @@ const addFile = async (file: File) => {
   item.metadata = meta;
 
   if (!hasUsableMetadata(meta)) {
-    item.warning = "No native metadata - will use slower FFmpeg processing";
-    console.log(`Early warning for ${file.name}: native metadata unusable`);
+    item.warning = "Native metadata unavailable — will use FFmpeg fallback (it might be slow)";
+    log(`Early warning for ${file.name}: native metadata unusable`);
   }
   renderOutputs();
 };
@@ -875,7 +978,7 @@ const queueSelectedFiles = async () => {
   selectedFiles.splice(0, selectedFiles.length, ...files);
   results.clear();
   for (const file of selectedFiles) await addFile(file);
-  setStatus(`${selectedFiles.length} file(s) selected and queued. Press "Start processing" when you're ready.`);
+  setStatus(`${selectedFiles.length} file(s) queued. Press ▶️ Start Processing when ready.`);
   renderOutputs();
 };
 
@@ -883,7 +986,6 @@ const queueSelectedFiles = async () => {
 // Main processing loop
 // ---------------------------------------------------------------------------
 const processAll = async () => {
-  
   if (isProcessing) return;
   if (!selectedFiles.length) { setStatus("Please select at least one video file."); return; }
 
@@ -915,8 +1017,9 @@ const processAll = async () => {
         continue;
       }
 
-      item.status = "processing";
-      item.error  = undefined;
+      item.status  = "processing";
+      item.error   = undefined;
+      item.warning = undefined;
       renderOutputs();
       updateCurrentProgress(0);
       setStatus(`"${item.file.name}" — opening…`);
@@ -927,16 +1030,22 @@ const processAll = async () => {
         setStatus(`"${item.file.name}" — frame ${frameIdx}/${totalFrames} @ ${formatTime(tSec)}`);
       };
 
+      // Surface non-fatal warnings from createGridJpg into item.warning
+      // so they appear in the output card and remain visible after processing.
+      const onWarning = (message: string) => {
+        item.warning = message;
+        renderOutputs();
+        warn(`[${item.file.name}] ${message}`);
+      };
+
       try {
         let meta = item.metadata ?? (await readMetadata(item.file));
 
         if (!hasUsableMetadata(meta)) {
-          if (!item.warning) {
-            item.warning = "Switching to slower FFmpeg processing";
-            renderOutputs();
-          }
-          
-          setStatus(`"${item.file.name}" — reading metadata via FFmpeg...`);
+          item.warning = "Switching to FFmpeg metadata extraction…";
+          renderOutputs();
+
+          setStatus(`"${item.file.name}" — reading metadata via FFmpeg…`);
           const ffMeta = await readMetadataFFmpeg(item.file, (pct, msg) => {
             updateCurrentProgress(pct);
             setStatus(`"${item.file.name}" — ${msg}`);
@@ -944,32 +1053,32 @@ const processAll = async () => {
 
           meta = {
             duration: meta.duration || ffMeta.duration,
-            width: meta.width || ffMeta.width,
-            height: meta.height || ffMeta.height,
-            bitrate: meta.bitrate || ffMeta.bitrate,
+            width:    meta.width    || ffMeta.width,
+            height:   meta.height   || ffMeta.height,
+            bitrate:  meta.bitrate  || ffMeta.bitrate,
           };
-          
+
           if (!hasUsableMetadata(meta)) {
-            throw new Error("Both native and FFmpeg metadata failed");
+            throw new Error("Both native and FFmpeg metadata extraction failed");
           }
         }
 
         item.metadata = meta;
-        item.warning = undefined;  // Clear on success
         renderOutputs();
 
         const res = await createGridJpg(
-          item.file,
-          meta,
+          item.file, meta,
           { width, cols, rows, spacing, position, header, bgColor, textColor },
           onFrameDone,
+          onWarning,
         );
 
         item.outputName = res.outputName;
         item.outputSize = res.outputSize;
         item.outputBlob = res.outputBlob;
         item.status     = cancelRequested ? "cancelled" : "done";
-        if (item.status === "done") { item.warning = undefined }
+        // Keep warning visible after completion if there were issues
+        if (item.status === "done" && !item.warning) item.warning = undefined;
         item.error      = undefined;
 
         log(`Finished "${item.file.name}" → ${humanSize(res.outputSize)}`);
@@ -1016,15 +1125,28 @@ els.cancel.addEventListener("click", () => {
 els.clear.addEventListener("click", () => {
   if (isProcessing) return;
   revokeAllPreviewUrls();
+  resetFFmpeg(); // full teardown on clear — fine here since user is starting fresh
   selectedFiles.splice(0, selectedFiles.length);
   results.clear();
-  els.files.value          = "";
-  els.currentPct.textContent  = "0%";
-  els.batchPct.textContent    = "0%";
-  els.currentProgress.value   = 0;
-  els.batchProgress.value     = 0;
+  els.files.value            = "";
+  els.currentPct.textContent = "0%";
+  els.batchPct.textContent   = "0%";
+  els.currentProgress.value  = 0;
+  els.batchProgress.value    = 0;
   setStatus("Selection cleared.");
   renderOutputs();
+});
+
+els.saveOpts.addEventListener("click", () => saveOptions());
+
+els.loadOpts.addEventListener("click", () => {
+  const saved = loadOptions();
+  if (saved) {
+    applyOptions(saved);
+    setStatus("↩️ Saved options restored.");
+  } else {
+    setStatus("⚠️ No saved options found.");
+  }
 });
 
 // ---------------------------------------------------------------------------

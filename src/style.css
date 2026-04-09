@@ -58,32 +58,10 @@ body {
   height: 56px;
   position: relative;
   overflow: hidden;
-  border-radius: 16px;
+  border-radius: 10px;
   background: linear-gradient(180deg, var(--grid), rgba(15, 23, 42, 0.95));
   border: 1px solid rgba(130, 213, 253, 0.18);
-}
-
-.brand-mark::before {
-  content: "";
-  position: absolute;
-  inset: 12px;
-  border-radius: 10px;
-  background:
-    linear-gradient(90deg, var(--grid) 0 45%, transparent 45% 55%, var(--grid) 55% 100%),
-    linear-gradient(180deg, var(--grid) 0 45%, transparent 45% 55%, var(--grid) 55% 100%);
-  opacity: 0.95;
-}
-
-.brand-mark::after {
-  content: "";
-  position: absolute;
-  left: 22px;
-  top: 17px;
-  width: 0;
-  height: 0;
-  border-left: 16px solid var(--accent);
-  border-top: 11px solid transparent;
-  border-bottom: 11px solid transparent;
+  flex-shrink: 0;
 }
 
 h1,
@@ -108,6 +86,8 @@ h1 {
   border-radius: 24px;
   box-shadow: var(--shadow);
   padding: 24px 28px;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .controls {
@@ -116,10 +96,12 @@ h1 {
   gap: 16px;
 }
 
+/* Every grid child must declare min-width: 0 to participate in shrinking */
 .field,
 .check {
   display: grid;
   gap: 8px;
+  min-width: 0;
 }
 
 .field span,
@@ -139,6 +121,22 @@ h1 {
   color: var(--text);
   padding: 12px 14px;
   outline: none;
+  min-width: 0;
+}
+
+/* File input: constrain to its grid cell and clip the browser-rendered filename */
+.field input[type="file"] {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  min-width: 0;
+  overflow: hidden;
+  border-radius: 12px;
+  border: 1px solid rgba(130, 213, 253, 0.18);
+  background: rgba(8, 17, 31, 0.7);
+  color: var(--text);
+  padding: 10px 14px;
+  cursor: pointer;
 }
 
 /* ── Colour picker row ── */
@@ -146,6 +144,7 @@ h1 {
   display: flex;
   align-items: center;
   gap: 10px;
+  min-width: 0;
 }
 
 .field input[type="color"] {
@@ -164,6 +163,10 @@ h1 {
   color: var(--muted);
   font-variant-numeric: tabular-nums;
   letter-spacing: 0.05em;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .check {
@@ -196,6 +199,8 @@ button,
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  gap: 6px;
+  white-space: nowrap;
 }
 
 button.primary,
@@ -208,6 +213,20 @@ button:not(.primary) {
   background: rgba(8, 17, 31, 0.7);
   color: var(--text);
   border: 1px solid rgba(130, 213, 253, 0.18);
+}
+
+/* Settings buttons are slightly more muted */
+#saveOpts,
+#loadOpts {
+  border-color: rgba(130, 213, 253, 0.1);
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+#saveOpts:hover,
+#loadOpts:hover {
+  color: var(--text);
+  border-color: rgba(130, 213, 253, 0.25);
 }
 
 button:disabled {
@@ -249,12 +268,16 @@ progress::-webkit-progress-value {
   border-radius: 999px;
 }
 
+/* Status and warning: always wrap, never truncate */
 .status {
   color: var(--text);
   background: rgba(8, 17, 31, 0.55);
   border: 1px solid rgba(130, 213, 253, 0.18);
   border-radius: 16px;
   padding: 14px 16px;
+  overflow-wrap: break-word;
+  word-break: break-word;
+  white-space: normal;
 }
 
 .warning {
@@ -264,7 +287,11 @@ progress::-webkit-progress-value {
   border-radius: 4px;
   padding: 4px 8px;
   margin: 4px 0;
+  overflow-wrap: break-word;
+  word-break: break-word;
+  white-space: normal;
 }
+
 .output-card:has(.warning) .badge {
   color: #000000;
   background: #ffb800;
@@ -280,6 +307,7 @@ progress::-webkit-progress-value {
   padding: 24px 0;
 }
 
+/* min-width: 0 prevents the card from ever growing past its grid column */
 .output-card {
   background: rgba(8, 17, 31, 0.56);
   border: 1px solid rgba(130, 213, 253, 0.16);
@@ -287,40 +315,61 @@ progress::-webkit-progress-value {
   padding: 18px;
   display: grid;
   gap: 16px;
+  min-width: 0;
+  overflow: hidden;
 }
 
+/* ── Output top row (title + badge) ─────────────────────────────────────
+   .output-top-text takes all space but can shrink to zero.
+   .badge never shrinks and is always visible.                           */
 .output-top {
   display: flex;
   justify-content: space-between;
+  align-items: flex-start;
   gap: 12px;
-  align-items: start;
+  min-width: 0;
+}
+
+.output-top-text {
+  flex: 1 1 0;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .output-top h3 {
   font-size: 1.05rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .small {
   margin: 8px 0 0;
   color: var(--muted);
   line-height: 1.55;
+  overflow-wrap: break-word;
 }
 
 .badge {
+  flex-shrink: 0;
+  align-self: flex-start;
   text-transform: uppercase;
   letter-spacing: 0.08em;
   font-size: 0.72rem;
   color: var(--accent);
   border: 1px solid rgba(130, 213, 253, 0.22);
   background: rgba(8, 17, 31, 0.72);
-  padding: 8px 10px;
+  padding: 6px 10px;
   border-radius: 999px;
+  white-space: nowrap;
 }
 
+/* Fixed 320 px preview column on wide screens */
 .output-grid {
   display: grid;
   grid-template-columns: 320px minmax(0, 1fr);
   gap: 18px;
+  min-width: 0;
 }
 
 .output-preview {
@@ -330,23 +379,35 @@ progress::-webkit-progress-value {
   overflow: hidden;
   display: grid;
   place-items: center;
+  min-width: 0;
 }
 
 .output-preview img {
   display: block;
   max-width: 100%;
+  max-height: 100%;
+  width: auto;
   height: auto;
+  margin: auto;
 }
 
 .preview-placeholder {
   color: var(--muted);
   padding: 20px;
+  text-align: center;
+}
+
+.output-info {
+  min-width: 0;
+  overflow: hidden;
 }
 
 .output-info p {
   margin: 0 0 10px;
   color: var(--text);
   line-height: 1.5;
+  overflow-wrap: break-word;
+  word-break: break-word;
 }
 
 .error {
@@ -366,15 +427,31 @@ progress::-webkit-progress-value {
 
 .output-error {
   border-color: rgba(248, 113, 113, 0.35);
-  background-color: red;
 }
 
+/* ── Responsive breakpoints ─────────────────────────────────────────────
+   860 px: controls collapse to single column
+   600 px: output grid collapses; padding reduced for portrait phones    */
 @media (max-width: 860px) {
   .controls {
     grid-template-columns: 1fr;
   }
+}
+
+@media (max-width: 600px) {
+  #app {
+    padding: 12px;
+  }
+
+  .panel {
+    padding: 16px;
+  }
 
   .output-grid {
     grid-template-columns: 1fr;
+  }
+
+  .output-preview {
+    min-height: unset;
   }
 }
