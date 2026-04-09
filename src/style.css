@@ -257,6 +257,19 @@ progress::-webkit-progress-value {
   padding: 14px 16px;
 }
 
+.warning {
+  color: #000000;
+  background: #ffb800;
+  border: 1px solid #ffb800;
+  border-radius: 4px;
+  padding: 4px 8px;
+  margin: 4px 0;
+}
+.output-card:has(.warning) .badge {
+  color: #000000;
+  background: #ffb800;
+}
+
 .outputs {
   display: grid;
   gap: 16px;
@@ -353,6 +366,7 @@ progress::-webkit-progress-value {
 
 .output-error {
   border-color: rgba(248, 113, 113, 0.35);
+  background-color: red;
 }
 
 @media (max-width: 860px) {

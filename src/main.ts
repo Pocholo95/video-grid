@@ -1,12 +1,7 @@
 import "./style.css";
 
-// ---------------------------------------------------------------------------
-// NOTE: FFmpeg is no longer used for frame extraction.
-// The browser's native <video> element seeks and hardware-decodes each frame
-// directly onto the output canvas — no full-file load, no WASM heap pressure.
-// FFmpeg imports are intentionally removed; the package.json deps can stay for
-// other potential uses, or be pruned if you want a leaner build.
-// ---------------------------------------------------------------------------
+import { FFmpeg } from "@ffmpeg/ffmpeg";
+import { fetchFile } from "@ffmpeg/util";
 
 type Position = "top-left" | "top-right" | "bottom-left" | "bottom-right";
 
@@ -15,6 +10,7 @@ type OutputItem = {
   file: File;
   status: "queued" | "processing" | "done" | "error" | "cancelled";
   error?: string;
+  warning?: string;
   outputName?: string;
   outputSize?: number;
   outputBlob?: Blob;
@@ -26,13 +22,178 @@ type OutputItem = {
   };
 };
 
-// ---------------------------------------------------------------------------
-// Header constants — mirrors the Python implementation exactly:
-//   HEADER_HEIGHT       = 160
-//   HEADER_PADDING_LEFT = 12
-//   HEADER_TEXT_SIZE    = 24
-//   HEADER_LINE_SPACING = 26
-// ---------------------------------------------------------------------------
+let ffmpeg: FFmpeg | null = null;
+let ffmpegLoadPromise: Promise<FFmpeg> | null = null;
+let currentFFmpegInputKey: string | null = null;
+
+const getFFmpeg = async () => {
+  if (ffmpeg) return ffmpeg;
+
+  if (!ffmpegLoadPromise) {
+    ffmpegLoadPromise = (async () => {
+      const inst = new FFmpeg();
+      await inst.load();
+      ffmpeg = inst;
+      return inst;
+    })();
+  }
+
+  return ffmpegLoadPromise;
+};
+
+const prepareFFmpegInput = async (file: File) => {
+  const ff = await getFFmpeg();
+
+  const inputKey = `${file.name}:${file.size}:${file.lastModified}`;
+  if (currentFFmpegInputKey !== inputKey) {
+    try { await ff.deleteFile("input.mp4"); } catch {}
+    await ff.writeFile("input.mp4", await fetchFile(file));
+    currentFFmpegInputKey = inputKey;
+  }
+
+  return ff;
+};
+
+const cleanupFFmpeg = async () => {
+  if (!ffmpeg) return;
+
+  try { await ffmpeg.deleteFile("input.mp4"); } catch {}
+  currentFFmpegInputKey = null;
+};
+
+const extractFrameFFmpeg = async (
+  file: File,
+  time: number,
+  outputName: string,
+): Promise<ImageBitmap | null> => {
+  const ff = await prepareFFmpegInput(file);
+
+  try {
+    await ff.exec([
+      "-ss", String(time),
+      "-i", "input.mp4",
+      "-frames:v", "1",
+      "-q:v", "2",
+      "-loglevel", "error",
+      outputName,
+    ]);
+
+    const data = await ff.readFile(outputName) as Uint8Array;
+    const blob = new Blob([data], { type: "image/jpeg" });
+    return await createImageBitmap(blob);
+  } catch (e) {
+    console.error("FFmpeg extraction failed:", e);
+    return null;
+  }
+};
+
+const extractFramesFFmpegBatch = async (
+  file: File,
+  times: number[],
+): Promise<(ImageBitmap | null)[]> => {
+  const ff = await prepareFFmpegInput(file);
+
+  const outputs = times.map((_, i) => `frame_${i}.jpg`);
+
+  try {
+    for (const [i, t] of times.entries()) {
+      await ff.exec([
+        "-ss", String(t),
+        "-i", "input.mp4",
+        "-frames:v", "1",
+        "-q:v", "2",
+        outputs[i],
+      ]);
+    }
+  } catch (e) {
+    console.error("FFmpeg batch frame extraction failed:", e);
+    return outputs.map(() => null);
+  }
+
+  const bitmaps = await Promise.all(
+    outputs.map(async (name) => {
+      try {
+        const data = await ff.readFile(name);
+        const blob = new Blob([data], { type: "image/jpeg" });
+        return await createImageBitmap(blob);
+      } catch {
+        return null;
+      } finally {
+        try { await ff.deleteFile(name); } catch {}
+      }
+    }),
+  );
+
+  return bitmaps;
+};
+
+const hasUsableMetadata = (meta: {
+  duration: number; width: number; height: number; bitrate: number;
+}): boolean => {
+  return meta && meta.duration > 0 && meta.width > 0 && meta.height > 0;
+};
+
+const readMetadataFFmpeg = async (file: File, onProgress?: (pct: number, status: string) => void) => {
+  const ff = await prepareFFmpegInput(file);
+
+  let logs = "";
+  let totalDuration = 0;
+
+  const logHandler = ({ message }: { message: string }) => {
+    logs += message + "\n";
+    
+    if (message.includes("Opening")) {
+      onProgress?.(10, "Opening video file...");
+    }
+    if (message.includes("Probing")) {
+      onProgress?.(25, "Probing stream data...");
+    }
+    
+    const durationMatch = message.match(/Duration: (\d+):(\d+):(\d+\.\d+)/);
+    if (durationMatch) {
+      const [, h, m, s] = durationMatch;
+      totalDuration = (+h) * 3600 + (+m) * 60 + parseFloat(s);
+      onProgress?.(50, `Found duration: ${formatTime(totalDuration)}`);
+    }
+  };
+
+  const progressHandler = ({ progress, time }: { progress: number; time: number }) => {
+    const pct = Math.min(progress * 100, 95);
+    const timeSec = time / 1000000;
+    onProgress?.(pct, `Reading ${timeSec.toFixed(1)}s...`);
+  };
+
+  ff.on("log", logHandler);
+  ff.on("progress", progressHandler);
+
+  try {
+    await ff.exec(["-i", "input.mp4", "-f", "null", "-", "-loglevel", "info"]);
+  } catch {
+  } finally {
+    ff.off("log", logHandler);
+    ff.off("progress", progressHandler);
+  }
+
+  const durationMatch = logs.match(/Duration: (\d+):(\d+):(\d+\.\d+)/);
+  const resMatch = logs.match(/, (\d+)x(\d+)[, ]/);
+  const bitrateMatch = logs.match(/bitrate: (\d+) kb\/s/);
+
+  let duration = 0;
+  if (durationMatch) {
+    const [, h, m, s] = durationMatch;
+    duration = (+h) * 3600 + (+m) * 60 + parseFloat(s);
+  }
+
+  onProgress?.(100, "Metadata ready");
+
+  return {
+    duration,
+    width: resMatch ? parseInt(resMatch[1]) : 0,
+    height: resMatch ? parseInt(resMatch[2]) : 0,
+    bitrate: bitrateMatch ? parseInt(bitrateMatch[1]) * 1000 : 0,
+  };
+};
+
 const HEADER_HEIGHT       = 160;
 const HEADER_PADDING_LEFT = 12;
 const HEADER_TEXT_SIZE    = 24;
@@ -120,9 +281,9 @@ app.innerHTML = `
         </label>
 
         <div class="actions">
-          <button id="start" class="primary">Start processing</button>
-          <button id="cancel">Cancel current processing</button>
-          <button id="clear">Clear selected files</button>
+          <button id="start" class="primary">Start Processing</button>
+          <button id="cancel">Cancel Current Processing</button>
+          <button id="clear">Clear Selected Files</button>
         </div>
       </div>
 
@@ -299,7 +460,9 @@ const readMetadata = async (file: File) => {
       });
       cleanup();
     };
-    video.onerror = () => { cleanup(); resolve({ duration: 0, width: 0, height: 0, bitrate: 0 }); };
+    video.onerror = () => { 
+      cleanup();
+      resolve({ duration: 0, width: 0, height: 0, bitrate: 0 }); };
   });
 };
 
@@ -377,7 +540,7 @@ const createGridJpg = async (
   ctx.fillRect(0, 0, canvasWidth, canvasHeight);
 
   // ── Header ──────────────────────────────────────────────────────────────
-  // Matches the Python create_header():
+  // Matches the Python VidGrid create_header() defaults:
   //   background: black (already filled above)
   //   font: 24px, white
   //   lines: Filename / Size / Resolution / Duration / Bitrate
@@ -419,7 +582,6 @@ const createGridJpg = async (
   }
 
   // ── Sample timestamps ────────────────────────────────────────────────────
-  // Mirrors Python compute_sample_times() for freeze mode:
   //   margin = max(0.5, duration * 0.02)
   //   t = margin + (usable_duration * (i + 0.5) / total_slots)
   const margin   = Math.max(0.5, duration * 0.02);
@@ -443,11 +605,18 @@ const createGridJpg = async (
   };
 
   // Wait for the browser to be ready to seek (very fast — metadata only).
-  await new Promise<void>((resolve, reject) => {
-    const tid = setTimeout(() => reject(new Error("Video open timeout")), 15_000);
-    video.addEventListener("loadedmetadata", () => { clearTimeout(tid); resolve(); }, { once: true });
-    video.addEventListener("error",          () => { clearTimeout(tid); reject(new Error("Video failed to open")); }, { once: true });
-  });
+  let videoUsable = true;
+
+  try {
+    await new Promise<void>((resolve, reject) => {
+      const tid = setTimeout(() => reject(new Error("Video open timeout")), 15_000);
+      video.addEventListener("loadedmetadata", () => { clearTimeout(tid);  resolve(); }, { once: true });
+      video.addEventListener("error",           () => {  clearTimeout(tid); reject(new Error("Video failed to open")); }, { once: true });
+    });
+  } catch (e) {
+    warn("Video element failed → switching to FFmpeg mode", e);
+    videoUsable = false;
+  }
 
   // ── Frame loop ───────────────────────────────────────────────────────────
   const posMap: Record<Position, { x: "left" | "right"; y: "top" | "bottom" }> = {
@@ -457,6 +626,7 @@ const createGridJpg = async (
     "bottom-right": { x: "right", y: "bottom" },
   };
   const pos = posMap[opts.position];
+  let nativeFailedCount = 0;
 
   for (let i = 0; i < times.length; i++) {
     if (cancelRequested) break;
@@ -470,10 +640,30 @@ const createGridJpg = async (
     log(`  Frame ${i + 1}/${total} — seeking to ${formatTime(tSec)} (${tSec.toFixed(3)}s) from "${file.name}"`);
 
     try {
-      await seekVideo(video, tSec);
+      if (videoUsable) {
+        try {
+          await seekVideo(video, tSec);
+          ctx.drawImage(video, x, y, cellWidth, cellHeight);
+        } catch {
+          videoUsable = false;
+        }
+      }
+      if (!videoUsable) {
+        const bitmaps = await extractFramesFFmpegBatch(file, times);
 
-      // Draw decoded video frame directly — zero copy, hardware accelerated.
-      ctx.drawImage(video, x, y, cellWidth, cellHeight);
+        for (let i = 0; i < times.length; i++) {
+          const col = i % cols;
+          const row = Math.floor(i / cols);
+          const x = col * (cellWidth + spacing);
+          const y = headerHeight + row * (cellHeight + spacing);
+
+          const bitmap = bitmaps[i];
+          if (bitmap) {
+            ctx.drawImage(bitmap, x, y, cellWidth, cellHeight);
+            bitmap.close();
+          }
+        }
+      }
 
       // Timecode overlay (semi-transparent background pill)
       const label     = formatTime(tSec);
@@ -498,28 +688,47 @@ const createGridJpg = async (
       ctx.textBaseline = "alphabetic";
 
     } catch (frameErr) {
-      errlog(`  Frame ${i + 1}/${total} FAILED at t=${tSec.toFixed(3)}s:`, frameErr);
+      nativeFailedCount++;
+      errlog(`  Frame ${i + 1}/${total} FAILED at t=${tSec.toFixed(3)}s → fallback to FFmpeg`, frameErr);
 
-      // Fill the cell with an error indicator in the background colour.
-      ctx.fillStyle = opts.bgColor;
-      ctx.fillRect(x, y, cellWidth, cellHeight);
-      ctx.fillStyle   = "#555555";
-      ctx.font        = "18px system-ui, Arial, sans-serif";
-      ctx.textAlign   = "center";
-      ctx.textBaseline = "middle";
-      ctx.fillText("FAILED", x + cellWidth / 2, y + cellHeight / 2);
-      ctx.textAlign   = "left";
-      ctx.textBaseline = "alphabetic";
+      try {
+        // 🔁 Fallback
+        const outputName = `frame-${i}.jpg`;
+        const bitmap = await extractFrameFFmpeg(file, tSec, outputName);
+
+        if (bitmap) {
+          ctx.drawImage(bitmap, x, y, cellWidth, cellHeight);
+          bitmap.close();
+        } else {
+          throw new Error("FFmpeg returned null");
+        }
+
+      } catch (ffErr) {
+        errlog(`FFmpeg also failed:`, ffErr);
+
+        // ❌ Final fallback
+        ctx.fillStyle = opts.bgColor;
+        ctx.fillRect(x, y, cellWidth, cellHeight);
+
+        ctx.fillStyle = "#555";
+        ctx.font = "18px system-ui";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText("FAILED", x + cellWidth / 2, y + cellHeight / 2);
+
+        ctx.textAlign = "left";
+        ctx.textBaseline = "alphabetic";
+      }
     }
 
     onFrameDone(i + 1, total, tSec);
 
-    // Yield to the event loop for GC and UI repaints.
     await new Promise<void>((r) => requestAnimationFrame(() => r()));
   }
 
   videoCleanup();
-
+  await cleanupFFmpeg();
+  
   // Encode output JPEG.
   const outputName = `${safeName(file.name)}.jpg`;
   const jpgBlob = await new Promise<Blob>((resolve) => {
@@ -575,6 +784,7 @@ const renderOutputs = () => {
         <div class="output-top">
           <div>
             <h3>${item.file.name}</h3>
+            ${item.warning ? `<p class="warning">${item.warning}</p>` : ""}
             <p class="small">${details.join("<br />")}</p>
           </div>
           <div class="badge">${item.status}</div>
@@ -644,11 +854,18 @@ window.addEventListener("keydown", (e) => {
 // File queueing
 // ---------------------------------------------------------------------------
 const addFile = async (file: File) => {
-  const id   = makeId();
+  const id = makeId();
   const item: OutputItem = { id, file, status: "queued" };
   results.set(id, item);
   renderOutputs();
-  item.metadata = await readMetadata(file);
+
+  const meta = await readMetadata(file);
+  item.metadata = meta;
+
+  if (!hasUsableMetadata(meta)) {
+    item.warning = "No native metadata - will use slower FFmpeg processing";
+    console.log(`Early warning for ${file.name}: native metadata unusable`);
+  }
   renderOutputs();
 };
 
@@ -658,6 +875,7 @@ const queueSelectedFiles = async () => {
   selectedFiles.splice(0, selectedFiles.length, ...files);
   results.clear();
   for (const file of selectedFiles) await addFile(file);
+  setStatus(`${selectedFiles.length} file(s) selected and queued. Press "Start processing" when you're ready.`);
   renderOutputs();
 };
 
@@ -710,8 +928,39 @@ const processAll = async () => {
       };
 
       try {
-        const meta = item.metadata ?? (await readMetadata(item.file));
-        const res  = await createGridJpg(item.file, meta,
+        let meta = item.metadata ?? (await readMetadata(item.file));
+
+        if (!hasUsableMetadata(meta)) {
+          if (!item.warning) {
+            item.warning = "Switching to slower FFmpeg processing";
+            renderOutputs();
+          }
+          
+          setStatus(`"${item.file.name}" — reading metadata via FFmpeg...`);
+          const ffMeta = await readMetadataFFmpeg(item.file, (pct, msg) => {
+            updateCurrentProgress(pct);
+            setStatus(`"${item.file.name}" — ${msg}`);
+          });
+
+          meta = {
+            duration: meta.duration || ffMeta.duration,
+            width: meta.width || ffMeta.width,
+            height: meta.height || ffMeta.height,
+            bitrate: meta.bitrate || ffMeta.bitrate,
+          };
+          
+          if (!hasUsableMetadata(meta)) {
+            throw new Error("Both native and FFmpeg metadata failed");
+          }
+        }
+
+        item.metadata = meta;
+        item.warning = undefined;  // Clear on success
+        renderOutputs();
+
+        const res = await createGridJpg(
+          item.file,
+          meta,
           { width, cols, rows, spacing, position, header, bgColor, textColor },
           onFrameDone,
         );
@@ -720,6 +969,7 @@ const processAll = async () => {
         item.outputSize = res.outputSize;
         item.outputBlob = res.outputBlob;
         item.status     = cancelRequested ? "cancelled" : "done";
+        if (item.status === "done") { item.warning = undefined }
         item.error      = undefined;
 
         log(`Finished "${item.file.name}" → ${humanSize(res.outputSize)}`);
