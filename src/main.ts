@@ -2,6 +2,8 @@ import "./style.css";
 
 import { FFmpeg } from "@ffmpeg/ffmpeg";
 import { fetchFile } from "@ffmpeg/util";
+import mediaInfoFactory from "mediainfo.js";
+import type { MediaInfo } from "mediainfo.js";
 
 type Position = "top-left" | "top-right" | "bottom-left" | "bottom-right";
 
@@ -82,7 +84,107 @@ const applyOptions = (opts: SavedOptions): void => {
 };
 
 // ---------------------------------------------------------------------------
+// MediaInfo.js — shared instance, loaded on demand
+//
+// Replaces both the native <video> metadata reader and the old FFmpeg-based
+// readMetadataFFmpeg / partial-probe approach.  MediaInfo understands virtually
+// every container/codec without decoding any frames, and operates purely on
+// chunked File.slice() reads — no full copy into a WASM heap required.
+// ---------------------------------------------------------------------------
+let mediaInfoInstance: MediaInfo | null = null;
+let mediaInfoLoadPromise: Promise<MediaInfo> | null = null;
+
+const getMediaInfo = async (): Promise<MediaInfo> => {
+  if (mediaInfoInstance) return mediaInfoInstance;
+  if (!mediaInfoLoadPromise) {
+    mediaInfoLoadPromise = (async () => {
+      const mi = await mediaInfoFactory({
+        format: "object",
+        locateFile: () => "https://unpkg.com/mediainfo.js/dist/MediaInfoModule.wasm",
+      });
+      mediaInfoInstance = mi;
+      return mi;
+    })();
+  }
+  return mediaInfoLoadPromise;
+};
+
+/**
+ * Close and discard the MediaInfo instance.  Cheap to recreate on next use.
+ * Called on "Clear files" alongside resetFFmpeg().
+ */
+const closeMediaInfo = (): void => {
+  if (mediaInfoInstance) {
+    try { mediaInfoInstance.close(); } catch { /* already closed */ }
+    mediaInfoInstance = null;
+  }
+  mediaInfoLoadPromise = null;
+};
+
+/**
+ * Read container metadata using MediaInfo.js.
+ *
+ * Works for every format MediaInfo supports (MKV, AVI, WMV, MOV, MP4, TS,
+ * WebM, …) regardless of whether the browser can play the file natively.
+ * The file is read in 256 KB chunks — never copied into the FFmpeg WASM heap.
+ */
+const readMetadataMediaInfo = async (
+  file: File,
+  onProgress?: (pct: number, status: string) => void,
+): Promise<{ duration: number; width: number; height: number; bitrate: number }> => {
+  onProgress?.(5, "Loading MediaInfo…");
+  const mi = await getMediaInfo();
+  onProgress?.(20, "Analysing container…");
+
+  const readChunk = async (chunkSize: number, offset: number): Promise<Uint8Array> => {
+    const buf = await file.slice(offset, offset + chunkSize).arrayBuffer();
+    return new Uint8Array(buf);
+  };
+
+  try {
+    const result = await mi.analyzeData(file.size, readChunk);
+    onProgress?.(90, "Parsing track info…");
+
+    const tracks = result.media?.track ?? [];
+    // Cast to loose record so we can read any field by name without exhaustive
+    // imports of every typed track interface.
+    const general = tracks.find((t) => t["@type"] === "General") as Record<string, string> | undefined;
+    const video   = tracks.find((t) => t["@type"] === "Video")   as Record<string, string> | undefined;
+
+    // Duration: prefer the video-track value (more accurate for muxed files),
+    // fall back to the general track.
+    const duration = parseFloat(video?.Duration ?? general?.Duration ?? "0") || 0;
+    const width    = parseInt(video?.Width  ?? "0", 10) || 0;
+    const height   = parseInt(video?.Height ?? "0", 10) || 0;
+    // OverallBitRate is in bps as a string.
+    const bitrate  = parseInt(general?.OverallBitRate ?? "0", 10) || 0;
+
+    onProgress?.(100, "Metadata ready");
+    return { duration, width, height, bitrate };
+  } catch (e) {
+    errlog("MediaInfo analysis failed:", e);
+    onProgress?.(100, "Metadata extraction failed");
+    return { duration: 0, width: 0, height: 0, bitrate: 0 };
+  }
+};
+
+/**
+ * Quick, synchronous check: can the browser natively decode this video?
+ *
+ * Uses HTMLVideoElement.canPlayType() on the file's MIME type.  Returns true
+ * if the browser reports "maybe" or "probably", false on "" (no support) or
+ * unknown MIME.  This is used *only* to show a proactive FFmpeg warning —
+ * the actual native/FFmpeg decision is made inside createGridJpg().
+ */
+const canNativelyPlay = (file: File): boolean => {
+  const mime = file.type;
+  if (!mime) return true; // unknown type — be optimistic; actual failure is caught later
+  return document.createElement("video").canPlayType(mime) !== "";
+};
+
+// ---------------------------------------------------------------------------
 // FFmpeg — shared instance, loaded on demand
+// Used exclusively for frame extraction when the browser cannot decode natively.
 // ---------------------------------------------------------------------------
 let ffmpeg: FFmpeg | null = null;
 let ffmpegLoadPromise: Promise<FFmpeg> | null = null;
@@ -105,8 +207,7 @@ const getFFmpeg = async (): Promise<FFmpeg> => {
 
 /**
  * Fully tear down the FFmpeg instance and clear all cached state.
- * Called on "Clear files" and available as a recovery path if ever needed.
- * NOT called automatically on every error (that made batch processing slow).
+ * Called on "Clear files".  NOT called automatically after every error.
  */
 const resetFFmpeg = (): void => {
   if (ffmpeg) {
@@ -146,115 +247,10 @@ const cleanupFFmpeg = async (): Promise<void> => {
   currentFFmpegInputKey = null;
 };
 
-// ---------------------------------------------------------------------------
-// FFmpeg metadata extraction
-//
-// Optimisations vs the naive approach:
-//
-// 1. PARTIAL PROBE FIRST: slice only the first PROBE_BYTES of the file.
-//    Most containers (MP4, MKV, MOV) store the stream header at the start,
-//    so a 16 MB slice is enough for virtually all well-muxed files and takes
-//    milliseconds to copy into WASM instead of many seconds for a 3 GB file.
-//
-// 2. NO FULL DECODE: run `ffmpeg -i probe.mp4` with no output argument.
-//    FFmpeg prints stream info and exits with code 1 immediately, without
-//    decoding a single frame.  The old `-f null -` forced a complete decode
-//    of the entire file just to confirm its duration — completely wasteful.
-//
-// 3. CACHE REUSE: if the partial probe fails (moov-at-end MP4 or exotic
-//    container), we fall back to prepareFFmpegInput which writes the full
-//    file as "input.mp4" and caches it.  Any subsequent frame extraction
-//    on the same file then reuses that cache entry — no second full copy.
-// ---------------------------------------------------------------------------
-const PROBE_BYTES = 16 * 1024 * 1024; // 16 MB — sufficient for any normal header
-
-const parseMetaFromLogs = (logs: string) => {
-  const durationMatch = logs.match(/Duration:\s*(\d+):(\d+):(\d+\.\d+)/);
-  const resMatch      = logs.match(/,\s*(\d+)x(\d+)[,\s]/);
-  const bitrateMatch  = logs.match(/bitrate:\s*(\d+)\s*kb\/s/);
-
-  let duration = 0;
-  if (durationMatch) {
-    const [, h, m, s] = durationMatch;
-    duration = (+h) * 3600 + (+m) * 60 + parseFloat(s);
-  }
-  return {
-    duration,
-    width:   resMatch     ? parseInt(resMatch[1])     : 0,
-    height:  resMatch     ? parseInt(resMatch[2])     : 0,
-    bitrate: bitrateMatch ? parseInt(bitrateMatch[1]) * 1000 : 0,
-  };
-};
-
-const readMetadataFFmpeg = async (
-  file: File,
-  onProgress?: (pct: number, status: string) => void,
-) => {
-  const ff = await getFFmpeg();
-
-  // ── Phase 1: partial-file probe (fast path) ──────────────────────────────
-  onProgress?.(5, "Reading file header…");
-
-  const probeBlob = file.size > PROBE_BYTES ? file.slice(0, PROBE_BYTES) : file;
-  await ff.writeFile("probe.mp4", await fetchFile(probeBlob));
-  onProgress?.(20, "Parsing stream info…");
-
-  let logs = "";
-  const logHandler = ({ message }: { message: string }) => {
-    logs += message + "\n";
-
-    // Surface live progress during probing
-    const durationMatch = message.match(/Duration:\s*(\d+):(\d+):(\d+\.\d+)/);
-    if (durationMatch) {
-      const [, h, m, s] = durationMatch;
-      const dur = (+h) * 3600 + (+m) * 60 + parseFloat(s);
-      onProgress?.(50, `Found duration: ${formatTime(dur)}`);
-    }
-  };
-
-  ff.on("log", logHandler);
-  try {
-    // No output arg → FFmpeg prints stream info and exits 1 without decoding.
-    await ff.exec(["-i", "probe.mp4", "-loglevel", "info"]);
-  } catch { /* expected exit code 1 */ } finally {
-    ff.off("log", logHandler);
-    try { await ff.deleteFile("probe.mp4"); } catch { /* ignore */ }
-  }
-
-  const meta = parseMetaFromLogs(logs);
-  onProgress?.(60, "Stream info parsed");
-
-  if (hasUsableMetadata(meta)) {
-    onProgress?.(100, "Metadata ready");
-    return meta;
-  }
-
-  // ── Phase 2: fallback — full-file write (moov-at-end or exotic container) ─
-  warn("Partial probe insufficient; loading full file for metadata…");
-  onProgress?.(65, "Header incomplete — loading full file (may take a moment for large files)…");
-
-  // prepareFFmpegInput writes "input.mp4" and caches it, so any subsequent
-  // frame extraction won't copy the file a second time.
-  const ff2 = await prepareFFmpegInput(file);
-  onProgress?.(85, "Parsing full stream info…");
-
-  let logs2 = "";
-  const logHandler2 = ({ message }: { message: string }) => { logs2 += message + "\n"; };
-  ff2.on("log", logHandler2);
-  try {
-    await ff2.exec(["-i", "input.mp4", "-loglevel", "info"]);
-  } catch { /* expected */ } finally {
-    ff2.off("log", logHandler2);
-  }
-
-  onProgress?.(100, "Metadata ready");
-  return parseMetaFromLogs(logs2);
-};
-
 /**
  * Extract ALL frames in one pass — prepareFFmpegInput is called once;
  * subsequent calls for the same file are cache hits (no second full copy).
- * Each frame has its own try/catch so one bad seek doesn't abort the rest.
+ * Each frame has its own try/catch so one bad seek does not abort the rest.
  */
 const extractFramesFFmpegBatch = async (
   file: File,
@@ -552,40 +548,7 @@ const safeName = (name: string) =>
 const makeId = () => crypto.randomUUID();
 
 // ---------------------------------------------------------------------------
-// Native metadata via <video> element — fast, no file copy
-// ---------------------------------------------------------------------------
-const readMetadata = async (file: File) => {
-  const objectURL = URL.createObjectURL(file);
-  return new Promise<{ duration: number; width: number; height: number; bitrate: number }>((resolve) => {
-    const video = document.createElement("video");
-    video.preload     = "metadata";
-    video.muted       = true;
-    video.playsInline = true;
-    video.src         = objectURL;
-    const cleanup = () => {
-      video.removeAttribute("src");
-      video.load();
-      setTimeout(() => URL.revokeObjectURL(objectURL), 250);
-    };
-    video.onloadedmetadata = () => {
-      const duration = Number.isFinite(video.duration) ? video.duration : 0;
-      resolve({
-        duration,
-        width:   video.videoWidth  || 0,
-        height:  video.videoHeight || 0,
-        bitrate: file.size && duration ? Math.round((file.size * 8) / duration) : 0,
-      });
-      cleanup();
-    };
-    video.onerror = () => {
-      cleanup();
-      resolve({ duration: 0, width: 0, height: 0, bitrate: 0 });
-    };
-  });
-};
-
-// ---------------------------------------------------------------------------
-// Native video seeking
+// Native video seeking (frame extraction only — metadata now via MediaInfo)
 // ---------------------------------------------------------------------------
 const SEEK_TIMEOUT_MS = 10_000;
 
@@ -723,8 +686,6 @@ const createGridJpg = async (
   const pos = posMap[opts.position];
 
   // FFmpeg batch results — extracted once on first need, reused per frame.
-  // BUG FIX: the previous code called extractFramesFFmpegBatch() inside the
-  // loop, triggering a full file copy + all seeks on every iteration.
   let ffmpegBitmaps: (ImageBitmap | null)[] | null = null;
   let ffmpegFailedFrames = 0;
 
@@ -786,7 +747,6 @@ const createGridJpg = async (
         const msg = ffErr instanceof Error ? ffErr.message : String(ffErr);
         errlog(`  FFmpeg frame ${i + 1} error:`, msg);
         onWarning(`FFmpeg error at frame ${i + 1}: ${msg}`);
-        // Surface OOM errors prominently
         if (isMemoryError(ffErr)) {
           onWarning(`⚠️ Out of memory at frame ${i + 1}. Try reducing output width, columns, or rows.`);
         }
@@ -832,7 +792,7 @@ const createGridJpg = async (
   await cleanupFFmpeg();
   resetFFmpeg();
 
-  const outputName = `${safeName(file.name)}.jpg`;
+  const outputName = `${file.name}.jpg`;
   const jpgBlob = await new Promise<Blob>((resolve) => {
     canvas.toBlob((b) => resolve(b ?? new Blob()), "image/jpeg", 0.95);
   });
@@ -962,13 +922,29 @@ const addFile = async (file: File) => {
   results.set(id, item);
   renderOutputs();
 
-  const meta = await readMetadata(file);
+  // ── Metadata via MediaInfo.js (always reliable, all formats) ─────────────
+  // Run the native-play check in parallel so it adds no extra latency.
+  const [meta] = await Promise.all([
+    readMetadataMediaInfo(file),
+    // Side-effect only: result used below after awaiting meta
+    Promise.resolve(canNativelyPlay(file)),
+  ]);
+
   item.metadata = meta;
 
-  if (!hasUsableMetadata(meta)) {
-    item.warning = "Native metadata unavailable — will use FFmpeg fallback (it might be slow)";
-    log(`Early warning for ${file.name}: native metadata unusable`);
+  // Determine if FFmpeg WASM will be needed for frame extraction and warn early.
+  if (!canNativelyPlay(file)) {
+    item.warning =
+      "⚠️ Browser cannot decode this format natively — FFmpeg WASM will be used for frame extraction " +
+      "(expect slower processing and higher memory usage for large files).";
+    log(`Early FFmpeg warning for "${file.name}": canPlayType returned empty string`);
+  } else if (!hasUsableMetadata(meta)) {
+    // MediaInfo returned nothing useful — very rare (corrupt file, unknown format).
+    item.warning =
+      "⚠️ Could not read metadata from this file. Processing may fail or produce incorrect output.";
+    log(`Metadata warning for "${file.name}": MediaInfo returned no usable data`);
   }
+
   renderOutputs();
 };
 
@@ -1019,7 +995,8 @@ const processAll = async () => {
 
       item.status  = "processing";
       item.error   = undefined;
-      item.warning = undefined;
+      // Preserve the early FFmpeg/metadata warning set during queueing.
+      // It will be overwritten only if createGridJpg produces a more specific one.
       renderOutputs();
       updateCurrentProgress(0);
       setStatus(`"${item.file.name}" — opening…`);
@@ -1030,8 +1007,6 @@ const processAll = async () => {
         setStatus(`"${item.file.name}" — frame ${frameIdx}/${totalFrames} @ ${formatTime(tSec)}`);
       };
 
-      // Surface non-fatal warnings from createGridJpg into item.warning
-      // so they appear in the output card and remain visible after processing.
       const onWarning = (message: string) => {
         item.warning = message;
         renderOutputs();
@@ -1039,31 +1014,26 @@ const processAll = async () => {
       };
 
       try {
-        let meta = item.metadata ?? (await readMetadata(item.file));
+        // Metadata was already read by addFile() via MediaInfo.js.
+        // Re-read only if somehow missing (e.g., file queued before MediaInfo loaded).
+        let meta = item.metadata;
 
-        if (!hasUsableMetadata(meta)) {
-          item.warning = "Switching to FFmpeg metadata extraction…";
-          renderOutputs();
-
-          setStatus(`"${item.file.name}" — reading metadata via FFmpeg…`);
-          const ffMeta = await readMetadataFFmpeg(item.file, (pct, msg) => {
+        if (!meta) {
+          setStatus(`"${item.file.name}" — reading metadata…`);
+          meta = await readMetadataMediaInfo(item.file, (pct, msg) => {
             updateCurrentProgress(pct);
             setStatus(`"${item.file.name}" — ${msg}`);
           });
-
-          meta = {
-            duration: meta.duration || ffMeta.duration,
-            width:    meta.width    || ffMeta.width,
-            height:   meta.height   || ffMeta.height,
-            bitrate:  meta.bitrate  || ffMeta.bitrate,
-          };
-
-          if (!hasUsableMetadata(meta)) {
-            throw new Error("Both native and FFmpeg metadata extraction failed");
-          }
+          item.metadata = meta;
         }
 
-        item.metadata = meta;
+        if (!hasUsableMetadata(meta)) {
+          throw new Error(
+            "MediaInfo could not determine video dimensions or duration. " +
+            "The file may be corrupt or in an unrecognised format.",
+          );
+        }
+
         renderOutputs();
 
         const res = await createGridJpg(
@@ -1077,8 +1047,6 @@ const processAll = async () => {
         item.outputSize = res.outputSize;
         item.outputBlob = res.outputBlob;
         item.status     = cancelRequested ? "cancelled" : "done";
-        // Keep warning visible after completion if there were issues
-        if (item.status === "done" && !item.warning) item.warning = undefined;
         item.error      = undefined;
 
         log(`Finished "${item.file.name}" → ${humanSize(res.outputSize)}`);
@@ -1125,7 +1093,8 @@ els.cancel.addEventListener("click", () => {
 els.clear.addEventListener("click", () => {
   if (isProcessing) return;
   revokeAllPreviewUrls();
-  resetFFmpeg(); // full teardown on clear — fine here since user is starting fresh
+  resetFFmpeg();
+  closeMediaInfo(); // release MediaInfo WASM memory too — will reload on next use
   selectedFiles.splice(0, selectedFiles.length);
   results.clear();
   els.files.value            = "";

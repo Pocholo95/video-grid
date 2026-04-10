@@ -5,4 +5,7 @@ export default defineConfig({
   build: {
     sourcemap: false,
   },
+  optimizeDeps: {
+    exclude: ["mediainfo.js", "@ffmpeg/ffmpeg", "@ffmpeg/core"],
+  },
 });
