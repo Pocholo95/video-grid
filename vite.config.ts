@@ -1,7 +1,7 @@
 import { defineConfig } from "vite";
 
 export default defineConfig({
-  base: "/VidGrid-HTML/",
+  base: "/",
   build: {
     sourcemap: false,
   },
