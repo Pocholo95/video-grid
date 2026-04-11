@@ -9,8 +9,8 @@ server processing, no account.
 ## What it does
 
 VidGrid-HTML analyses each video, samples frames at evenly-spaced timestamps
-across the duration, and assembles them into a configurable grid. Each cell is
-annotated with a timecode overlay. An optional header row shows the filename,
+across the duration, and assembles them into a configurable grid. Each cell can
+be annotated with a timecode overlay. An optional header row shows the filename,
 resolution, duration, bitrate, and file size. The result is saved as a
 high-quality JPEG you can preview and download immediately.
 
@@ -40,13 +40,17 @@ transmitted to any server.
 - **Batch processing** — queue multiple files and process them one after
   another with combined progress tracking.
 - **Configurable grid** — choose columns, rows, output width, frame spacing,
-  and timecode position.
+  and timecode position (or disable the overlay entirely).
 - **Custom colours** — set the background and text colour for the header and
   timecode overlays.
 - **Optional metadata header** — toggle a header row showing file info above
   the grid.
-- **Persistent settings** — save and restore your preferred options across
-  sessions via localStorage.
+- **Presets** — save and switch between named option sets. Presets are stored
+  in localStorage and accessible from a compact dropdown at the top of the
+  options panel. The built-in `<Default options>` entry always restores the
+  factory defaults.
+- **Persistent settings** — save and restore your last-used options across
+  sessions via localStorage (independent of named presets).
 - **Cancel at any time** — interrupt a running batch cleanly after the current
   frame.
 
@@ -57,14 +61,32 @@ transmitted to any server.
 | Option | Description | Default |
 | --- | --- | --- |
 | **Output width** | Total pixel width of the generated JPG | 1920 px |
-| **Grid columns** | Number of columns in the grid | 4 |
-| **Grid rows** | Number of rows in the grid | 3 |
+| **Grid columns** | Number of columns in the grid | 3 |
+| **Grid rows** | Number of rows in the grid | 4 |
 | **Frame spacing** | Gap in pixels between cells | 0 |
-| **Timecode position** | Corner where the timestamp overlay appears | Top-left |
+| **Timecode position** | Corner where the timestamp overlay appears, or **Disabled** to omit it | Top-left |
 | **Background color** | Canvas and header background | `#000000` |
 | **Text color** | Header text and timecode label colour | `#ffffff` |
 | **Show header metadata** | Toggle the filename/info header row | On |
 | **Show preview** | Show thumbnail previews in the output list | On |
+
+---
+
+## Presets
+
+The 🗂️ dropdown at the top of the options panel lets you manage named presets:
+
+- **Select a preset** from the dropdown to instantly apply its settings.
+- **`<Default options>`** is a permanent, undeletable entry that resets all
+  settings to the factory defaults.
+- **💾 Add / save preset** — opens an inline name field pre-filled with the
+  current preset name (or blank when `<Default options>` is selected). Enter a
+  name and confirm to create a new preset or overwrite an existing one.
+- **🗑️ Delete preset** — removes the currently selected preset. Disabled when
+  `<Default options>` is selected.
+
+Presets are stored in `localStorage` under the key `vidgrid_presets` and
+persist between browser sessions.
 
 ---
 

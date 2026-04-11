@@ -5,7 +5,7 @@ import { fetchFile } from "@ffmpeg/util";
 import mediaInfoFactory from "mediainfo.js";
 import type { MediaInfo } from "mediainfo.js";
 
-type Position = "top-left" | "top-right" | "bottom-left" | "bottom-right";
+type Position = "top-left" | "top-right" | "bottom-left" | "bottom-right" | "disabled";
 
 type OutputItem = {
   id: string;
@@ -23,11 +23,6 @@ type OutputItem = {
     bitrate: number;
   };
 };
-
-// ---------------------------------------------------------------------------
-// Settings persistence — localStorage
-// ---------------------------------------------------------------------------
-const SETTINGS_KEY = "vidgrid_options";
 
 type SavedOptions = {
   width: number;
@@ -53,38 +48,7 @@ const DEFAULTS: SavedOptions = {
   preview:  true,
 };
 
-const saveOptions = (): void => {
-  try {
-    const opts: SavedOptions = {
-      width:     Number(els.width.value) || DEFAULTS.width,
-      cols:      Number(els.cols.value) || DEFAULTS.cols,
-      rows:      Number(els.rows.value)  || DEFAULTS.rows,
-      spacing:   Number(els.spacing.value) || DEFAULTS.spacing,
-      position:  (els.position.value as Position) || DEFAULTS.position,
-      bgColor:   els.bgColor.value || DEFAULTS.bgColor,
-      textColor: els.textColor.value || DEFAULTS.textColor,
-      header:    els.header.checked, // Always save raw checkbox value
-      preview:   els.preview.checked,
-    };
-    localStorage.setItem(SETTINGS_KEY, JSON.stringify(opts));
-    setStatus("✅ Options saved.");
-  } catch (e) {
-    setStatus("⚠️ Could not save options.");
-    console.warn("localStorage write failed:", e);
-  }
-};
-
-const loadOptions = (): SavedOptions | null => {
-  try {
-    const raw = localStorage.getItem(SETTINGS_KEY);
-    return raw ? (JSON.parse(raw) as SavedOptions) : DEFAULTS;
-  } catch {
-    return null;
-  }
-};
-
 const applyOptions = (opts: Partial<SavedOptions>): void => {
-  // Get defaults for potentially missing values
   const safeOpts: SavedOptions = { ...DEFAULTS, ...opts };
   els.width.value              = String(safeOpts.width);
   els.cols.value               = String(safeOpts.cols);
@@ -97,6 +61,54 @@ const applyOptions = (opts: Partial<SavedOptions>): void => {
   els.textColorHex.textContent = safeOpts.textColor;
   els.header.checked           = safeOpts.header;
   els.preview.checked          = safeOpts.preview;
+};
+
+// ---------------------------------------------------------------------------
+// Presets — localStorage
+// ---------------------------------------------------------------------------
+const PRESETS_LIST_KEY          = "vidgrid_presets";
+const PRESETS_DEFAULT_VALUE     = "__default__";
+
+type Presets = Record<string, SavedOptions>;
+
+const loadPresets = (): Presets => {
+  try {
+    const raw = localStorage.getItem(PRESETS_LIST_KEY);
+    return raw ? (JSON.parse(raw) as Presets) : {};
+  } catch {
+    return {};
+  }
+};
+
+const persistPresets = (presets: Presets): void => {
+  try {
+    localStorage.setItem(PRESETS_LIST_KEY, JSON.stringify(presets));
+  } catch (e) {
+    console.warn("localStorage write failed:", e);
+  }
+};
+
+/** Rebuild the preset <select> from localStorage, preserving current selection if still valid. */
+const populatePresetSelect = (): void => {
+  const presets = loadPresets();
+  const current = els.presetSelect.value;
+
+  els.presetSelect.innerHTML = `<option value="${PRESETS_DEFAULT_VALUE}">&lt;Default Preset&gt;</option>`;
+  for (const name of Object.keys(presets)) {
+    const opt = document.createElement("option");
+    opt.value       = name;
+    opt.textContent = name;
+    els.presetSelect.appendChild(opt);
+  }
+
+  // Restore selection only if the preset still exists
+  if (current && current !== PRESETS_DEFAULT_VALUE && presets[current]) {
+    els.presetSelect.value = current;
+  } else {
+    els.presetSelect.value = PRESETS_DEFAULT_VALUE;
+  }
+
+  els.deletePreset.disabled = els.presetSelect.value === PRESETS_DEFAULT_VALUE;
 };
 
 // ---------------------------------------------------------------------------
@@ -208,7 +220,6 @@ let currentFFmpegInputKey: string | null = null;
 
 const getFFmpeg = async (): Promise<FFmpeg> => {
   if (ffmpeg) return ffmpeg;
-
   if (!ffmpegLoadPromise) {
     ffmpegLoadPromise = (async () => {
       const inst = new FFmpeg();
@@ -217,7 +228,6 @@ const getFFmpeg = async (): Promise<FFmpeg> => {
       return inst;
     })();
   }
-
   return ffmpegLoadPromise;
 };
 
@@ -290,10 +300,10 @@ const extractFramesFFmpegBatch = async (
         "-loglevel", "error",
         name,
       ]);
-      const data = await ff.readFile(name);
-      const arrayBuffer = new Uint8Array(typeof data === 'string' ? new TextEncoder().encode(data) : data).buffer;
-      const blob = new Blob([arrayBuffer], { type: "image/jpeg" });
-      results[i] = await createImageBitmap(blob);
+      const data        = await ff.readFile(name);
+      const arrayBuffer = new Uint8Array(typeof data === "string" ? new TextEncoder().encode(data) : data).buffer;
+      const blob        = new Blob([arrayBuffer], { type: "image/jpeg" });
+      results[i]        = await createImageBitmap(blob);
       onFrameExtracted?.(i, times.length);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
@@ -342,6 +352,20 @@ app.innerHTML = `
 
     <section class="panel">
       <div class="controls">
+
+        <div class="presets-row">
+          <span class="presets-label" title="Presets">🗂️</span>
+          <select id="presetSelect" title="Select a Preset"></select>
+          <button id="deletePreset" class="icon-btn" title="Delete Selected Preset">🗑️</button>
+          <button id="savePreset"   class="icon-btn" title="Add / Save preset">💾</button>
+        </div>
+
+        <div id="presetNameArea" class="preset-name-area">
+          <input id="presetNameInput" type="text" placeholder="New Preset Name… (or reuse a name to overwrite it)" maxlength="64" />
+          <button id="presetNameConfirm" class="icon-btn" title="Confirm Save">✅</button>
+          <button id="presetNameCancel"  class="icon-btn" title="Cancel">✕</button>
+        </div>
+
         <label class="field">
           <span>Video files</span>
           <input id="files" type="file" accept="video/*" multiple />
@@ -370,10 +394,11 @@ app.innerHTML = `
         <label class="field">
           <span>Timecode position</span>
           <select id="position">
-            <option value="top-left" selected>Top-left</option>
-            <option value="top-right">Top-right</option>
-            <option value="bottom-left">Bottom-left</option>
-            <option value="bottom-right">Bottom-right</option>
+            <option value="disabled">Disabled</option>
+            <option value="top-left" selected>Top-Left</option>
+            <option value="top-right">Top-Right</option>
+            <option value="bottom-left">Bottom-Left</option>
+            <option value="bottom-right">Bottom-Right</option>
           </select>
         </label>
 
@@ -394,22 +419,19 @@ app.innerHTML = `
         </label>
 
         <label class="check">
-          <input id="header" type="checkbox" ${DEFAULTS.header ? 'checked' : ''}/>
+          <input id="header" type="checkbox" ${DEFAULTS.header ? "checked" : ""}/>
           <span>Show header metadata</span>
         </label>
 
         <label class="check">
-          <input id="preview" type="checkbox" ${DEFAULTS.header ? 'checked' : ''}/>
+          <input id="preview" type="checkbox" ${DEFAULTS.preview ? "checked" : ""}/>
           <span>Show preview</span>
         </label>
 
         <div class="actions">
-          <button id="start"    class="primary">▶️ Start Processing</button>
+          <button id="start" class="primary">▶️ Start Processing</button>
           <button id="cancel">⏹️ Cancel</button>
           <button id="clear">🗑️ Clear Files</button>
-          <button id="saveOpts">💾 Save Options</button>
-          <button id="loadOpts">↩️ Restore Saved Options</button>
-          <button id="resetOpts">🔄 Reset to Defaults</button>
         </div>
       </div>
 
@@ -439,56 +461,47 @@ app.innerHTML = `
       <div id="outputs" class="outputs"></div>
     </section>
 
-    <div id="previewModal" style="
-      position:fixed;inset:0;display:none;align-items:center;
-      justify-content:center;background:rgba(15,23,42,0.92);z-index:9999;
-    ">
-      <div style="
-        max-width:96vw;max-height:96vh;
-        box-shadow:0 25px 80px rgba(0,0,0,0.7);
-        border-radius:16px;overflow:hidden;position:relative;
-        background:#020617;border:1px solid rgba(130,213,253,0.4);
-      ">
-        <button id="previewClose" style="
-          position:absolute;top:10px;right:10px;z-index:2;
-          border-radius:999px;padding:6px 10px;border:0;cursor:pointer;
-          background:rgba(15,23,42,0.85);color:#e2e8f0;font-size:0.8rem;
-        ">✕ Close</button>
-        <img id="previewModalImg" src="" alt="Preview"
-             style="display:block;max-width:100%;max-height:100%;" />
+    <div id="previewModal">
+      <div id="previewModalWrapper"">
+        <button id="previewClose">✕ Close</button>
+        <img id="previewModalImg" src="" alt="Preview" />
       </div>
     </div>
   </main>
 `;
 
 const els = {
-  files:           document.querySelector<HTMLInputElement>("#files")!,
-  width:           document.querySelector<HTMLInputElement>("#width")!,
-  cols:            document.querySelector<HTMLInputElement>("#cols")!,
-  rows:            document.querySelector<HTMLInputElement>("#rows")!,
-  spacing:         document.querySelector<HTMLInputElement>("#spacing")!,
-  position:        document.querySelector<HTMLSelectElement>("#position")!,
-  bgColor:         document.querySelector<HTMLInputElement>("#bgColor")!,
-  bgColorHex:      document.querySelector<HTMLSpanElement>("#bgColorHex")!,
-  textColor:       document.querySelector<HTMLInputElement>("#textColor")!,
-  textColorHex:    document.querySelector<HTMLSpanElement>("#textColorHex")!,
-  header:          document.querySelector<HTMLInputElement>("#header")!,
-  preview:         document.querySelector<HTMLInputElement>("#preview")!,
-  start:           document.querySelector<HTMLButtonElement>("#start")!,
-  cancel:          document.querySelector<HTMLButtonElement>("#cancel")!,
-  clear:           document.querySelector<HTMLButtonElement>("#clear")!,
-  saveOpts:        document.querySelector<HTMLButtonElement>("#saveOpts")!,
-  loadOpts:        document.querySelector<HTMLButtonElement>("#loadOpts")!,
-  resetOpts:       document.querySelector("#resetOpts") as HTMLButtonElement,
-  currentPct:      document.querySelector<HTMLSpanElement>("#currentPct")!,
-  batchPct:        document.querySelector<HTMLSpanElement>("#batchPct")!,
-  currentProgress: document.querySelector<HTMLProgressElement>("#currentProgress")!,
-  batchProgress:   document.querySelector<HTMLProgressElement>("#batchProgress")!,
-  status:          document.querySelector<HTMLDivElement>("#status")!,
-  outputs:         document.querySelector<HTMLDivElement>("#outputs")!,
-  previewModal:    document.querySelector<HTMLDivElement>("#previewModal")!,
-  previewModalImg: document.querySelector<HTMLImageElement>("#previewModalImg")!,
-  previewClose:    document.querySelector<HTMLButtonElement>("#previewClose")!,
+  files:             document.querySelector<HTMLInputElement>("#files")!,
+  width:             document.querySelector<HTMLInputElement>("#width")!,
+  cols:              document.querySelector<HTMLInputElement>("#cols")!,
+  rows:              document.querySelector<HTMLInputElement>("#rows")!,
+  spacing:           document.querySelector<HTMLInputElement>("#spacing")!,
+  position:          document.querySelector<HTMLSelectElement>("#position")!,
+  bgColor:           document.querySelector<HTMLInputElement>("#bgColor")!,
+  bgColorHex:        document.querySelector<HTMLSpanElement>("#bgColorHex")!,
+  textColor:         document.querySelector<HTMLInputElement>("#textColor")!,
+  textColorHex:      document.querySelector<HTMLSpanElement>("#textColorHex")!,
+  header:            document.querySelector<HTMLInputElement>("#header")!,
+  preview:           document.querySelector<HTMLInputElement>("#preview")!,
+  start:             document.querySelector<HTMLButtonElement>("#start")!,
+  cancel:            document.querySelector<HTMLButtonElement>("#cancel")!,
+  clear:             document.querySelector<HTMLButtonElement>("#clear")!,
+  presetSelect:      document.querySelector<HTMLSelectElement>("#presetSelect")!,
+  deletePreset:      document.querySelector<HTMLButtonElement>("#deletePreset")!,
+  savePreset:        document.querySelector<HTMLButtonElement>("#savePreset")!,
+  presetNameArea:    document.querySelector<HTMLDivElement>("#presetNameArea")!,
+  presetNameInput:   document.querySelector<HTMLInputElement>("#presetNameInput")!,
+  presetNameConfirm: document.querySelector<HTMLButtonElement>("#presetNameConfirm")!,
+  presetNameCancel:  document.querySelector<HTMLButtonElement>("#presetNameCancel")!,
+  currentPct:        document.querySelector<HTMLSpanElement>("#currentPct")!,
+  batchPct:          document.querySelector<HTMLSpanElement>("#batchPct")!,
+  currentProgress:   document.querySelector<HTMLProgressElement>("#currentProgress")!,
+  batchProgress:     document.querySelector<HTMLProgressElement>("#batchProgress")!,
+  status:            document.querySelector<HTMLDivElement>("#status")!,
+  outputs:           document.querySelector<HTMLDivElement>("#outputs")!,
+  previewModal:      document.querySelector<HTMLDivElement>("#previewModal")!,
+  previewModalImg:   document.querySelector<HTMLImageElement>("#previewModalImg")!,
+  previewClose:      document.querySelector<HTMLButtonElement>("#previewClose")!,
 };
 
 // Sync hex label next to colour picker
@@ -498,12 +511,6 @@ const syncColorHex = (input: HTMLInputElement, label: HTMLSpanElement) => {
 };
 syncColorHex(els.bgColor,   els.bgColorHex);
 syncColorHex(els.textColor, els.textColorHex);
-
-// Auto-load saved options on startup (silent — no status message)
-{
-  const saved = loadOptions();
-  if (saved) applyOptions(saved);
-}
 
 const selectedFiles: File[] = [];
 const results = new Map<string, OutputItem>();
@@ -560,7 +567,6 @@ const formatTime = (seconds: number) => {
   const pad = (n: number) => String(n).padStart(2, "0");
   return `${pad(h)}:${pad(m)}:${pad(s)}`;
 };
-
 
 const makeId = () => crypto.randomUUID();
 
@@ -693,14 +699,13 @@ const createGridJpg = async (
     videoUsable = false;
   }
 
-  // ── Frame loop ───────────────────────────────────────────────────────────
-  const posMap: Record<Position, { x: "left" | "right"; y: "top" | "bottom" }> = {
+  // ── Timecode position map (excludes "disabled") ───────────────────────────
+  const posMap: Record<Exclude<Position, "disabled">, { x: "left" | "right"; y: "top" | "bottom" }> = {
     "top-left":     { x: "left",  y: "top"    },
     "top-right":    { x: "right", y: "top"    },
     "bottom-left":  { x: "left",  y: "bottom" },
     "bottom-right": { x: "right", y: "bottom" },
   };
-  const pos = posMap[opts.position];
 
   // FFmpeg batch results — extracted once on first need, reused per frame.
   let ffmpegBitmaps: (ImageBitmap | null)[] | null = null;
@@ -783,23 +788,26 @@ const createGridJpg = async (
       ctx.textBaseline = "alphabetic";
     }
 
-    // ── Timecode overlay ─────────────────────────────────────────────────
-    const label    = formatTime(tSec);
-    const tcFontSz = Math.max(11, Math.round(totalWidth * 0.012));
-    ctx.font        = `${tcFontSz}px system-ui, Arial, sans-serif`;
-    ctx.textBaseline = "top";
-    const textW    = ctx.measureText(label).width;
-    const pad      = 6;
-    const bgW      = textW + pad * 2;
-    const bgH      = tcFontSz + pad * 2;
-    const bgX      = pos.x === "left" ? x + pad : x + cellWidth  - bgW - pad;
-    const bgY      = pos.y === "top"  ? y + pad : y + cellHeight - bgH - pad;
+    // ── Timecode overlay (skipped when position is "disabled") ───────────
+    if (opts.position !== "disabled") {
+      const pos      = posMap[opts.position];
+      const label    = formatTime(tSec);
+      const tcFontSz = Math.max(11, Math.round(totalWidth * 0.012));
+      ctx.font        = `${tcFontSz}px system-ui, Arial, sans-serif`;
+      ctx.textBaseline = "top";
+      const textW    = ctx.measureText(label).width;
+      const pad      = 6;
+      const bgW      = textW + pad * 2;
+      const bgH      = tcFontSz + pad * 2;
+      const bgX      = pos.x === "left" ? x + pad : x + cellWidth  - bgW - pad;
+      const bgY      = pos.y === "top"  ? y + pad : y + cellHeight - bgH - pad;
 
-    ctx.fillStyle = "rgba(0,0,0,0.6)";
-    ctx.fillRect(bgX, bgY, bgW, bgH);
-    ctx.fillStyle = "#ffffff";
-    ctx.fillText(label, bgX + pad, bgY + pad);
-    ctx.textBaseline = "alphabetic";
+      ctx.fillStyle = "rgba(0,0,0,0.6)";
+      ctx.fillRect(bgX, bgY, bgW, bgH);
+      ctx.fillStyle = "#ffffff";
+      ctx.fillText(label, bgX + pad, bgY + pad);
+      ctx.textBaseline = "alphabetic";
+    }
 
     onFrameDone(i + 1, total, tSec);
     await new Promise<void>((r) => requestAnimationFrame(() => r()));
@@ -917,12 +925,9 @@ const updateStartButtonState = (): void => {
     els.start.disabled = true;
     return;
   }
-  
-  // ✅ Any mix of queued/cancelled/done + metadata = ready to restart
   const allHaveMetadata = items.every(item => item.metadata !== undefined);
-  const canRestart = allHaveMetadata && !isProcessing;
-  
-  els.start.disabled = !canRestart;
+  const canRestart      = allHaveMetadata && !isProcessing;
+  els.start.disabled    = !canRestart;
 };
 
 // ---------------------------------------------------------------------------
@@ -957,7 +962,6 @@ const addFile = async (file: File) => {
   // Run the native-play check in parallel so it adds no extra latency.
   const [meta] = await Promise.all([
     readMetadataMediaInfo(file),
-    // Side-effect only: result used below after awaiting meta
     Promise.resolve(canNativelyPlay(file)),
   ]);
 
@@ -985,7 +989,7 @@ const queueSelectedFiles = async () => {
   const files = Array.from(els.files.files ?? []);
   selectedFiles.splice(0, selectedFiles.length, ...files);
   results.clear();
-  setStatus(`Analyzing ${files.length} file(s)...`); // ← Clear feedback  
+  setStatus(`Analyzing ${files.length} file(s)...`);
   for (const file of selectedFiles) {
     await addFile(file);
   }
@@ -1117,7 +1121,7 @@ const processAll = async () => {
 };
 
 // ---------------------------------------------------------------------------
-// Event wiring
+// Event wiring — Core Controls
 // ---------------------------------------------------------------------------
 els.files.addEventListener("change",  () => void queueSelectedFiles());
 els.start.addEventListener("click",   () => void processAll());
@@ -1145,26 +1149,93 @@ els.clear.addEventListener("click", () => {
   updateStartButtonState();
 });
 
-els.saveOpts.addEventListener("click", () => saveOptions());
-
-els.loadOpts.addEventListener("click", () => {
-  const saved = loadOptions();
-  if (saved) {
-    applyOptions(saved);
-    setStatus("↩️ Saved options restored.");
+// ---------------------------------------------------------------------------
+// Event wiring — Presets
+// ---------------------------------------------------------------------------
+els.presetSelect.addEventListener("change", () => {
+  const name = els.presetSelect.value;
+  if (name === PRESETS_DEFAULT_VALUE) {
+    applyOptions(DEFAULTS);
+    setStatus("Loaded default options.");
   } else {
-    setStatus("⚠️ No saved options found.");
+    const presets = loadPresets();
+    if (presets[name]) {
+      applyOptions(presets[name]);
+      setStatus(`Loaded preset "${name}".`);
+    }
   }
+  els.deletePreset.disabled = name === PRESETS_DEFAULT_VALUE;
+  els.presetNameArea.style.display = "none";
 });
 
-els.resetOpts.addEventListener("click", () => {
-  applyOptions(DEFAULTS);  // Uses your hybrid defaults logic!
-  setStatus("🔄 Reset to defaults.");
+els.deletePreset.addEventListener("click", () => {
+  const name = els.presetSelect.value;
+  if (name === PRESETS_DEFAULT_VALUE) return;
+  const presets = loadPresets();
+  delete presets[name];
+  persistPresets(presets);
+  populatePresetSelect();
+  applyOptions(DEFAULTS);
+  setStatus(`🗑️ Preset "${name}" deleted.`);
+});
+
+els.savePreset.addEventListener("click", () => {
+  const currentName = els.presetSelect.value;
+  els.presetNameInput.value        = currentName === PRESETS_DEFAULT_VALUE ? "" : currentName;
+  els.presetNameArea.style.display = "flex";
+  els.presetNameInput.focus();
+  els.presetNameInput.select();
+});
+
+const confirmSavePreset = (): void => {
+  const name = els.presetNameInput.value.trim();
+  if (!name) {
+    setStatus("⚠️ Preset name cannot be empty.");
+    els.presetNameInput.focus();
+    return;
+  }
+  if (name === "<Default options>" || name === PRESETS_DEFAULT_VALUE) {
+    setStatus("⚠️ That name is reserved.");
+    els.presetNameInput.focus();
+    return;
+  }
+  const presets = loadPresets();
+  const isNew   = !presets[name];
+  const opts: SavedOptions = {
+    width:     Number(els.width.value)   || DEFAULTS.width,
+    cols:      Number(els.cols.value)    || DEFAULTS.cols,
+    rows:      Number(els.rows.value)    || DEFAULTS.rows,
+    spacing:   Number(els.spacing.value) || DEFAULTS.spacing,
+    position:  (els.position.value as Position) || DEFAULTS.position,
+    bgColor:   els.bgColor.value   || DEFAULTS.bgColor,
+    textColor: els.textColor.value || DEFAULTS.textColor,
+    header:    els.header.checked,
+    preview:   els.preview.checked,
+  };
+  presets[name] = opts;
+  persistPresets(presets);
+  populatePresetSelect();
+  els.presetSelect.value           = name;
+  els.deletePreset.disabled        = false;
+  els.presetNameArea.style.display = "none";
+  setStatus(isNew ? `✅ Preset "${name}" created.` : `✅ Preset "${name}" updated.`);
+};
+
+els.presetNameConfirm.addEventListener("click", confirmSavePreset);
+
+els.presetNameInput.addEventListener("keydown", (e) => {
+  if (e.key === "Enter")  { e.preventDefault(); confirmSavePreset(); }
+  if (e.key === "Escape") { els.presetNameArea.style.display = "none"; }
+});
+
+els.presetNameCancel.addEventListener("click", () => {
+  els.presetNameArea.style.display = "none";
 });
 
 // ---------------------------------------------------------------------------
 // Init
 // ---------------------------------------------------------------------------
+populatePresetSelect();
 renderOutputs();
 updateStartButtonState();
 els.cancel.disabled = true;
