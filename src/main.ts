@@ -41,17 +41,29 @@ type SavedOptions = {
   preview: boolean;
 };
 
+const DEFAULTS: SavedOptions = {
+  width:    1920,
+  cols:     3,
+  rows:     4,
+  spacing:  0,
+  position: "top-left",
+  bgColor:  "#000000",
+  textColor: "#ffffff",
+  header:   true,
+  preview:  true,
+};
+
 const saveOptions = (): void => {
   try {
     const opts: SavedOptions = {
-      width:     Number(els.width.value)   || 1600,
-      cols:      Number(els.cols.value)    || 4,
-      rows:      Number(els.rows.value)    || 3,
-      spacing:   Number(els.spacing.value) || 0,
-      position:  els.position.value as Position,
-      bgColor:   els.bgColor.value,
-      textColor: els.textColor.value,
-      header:    els.header.checked,
+      width:     Number(els.width.value) || DEFAULTS.width,
+      cols:      Number(els.cols.value) || DEFAULTS.cols,
+      rows:      Number(els.rows.value)  || DEFAULTS.rows,
+      spacing:   Number(els.spacing.value) || DEFAULTS.spacing,
+      position:  (els.position.value as Position) || DEFAULTS.position,
+      bgColor:   els.bgColor.value || DEFAULTS.bgColor,
+      textColor: els.textColor.value || DEFAULTS.textColor,
+      header:    els.header.checked, // Always save raw checkbox value
       preview:   els.preview.checked,
     };
     localStorage.setItem(SETTINGS_KEY, JSON.stringify(opts));
@@ -65,22 +77,26 @@ const saveOptions = (): void => {
 const loadOptions = (): SavedOptions | null => {
   try {
     const raw = localStorage.getItem(SETTINGS_KEY);
-    return raw ? (JSON.parse(raw) as SavedOptions) : null;
+    return raw ? (JSON.parse(raw) as SavedOptions) : DEFAULTS;
   } catch {
     return null;
   }
 };
 
-const applyOptions = (opts: SavedOptions): void => {
-  els.width.value   = String(opts.width   ?? 1600);
-  els.cols.value    = String(opts.cols    ?? 4);
-  els.rows.value    = String(opts.rows    ?? 3);
-  els.spacing.value = String(opts.spacing ?? 0);
-  if (opts.position)  els.position.value  = opts.position;
-  if (opts.bgColor)  { els.bgColor.value    = opts.bgColor;   els.bgColorHex.textContent   = opts.bgColor; }
-  if (opts.textColor){ els.textColor.value  = opts.textColor; els.textColorHex.textContent = opts.textColor; }
-  els.header.checked  = opts.header  ?? true;
-  els.preview.checked = opts.preview ?? true;
+const applyOptions = (opts: Partial<SavedOptions>): void => {
+  // Get defaults for potentially missing values
+  const safeOpts: SavedOptions = { ...DEFAULTS, ...opts };
+  els.width.value              = String(safeOpts.width);
+  els.cols.value               = String(safeOpts.cols);
+  els.rows.value               = String(safeOpts.rows);
+  els.spacing.value            = String(safeOpts.spacing);
+  els.position.value           = safeOpts.position;
+  els.bgColor.value            = safeOpts.bgColor;
+  els.bgColorHex.textContent   = safeOpts.bgColor;
+  els.textColor.value          = safeOpts.textColor;
+  els.textColorHex.textContent = safeOpts.textColor;
+  els.header.checked           = safeOpts.header;
+  els.preview.checked          = safeOpts.preview;
 };
 
 // ---------------------------------------------------------------------------
@@ -333,28 +349,28 @@ app.innerHTML = `
 
         <label class="field">
           <span>Output width (px)</span>
-          <input id="width" type="number" min="240" step="1" value="1600" />
+          <input id="width" type="number" min="240" step="1" value="${DEFAULTS.width}" />
         </label>
 
         <label class="field">
           <span>Grid columns</span>
-          <input id="cols" type="number" min="1" step="1" value="4" />
+          <input id="cols" type="number" min="1" step="1" value="${DEFAULTS.cols}" />
         </label>
 
         <label class="field">
           <span>Grid rows</span>
-          <input id="rows" type="number" min="1" step="1" value="3" />
+          <input id="rows" type="number" min="1" step="1" value="${DEFAULTS.rows}" />
         </label>
 
         <label class="field">
           <span>Frame spacing (px)</span>
-          <input id="spacing" type="number" min="0" step="1" value="0" />
+          <input id="spacing" type="number" min="0" step="1" value="${DEFAULTS.spacing}" />
         </label>
 
         <label class="field">
           <span>Timecode position</span>
           <select id="position">
-            <option value="top-left">Top-left</option>
+            <option value="top-left" selected>Top-left</option>
             <option value="top-right">Top-right</option>
             <option value="bottom-left">Bottom-left</option>
             <option value="bottom-right">Bottom-right</option>
@@ -364,26 +380,26 @@ app.innerHTML = `
         <label class="field color-field">
           <span>Background color</span>
           <div class="color-input-row">
-            <input id="bgColor" type="color" value="#000000" />
-            <span id="bgColorHex" class="color-hex">#000000</span>
+            <input id="bgColor" type="color" value="${DEFAULTS.bgColor}" />
+            <span id="bgColorHex" class="color-hex">${DEFAULTS.bgColor}</span>
           </div>
         </label>
 
         <label class="field color-field">
           <span>Text color</span>
           <div class="color-input-row">
-            <input id="textColor" type="color" value="#ffffff" />
-            <span id="textColorHex" class="color-hex">#ffffff</span>
+            <input id="textColor" type="color" value="${DEFAULTS.textColor}" />
+            <span id="textColorHex" class="color-hex">${DEFAULTS.textColor}</span>
           </div>
         </label>
 
         <label class="check">
-          <input id="header" type="checkbox" checked />
+          <input id="header" type="checkbox" ${DEFAULTS.header ? 'checked' : ''}/>
           <span>Show header metadata</span>
         </label>
 
         <label class="check">
-          <input id="preview" type="checkbox" checked />
+          <input id="preview" type="checkbox" ${DEFAULTS.header ? 'checked' : ''}/>
           <span>Show preview</span>
         </label>
 
@@ -393,6 +409,7 @@ app.innerHTML = `
           <button id="clear">🗑️ Clear Files</button>
           <button id="saveOpts">💾 Save Options</button>
           <button id="loadOpts">↩️ Restore Saved Options</button>
+          <button id="resetOpts">🔄 Reset to Defaults</button>
         </div>
       </div>
 
@@ -462,6 +479,7 @@ const els = {
   clear:           document.querySelector<HTMLButtonElement>("#clear")!,
   saveOpts:        document.querySelector<HTMLButtonElement>("#saveOpts")!,
   loadOpts:        document.querySelector<HTMLButtonElement>("#loadOpts")!,
+  resetOpts:       document.querySelector("#resetOpts") as HTMLButtonElement,
   currentPct:      document.querySelector<HTMLSpanElement>("#currentPct")!,
   batchPct:        document.querySelector<HTMLSpanElement>("#batchPct")!,
   currentProgress: document.querySelector<HTMLProgressElement>("#currentProgress")!,
@@ -992,14 +1010,14 @@ const processAll = async () => {
   let done  = 0;
 
   try {
-    const width     = Math.max(240, Number(els.width.value)   || 1600);
-    const cols      = Math.max(1,   Number(els.cols.value)    || 4);
-    const rows      = Math.max(1,   Number(els.rows.value)    || 3);
-    const spacing   = Math.max(0,   Number(els.spacing.value) || 0);
-    const position  = els.position.value as Position;
-    const header    = els.header.checked;
-    const bgColor   = els.bgColor.value   || "#000000";
-    const textColor = els.textColor.value || "#ffffff";
+    const width     = Math.max(240, Number(els.width.value || DEFAULTS.width));
+    const cols      = Math.max(1,   Number(els.cols.value || DEFAULTS.cols));
+    const rows      = Math.max(1,   Number(els.rows.value || DEFAULTS.rows));
+    const spacing   = Math.max(0,   Number(els.spacing.value || DEFAULTS.spacing));
+    const position  = els.position.value as Position || DEFAULTS.position;
+    const header    = els.header.checked || DEFAULTS.header;
+    const bgColor   = els.bgColor.value || DEFAULTS.bgColor;
+    const textColor = els.textColor.value || DEFAULTS.textColor;
 
     const items = Array.from(results.values());
 
@@ -1137,6 +1155,11 @@ els.loadOpts.addEventListener("click", () => {
   } else {
     setStatus("⚠️ No saved options found.");
   }
+});
+
+els.resetOpts.addEventListener("click", () => {
+  applyOptions(DEFAULTS);  // Uses your hybrid defaults logic!
+  setStatus("🔄 Reset to defaults.");
 });
 
 // ---------------------------------------------------------------------------
