@@ -34,7 +34,7 @@ pages:
     # Rename the Vite output directory to `public/` as required by GitLab Pages.
     # The source `public/` folder (favicon, logo) was already copied into dist/
     # by Vite during build, so there is no conflict.
-    - mv dist public
+    - mv dist/* public
   artifacts:
     paths:
       - public
