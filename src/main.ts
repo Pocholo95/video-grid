@@ -275,7 +275,8 @@ const extractFramesFFmpegBatch = async (
         name,
       ]);
       const data = await ff.readFile(name);
-      const blob = new Blob([data], { type: "image/jpeg" });
+      const arrayBuffer = new Uint8Array(typeof data === 'string' ? new TextEncoder().encode(data) : data).buffer;
+      const blob = new Blob([arrayBuffer], { type: "image/jpeg" });
       results[i] = await createImageBitmap(blob);
       onFrameExtracted?.(i, times.length);
     } catch (e) {
@@ -316,7 +317,7 @@ if (!app) throw new Error("App root not found");
 app.innerHTML = `
   <main class="app-shell">
     <header class="app-header">
-      <div class="brand-mark" aria-hidden="true"><img src="public/favicon.svg" alt="Logo" /></div>
+      <div class="brand-mark" aria-hidden="true"><img src="favicon.svg" alt="Logo" /></div>
       <div>
         <h1>VidGrid-HTML</h1>
         <p class="subtitle">Client-side JPG thumbnail grid generator</p>
@@ -542,8 +543,6 @@ const formatTime = (seconds: number) => {
   return `${pad(h)}:${pad(m)}:${pad(s)}`;
 };
 
-const safeName = (name: string) =>
-  name.replace(/\.[^/.]+$/, "").replace(/[^\w.-]+/g, "_");
 
 const makeId = () => crypto.randomUUID();
 
@@ -894,6 +893,20 @@ const renderOutputs = () => {
   });
 };
 
+const updateStartButtonState = (): void => {
+  const items = Array.from(results.values());
+  if (!items.length) {
+    els.start.disabled = true;
+    return;
+  }
+  
+  // ✅ Any mix of queued/cancelled/done + metadata = ready to restart
+  const allHaveMetadata = items.every(item => item.metadata !== undefined);
+  const canRestart = allHaveMetadata && !isProcessing;
+  
+  els.start.disabled = !canRestart;
+};
+
 // ---------------------------------------------------------------------------
 // Modal
 // ---------------------------------------------------------------------------
@@ -946,6 +959,7 @@ const addFile = async (file: File) => {
   }
 
   renderOutputs();
+  updateStartButtonState();
 };
 
 const queueSelectedFiles = async () => {
@@ -953,8 +967,11 @@ const queueSelectedFiles = async () => {
   const files = Array.from(els.files.files ?? []);
   selectedFiles.splice(0, selectedFiles.length, ...files);
   results.clear();
-  for (const file of selectedFiles) await addFile(file);
-  setStatus(`${selectedFiles.length} file(s) queued. Press ▶️ Start Processing when ready.`);
+  setStatus(`Analyzing ${files.length} file(s)...`); // ← Clear feedback  
+  for (const file of selectedFiles) {
+    await addFile(file);
+  }
+  setStatus(`${selectedFiles.length} file(s) ready. Press ▶️ Start Processing.`);
   renderOutputs();
 };
 
@@ -972,6 +989,7 @@ const processAll = async () => {
   setStatus("Starting…");
   updateCurrentProgress(0);
   updateBatchProgress(0, selectedFiles.length);
+  let done  = 0;
 
   try {
     const width     = Math.max(240, Number(els.width.value)   || 1600);
@@ -983,12 +1001,16 @@ const processAll = async () => {
     const bgColor   = els.bgColor.value   || "#000000";
     const textColor = els.textColor.value || "#ffffff";
 
-    let done  = 0;
     const items = Array.from(results.values());
 
     for (const item of items) {
       if (cancelRequested) {
-        item.status = "cancelled";
+        // ✅ Reset processing items to queued for clean restart
+        if (item.status === "processing") {
+          item.status = "queued";
+        } else {
+          item.status = "cancelled"; // Keep cancelled for already-finished items
+        }
         renderOutputs();
         continue;
       }
@@ -1050,7 +1072,6 @@ const processAll = async () => {
         item.error      = undefined;
 
         log(`Finished "${item.file.name}" → ${humanSize(res.outputSize)}`);
-        setStatus(cancelRequested ? "Cancelled." : `Finished "${item.file.name}"`);
         updateCurrentProgress(100);
 
       } catch (e) {
@@ -1065,16 +1086,15 @@ const processAll = async () => {
       renderOutputs();
     }
 
-    setStatus(cancelRequested ? "Processing cancelled." : `Done — ${done} file(s) processed.`);
-
   } catch (e) {
     errlog("Batch failed:", e);
     setStatus(e instanceof Error ? e.message : "Batch failed");
   } finally {
     isProcessing        = false;
-    els.start.disabled  = false;
     els.cancel.disabled = true;
     updateCurrentProgress(0);
+    setStatus(`${cancelRequested ? `⏹️ Cancelled after ` : `✅ Done.`} ${done} file(s) processed. Press ▶️ Start Processing to restart from the beginning.`);
+    updateStartButtonState();
   }
 };
 
@@ -1104,6 +1124,7 @@ els.clear.addEventListener("click", () => {
   els.batchProgress.value    = 0;
   setStatus("Selection cleared.");
   renderOutputs();
+  updateStartButtonState();
 });
 
 els.saveOpts.addEventListener("click", () => saveOptions());
@@ -1122,4 +1143,5 @@ els.loadOpts.addEventListener("click", () => {
 // Init
 // ---------------------------------------------------------------------------
 renderOutputs();
+updateStartButtonState();
 els.cancel.disabled = true;
