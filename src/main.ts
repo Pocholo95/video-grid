@@ -1014,8 +1014,8 @@ const processAll = async () => {
     const cols      = Math.max(1,   Number(els.cols.value || DEFAULTS.cols));
     const rows      = Math.max(1,   Number(els.rows.value || DEFAULTS.rows));
     const spacing   = Math.max(0,   Number(els.spacing.value || DEFAULTS.spacing));
-    const position  = els.position.value as Position || DEFAULTS.position;
-    const header    = els.header.checked || DEFAULTS.header;
+    const position  = els.position.value as Position ?? DEFAULTS.position;
+    const header    = els.header.checked ?? DEFAULTS.header;
     const bgColor   = els.bgColor.value || DEFAULTS.bgColor;
     const textColor = els.textColor.value || DEFAULTS.textColor;
 
