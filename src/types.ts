@@ -37,3 +37,16 @@ export type SavedOptions = {
 };
 
 export type Presets = Record<string, SavedOptions>;
+
+/**
+ * Root structure persisted under APP_STORAGE_KEY.
+ * New top-level settings can be added here alongside `presets`.
+ */
+export type AppSettings = {
+  presets: {
+    /** Named preset entries keyed by preset name. */
+    entries: Presets;
+    /** The last preset the user switched to; null means <Default Preset>. */
+    lastUsed: string | null;
+  };
+};

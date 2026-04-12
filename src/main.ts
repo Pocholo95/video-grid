@@ -5,14 +5,18 @@ import { els, setStatus, syncColorHex } from "./dom";
 import { DEFAULTS, PRESETS_DEFAULT_VALUE } from "./constants";
 import {
   applyOptions,
+  getLastUsedPreset,
+  loadAppSettings,
   loadPresets,
   persistPresets,
   populatePresetSelect,
   readCurrentOptions,
+  setLastUsedPreset,
 } from "./presets";
 import { clearAll, processAll, queueSelectedFiles } from "./queue";
 import {
   closePreviewModal,
+  downloadAllOutputs,
   renderOutputs,
   updateStartButtonState,
 } from "./render";
@@ -40,7 +44,7 @@ els.cancel.addEventListener("click", () => {
 els.clear.addEventListener("click", clearAll);
 
 // ---------------------------------------------------------------------------
-// Image Preview Modal
+// Modal
 // ---------------------------------------------------------------------------
 els.previewClose.addEventListener("click", closePreviewModal);
 els.previewModal.addEventListener("click", (e) => {
@@ -53,17 +57,24 @@ window.addEventListener("keydown", (e) => {
 });
 
 // ---------------------------------------------------------------------------
+// Download All
+// ---------------------------------------------------------------------------
+els.downloadAll.addEventListener("click", () => void downloadAllOutputs());
+
+// ---------------------------------------------------------------------------
 // Presets
 // ---------------------------------------------------------------------------
 els.presetSelect.addEventListener("change", () => {
   const name = els.presetSelect.value;
   if (name === PRESETS_DEFAULT_VALUE) {
     applyOptions(DEFAULTS);
+    setLastUsedPreset(null);
     setStatus("Loaded default options.");
   } else {
-    const presets = loadPresets();
-    if (presets[name]) {
-      applyOptions(presets[name]);
+    const entries = loadPresets();
+    if (entries[name]) {
+      applyOptions(entries[name]);
+      setLastUsedPreset(name);
       setStatus(`Loaded preset "${name}".`);
     }
   }
@@ -74,9 +85,11 @@ els.presetSelect.addEventListener("change", () => {
 els.deletePreset.addEventListener("click", () => {
   const name = els.presetSelect.value;
   if (name === PRESETS_DEFAULT_VALUE) return;
-  const presets = loadPresets();
-  delete presets[name];
-  persistPresets(presets);
+  const entries = loadPresets();
+  delete entries[name];
+  persistPresets(entries);
+  // If the deleted preset was the last-used one, clear that reference too
+  if (name === getLastUsedPreset()) setLastUsedPreset(null);
   populatePresetSelect();
   applyOptions(DEFAULTS);
   setStatus(`🗑️ Preset "${name}" deleted.`);
@@ -103,10 +116,11 @@ const confirmSavePreset = (): void => {
     els.presetNameInput.focus();
     return;
   }
-  const presets = loadPresets();
-  const isNew   = !presets[name];
-  presets[name] = readCurrentOptions();
-  persistPresets(presets);
+  const entries = loadPresets();
+  const isNew   = !entries[name];
+  entries[name] = readCurrentOptions();
+  persistPresets(entries);
+  setLastUsedPreset(name);
   populatePresetSelect();
   els.presetSelect.value           = name;
   els.deletePreset.disabled        = false;
@@ -131,6 +145,15 @@ els.presetNameCancel.addEventListener("click", () => {
 // Init
 // ---------------------------------------------------------------------------
 populatePresetSelect();
+
+// Restore the last-used preset's options on page load
+const { presets } = loadAppSettings();
+if (presets.lastUsed && presets.entries[presets.lastUsed]) {
+  applyOptions(presets.entries[presets.lastUsed]);
+} else {
+  applyOptions(DEFAULTS);
+}
+
 renderOutputs();
 updateStartButtonState();
 els.cancel.disabled = true;

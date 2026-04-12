@@ -112,7 +112,7 @@ app.innerHTML = `
 
         <div class="progress-block">
           <div class="progress-label">
-            <span>Batch progress</span>
+            <span id="batchLabel">Batch progress</span>
             <span id="batchPct">0%</span>
           </div>
           <progress id="batchProgress" value="0" max="100"></progress>
@@ -123,7 +123,10 @@ app.innerHTML = `
     </section>
 
     <section class="panel">
-      <h2>Outputs</h2>
+      <div class="outputs-header">
+        <h2>Outputs</h2>
+        <button id="downloadAll" class="primary" style="display:none">⏬ Download All (0)</button>
+      </div>
       <div id="outputs" class="outputs"></div>
     </section>
 
@@ -139,7 +142,7 @@ app.innerHTML = `
 // ---------------------------------------------------------------------------
 // Element references
 // ---------------------------------------------------------------------------
-const q = <T extends Element>(sel: string) => {
+const q = <T extends Element>(sel: string): T => {
   const el = document.querySelector<T>(sel);
   if (!el) throw new Error(`Element not found: ${sel}`);
   return el;
@@ -168,11 +171,13 @@ export const els = {
   presetNameInput:   q<HTMLInputElement>("#presetNameInput"),
   presetNameConfirm: q<HTMLButtonElement>("#presetNameConfirm"),
   presetNameCancel:  q<HTMLButtonElement>("#presetNameCancel"),
+  batchLabel:        q<HTMLSpanElement>("#batchLabel"),
   currentPct:        q<HTMLSpanElement>("#currentPct"),
   batchPct:          q<HTMLSpanElement>("#batchPct"),
   currentProgress:   q<HTMLProgressElement>("#currentProgress"),
   batchProgress:     q<HTMLProgressElement>("#batchProgress"),
   status:            q<HTMLDivElement>("#status"),
+  downloadAll:       q<HTMLButtonElement>("#downloadAll"),
   outputs:           q<HTMLDivElement>("#outputs"),
   previewModal:      q<HTMLDivElement>("#previewModal"),
   previewModalImg:   q<HTMLImageElement>("#previewModalImg"),

@@ -207,11 +207,9 @@ export const clearAll = (): void => {
   closeMediaInfo();
   selectedFiles.splice(0, selectedFiles.length);
   results.clear();
-  els.files.value            = "";
-  els.currentPct.textContent = "0%";
-  els.batchPct.textContent   = "0%";
-  els.currentProgress.value  = 0;
-  els.batchProgress.value    = 0;
+  els.files.value = "";
+  updateCurrentProgress(0);
+  updateBatchProgress(0, 0);
   setStatus("Selection cleared.");
   renderOutputs();
   updateStartButtonState();

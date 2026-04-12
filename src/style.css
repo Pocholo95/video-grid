@@ -419,6 +419,18 @@ progress::-webkit-progress-value {
   gap: 16px;
 }
 
+.outputs-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.outputs-header h2 {
+  margin: 0;
+}
+
 .empty {
   color: var(--muted);
   padding: 24px 0;

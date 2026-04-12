@@ -1,3 +1,5 @@
+import JSZip from "jszip";
+import { saveAs } from "file-saver";
 import { els } from "./dom";
 import { isProcessing, results } from "./state";
 import type { OutputItem } from "./types";
@@ -55,6 +57,9 @@ export const closePreviewModal = (): void => {
 
 export const updateBatchProgress = (done: number, total: number): void => {
   const pct = total ? Math.round((done / total) * 100) : 0;
+  els.batchLabel.textContent = total > 0
+    ? `Batch progress (${done}/${total})`
+    : "Batch progress";
   els.batchPct.textContent = `${pct}%`;
   els.batchProgress.value  = pct;
 };
@@ -63,6 +68,48 @@ export const updateCurrentProgress = (pct: number): void => {
   const clamped = Math.max(0, Math.min(100, Math.round(pct)));
   els.currentPct.textContent = `${clamped}%`;
   els.currentProgress.value  = clamped;
+};
+
+// ---------------------------------------------------------------------------
+// Download All
+// ---------------------------------------------------------------------------
+
+/** Returns all items that have a completed, downloadable output. */
+const downloadableItems = () =>
+  Array.from(results.values()).filter(
+    (item) => item.status === "done" && item.outputBlob && item.outputName,
+  );
+
+/** Sync the "Download All" button visibility and label. Called from renderOutputs(). */
+const syncDownloadAllButton = (): void => {
+  const count = downloadableItems().length;
+  if (count > 1) {
+    els.downloadAll.style.display = "";
+    els.downloadAll.textContent   = `⏬ Download All (${count})`;
+  } else {
+    els.downloadAll.style.display = "none";
+  }
+};
+
+/** Build a ZIP of all completed outputs and trigger the browser download. */
+export const downloadAllOutputs = async (): Promise<void> => {
+  const items = downloadableItems();
+  if (!items.length) return;
+
+  els.downloadAll.disabled    = true;
+  els.downloadAll.textContent = `⏬ Zipping…`;
+
+  try {
+    const zip = new JSZip();
+    for (const item of items) {
+      zip.file(item.outputName!, item.outputBlob!);
+    }
+    const blob = await zip.generateAsync({ type: "blob" });
+    saveAs(blob, "vidgrid-outputs.zip");
+  } finally {
+    els.downloadAll.disabled = false;
+    syncDownloadAllButton();
+  }
 };
 
 // ---------------------------------------------------------------------------
@@ -85,6 +132,8 @@ export const updateStartButtonState = (): void => {
 
 export const renderOutputs = (): void => {
   const items = Array.from(results.values());
+
+  syncDownloadAllButton();
 
   if (!items.length) {
     els.outputs.innerHTML = `<div class="empty">No outputs yet.</div>`;
@@ -161,12 +210,7 @@ export const renderOutputs = (): void => {
       btn.onclick = () => {
         const item = results.get(btn.getAttribute("data-download-id")!);
         if (!item?.outputBlob || !item.outputName) return;
-        const url = URL.createObjectURL(item.outputBlob);
-        const a   = document.createElement("a");
-        a.href     = url;
-        a.download = item.outputName;
-        a.click();
-        setTimeout(() => URL.revokeObjectURL(url), 1000);
+        saveAs(item.outputBlob, item.outputName);
       };
     });
 };

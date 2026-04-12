@@ -20,7 +20,8 @@ export const HEADER_LINE_SPACING = 26;
 
 export const SEEK_TIMEOUT_MS = 10_000;
 
-export const PRESETS_LIST_KEY      = "vidgrid_presets";
+/** Single localStorage key for all persisted app settings. */
+export const APP_STORAGE_KEY       = "vidgrid_settings";
 export const PRESETS_DEFAULT_VALUE = "__default__";
 
 export const DEBUG = true;

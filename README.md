@@ -39,6 +39,7 @@ transmitted to any server.
   processing starts when this path will be taken.
 - **Batch processing** — queue multiple files and process them one after
   another with combined progress tracking.
+- **Batch download** of the generated outputs in ZIP-compressed format.
 - **Configurable grid** — choose columns, rows, output width, frame spacing,
   and timecode position (or disable the overlay entirely).
 - **Custom colours** — set the background and text colour for the header and
@@ -143,6 +144,8 @@ See [RELEASE.md](./RELEASE.md) for deployment instructions.
 - [mediainfo.js](https://mediainfo.js.org/) — container/codec metadata
 - [@ffmpeg/ffmpeg](https://github.com/ffmpegwasm/ffmpeg.wasm) — frame
   extraction fallback for natively unsupported formats
+- [JSZip](https://github.com/Stuk/jszip) — Compressing generated output for download
+- [FileSaver.js](https://github.com/eligrey/FileSaver.js/) — Download helper
 - HTML5 Canvas API — grid compositing and JPEG encoding
 - HTML5 Video API — native frame seeking for supported formats
 
