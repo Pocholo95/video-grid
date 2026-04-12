@@ -11,7 +11,13 @@
   --grid: #2a5d8a;
   --danger: #f87171;
   --shadow: 0 18px 60px rgba(0, 0, 0, 0.35);
-  font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-family:
+    Inter,
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
 }
 
 html,
@@ -48,7 +54,11 @@ body {
   gap: 16px;
   padding: 24px 28px;
   border-radius: 24px;
-  background: linear-gradient(180deg, rgba(17, 28, 51, 0.92), rgba(15, 23, 42, 0.92));
+  background: linear-gradient(
+    180deg,
+    rgba(17, 28, 51, 0.92),
+    rgba(15, 23, 42, 0.92)
+  );
   border: 1px solid var(--panel-border);
   box-shadow: var(--shadow);
 }
@@ -84,7 +94,11 @@ h1 {
 }
 
 .panel {
-  background: linear-gradient(180deg, rgba(17, 28, 51, 0.92), rgba(15, 23, 42, 0.92));
+  background: linear-gradient(
+    180deg,
+    rgba(17, 28, 51, 0.92),
+    rgba(15, 23, 42, 0.92)
+  );
   border: 1px solid var(--panel-border);
   border-radius: 24px;
   box-shadow: var(--shadow);
@@ -183,6 +197,102 @@ h1 {
   height: 18px;
 }
 
+/* ── Presets row ── */
+.presets-row {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.presets-label {
+  font-size: 1.1rem;
+  flex-shrink: 0;
+  line-height: 1;
+  user-select: none;
+}
+
+.presets-row select {
+  flex: 1 1 0;
+  min-width: 0;
+  box-sizing: border-box;
+  border-radius: 12px;
+  border: 1px solid rgba(130, 213, 253, 0.18);
+  background: rgba(8, 17, 31, 0.7);
+  color: var(--text);
+  padding: 9px 12px;
+  outline: none;
+  font: inherit;
+  cursor: pointer;
+  /* Prevent the native select from growing unbounded */
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ── Icon-only buttons (emoji) ── */
+.icon-btn {
+  border: 1px solid rgba(130, 213, 253, 0.18);
+  border-radius: 10px;
+  padding: 8px 10px;
+  font: inherit;
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+  background: rgba(8, 17, 31, 0.7);
+  color: var(--text);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  white-space: nowrap;
+  transition:
+    border-color 0.15s,
+    background 0.15s;
+}
+
+.icon-btn:hover:not(:disabled) {
+  border-color: rgba(130, 213, 253, 0.4);
+  background: rgba(8, 17, 31, 0.9);
+}
+
+.icon-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* ── Preset name input row ── */
+.preset-name-area {
+  grid-column: 1 / -1;
+  display: none; /* shown via JS */
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  background: rgba(8, 17, 31, 0.55);
+  border: 1px solid rgba(130, 213, 253, 0.22);
+  border-radius: 14px;
+  padding: 10px 12px;
+}
+
+.preset-name-area input[type="text"] {
+  flex: 1 1 0;
+  min-width: 0;
+  box-sizing: border-box;
+  border-radius: 10px;
+  border: 1px solid rgba(130, 213, 253, 0.18);
+  background: rgba(8, 17, 31, 0.8);
+  color: var(--text);
+  padding: 8px 12px;
+  outline: none;
+  font: inherit;
+}
+
+.preset-name-area input[type="text"]:focus {
+  border-color: rgba(130, 213, 253, 0.45);
+}
+
+/* ── Actions row ── */
 .actions {
   grid-column: 1 / -1;
   display: flex;
@@ -212,10 +322,14 @@ button.primary,
   color: white;
 }
 
-button:not(.primary) {
+button:not(.primary):not(.icon-btn) {
   background: rgba(8, 17, 31, 0.7);
   color: var(--text);
   border: 1px solid rgba(130, 213, 253, 0.18);
+}
+
+button:hover {
+  background-color: var(--accent);
 }
 
 /* Settings buttons are slightly more muted */
@@ -305,6 +419,18 @@ progress::-webkit-progress-value {
   gap: 16px;
 }
 
+.outputs-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.outputs-header h2 {
+  margin: 0;
+}
+
 .empty {
   color: var(--muted);
   padding: 24px 0;
@@ -378,7 +504,7 @@ progress::-webkit-progress-value {
 .output-preview {
   min-height: 180px;
   background: rgba(15, 23, 42, 0.7);
-  border-radius: 16px;
+  border-radius: 8px;
   overflow: hidden;
   display: grid;
   place-items: center;
@@ -398,6 +524,46 @@ progress::-webkit-progress-value {
   color: var(--muted);
   padding: 20px;
   text-align: center;
+}
+
+#previewModal {
+  position: fixed;
+  inset: 0;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  background: rgba(15, 23, 42, 0.92);
+  z-index: 9999;
+}
+
+#previewModalWrapper {
+  max-width: 96vw;
+  max-height: 96vh;
+  box-shadow: 0 25px 80px rgba(0, 0, 0, 0.7);
+  overflow: hidden;
+  position: relative;
+  background: #020617;
+  border: 1px solid rgba(130, 213, 253, 0.4);
+}
+
+#previewClose {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 2;
+  border-radius: 999px;
+  padding: 6px 10px;
+  border: 0;
+  cursor: pointer;
+  background: rgba(15, 23, 42, 0.85);
+  color: #e2e8f0;
+  font-size: 0.8rem;
+}
+
+#previewModalImg {
+  display: block;
+  max-width: 100%;
+  max-height: 100%;
 }
 
 .output-info {
@@ -456,5 +622,14 @@ progress::-webkit-progress-value {
 
   .output-preview {
     min-height: unset;
+  }
+
+  /* On small screens, stack the preset name area vertically */
+  .preset-name-area {
+    flex-wrap: wrap;
+  }
+
+  .preset-name-area input[type="text"] {
+    flex-basis: 100%;
   }
 }
