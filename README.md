@@ -29,17 +29,17 @@ transmitted to any server.
 
 - **In-browser preview** — thumbnail previews of completed grids with a
   full-size modal viewer.
-- **Universal metadata reading** via MediaInfo.js (WASM). Accurately reads
+- **Universal metadata reading** — Thanks to MediaInfo.js (WASM) which accurately reads
   duration, resolution, and bitrate from virtually any container format (MP4,
   MKV, AVI, MOV, WMV, WebM, TS, and many more) without decoding frames.
 - **Native frame extraction** using the browser's built-in video decoder for
   all formats the browser supports — fast, with no extra memory overhead.
-- **FFmpeg WASM fallback** for formats the browser cannot decode natively
+- **FFmpeg WASM fallback** — formats the browser cannot decode natively
   (e.g. AVI, WMV, certain MKV/H.265 files). A warning is shown before
   processing starts when this path will be taken.
 - **Batch processing** — queue multiple files and process them one after
   another with combined progress tracking.
-- **Batch download** of the generated outputs in ZIP-compressed format.
+- **Batch download** — generated outputs can be downloaded in ZIP-compressed format.
 - **Configurable grid** — choose columns, rows, output width, frame spacing,
   and timecode position (or disable the overlay entirely).
 - **Custom colours** — set the background and text colour for the header and
@@ -50,8 +50,6 @@ transmitted to any server.
   in localStorage and accessible from a compact dropdown at the top of the
   options panel. The built-in `<Default options>` entry always restores the
   factory defaults.
-- **Persistent settings** — save and restore your last-used options across
-  sessions via localStorage (independent of named presets).
 - **Cancel at any time** — interrupt a running batch cleanly after the current
   frame.
 
