@@ -118,7 +118,7 @@ export default function DestinationManager({ destinations, onSave, onClose }: Pr
               <span>
                 API Key
                 {draft.type === "chevereto" && (
-                  <> — <a href="https://api.imgbb.com/" target="_blank" rel="noopener noreferrer">get one here</a></>
+                  <> — <a href="https://api.imgbb.com/" target="_blank" rel="noopener noreferrer">get one here for imgBB</a></>
                 )}
               </span>
               <input

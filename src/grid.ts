@@ -14,7 +14,7 @@ import {
 import type { Position, VideoMetadata } from "./types";
 import { errlog, formatTime, humanSize, log, warn } from "./utils";
 
-// ─── Types ────────────────────────────────────────────────────────────────────
+// Types
 
 export type GridOptions = {
   width:     number;
@@ -33,8 +33,15 @@ export type GridResult = {
   outputBlob: Blob;
 };
 
-// ─── Seek helper ──────────────────────────────────────────────────────────────
+// Seek helper
 
+/**
+ * Seeks a video element to the given time and resolves when the seek completes.
+ * Rejects with a timeout error if the seek takes longer than SEEK_TIMEOUT_MS.
+ *
+ * @param video - The HTMLVideoElement to seek.
+ * @param t     - Target time in seconds.
+ */
 const seekVideo = (video: HTMLVideoElement, t: number): Promise<void> =>
   new Promise((resolve, reject) => {
     const tid = setTimeout(() => {
@@ -47,14 +54,17 @@ const seekVideo = (video: HTMLVideoElement, t: number): Promise<void> =>
     video.currentTime = t;
   });
 
-// ─── Main function ────────────────────────────────────────────────────────────
-
 /**
  * Build a JPEG contact sheet for a single video file.
+ * Tries native browser seeking first, falling back to FFmpeg WASM if that fails.
  *
- * @param isCancelled  Polled before each frame — return true to abort cleanly.
- * @param onFrameDone  Called after every frame — drives the progress bar.
- * @param onWarning    Called for non-fatal issues shown to the user.
+ * @param file         - The source video file.
+ * @param meta         - Pre-read metadata (dimensions, duration, etc.).
+ * @param opts         - Grid layout and appearance options.
+ * @param isCancelled  - Polled before each frame; return true to abort cleanly.
+ * @param onFrameDone  - Called after every frame to drive the progress bar.
+ * @param onWarning    - Called for non-fatal issues to show to the user.
+ * @returns The output filename, byte size, and JPEG blob.
  */
 export const createGridJpg = async (
   file: File,
@@ -88,7 +98,7 @@ export const createGridJpg = async (
   ctx.fillStyle = opts.bgColor;
   ctx.fillRect(0, 0, canvasWidth, canvasHeight);
 
-  // ── Header ─────────────────────────────────────────────────────────────────
+  // Header
   if (opts.header) {
     ctx.fillStyle    = opts.bgColor;
     ctx.fillRect(0, 0, canvasWidth, headerHeight);
@@ -124,14 +134,14 @@ export const createGridJpg = async (
     ctx.textBaseline = "alphabetic";
   }
 
-  // ── Sample timestamps ───────────────────────────────────────────────────────
+  // Sample timestamps - distributed evenly with a small margin at each end.
   const margin = Math.max(0.5, duration * 0.02);
   const usable = Math.max(duration - 2 * margin, 0.1);
   const times  = Array.from({ length: total }, (_, i) =>
     Math.min(Math.max(0, margin + usable * ((i + 0.5) / total)), duration),
   );
 
-  // ── Timecode position map ───────────────────────────────────────────────────
+  // Timecode position map
   const posMap: Record<
     Exclude<Position, "disabled">,
     { x: "left" | "right"; y: "top" | "bottom" }
@@ -142,7 +152,7 @@ export const createGridJpg = async (
     "bottom-right": { x: "right", y: "bottom" },
   };
 
-  // ── Open <video> for native seeking ────────────────────────────────────────
+  // Open a <video> element for native seeking.
   const videoUrl = URL.createObjectURL(file);
   const video    = document.createElement("video");
   video.muted       = true;
@@ -170,7 +180,7 @@ export const createGridJpg = async (
     videoUsable = false;
   }
 
-  // ── FFmpeg batch results ────────────────────────────────────────────────────
+  // FFmpeg batch results - lazily populated on first need.
   let ffmpegBitmaps: (ImageBitmap | null)[] | null = null;
   let ffmpegFailedFrames = 0;
 
@@ -191,7 +201,7 @@ export const createGridJpg = async (
     );
   };
 
-  // ── Frame loop ──────────────────────────────────────────────────────────────
+  // Frame loop
   for (let i = 0; i < times.length; i++) {
     if (isCancelled()) break;
 

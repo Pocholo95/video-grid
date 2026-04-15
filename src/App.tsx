@@ -16,7 +16,7 @@ import PreviewModal from "./components/PreviewModal";
 import CopyAllPanel from "./components/CopyAllPanel";
 
 export default function App() {
-  // ── Persisted app settings ─────────────────────────────────────────────────
+  // - Persisted app settings
   const [appSettings, setAppSettingsState] = useState<AppSettings>(() => loadAppSettings());
 
   const [opts, setOptsState] = useState<SavedOptions>(() => {
@@ -34,7 +34,7 @@ export default function App() {
 
   const setOpts = useCallback((o: SavedOptions) => setOptsState(o), []);
 
-  // ── Destinations ───────────────────────────────────────────────────────────
+  // - Destinations
   const destinations = appSettings.destinations;
   const [showDestManager, setShowDestManager] = useState(false);
 
@@ -42,15 +42,16 @@ export default function App() {
     persistDestinations(dests);
     setAppSettings({ ...appSettings, destinations: dests });
   }, [appSettings, setAppSettings]);
+  const enabledDests = destinations.filter((d) => d.enabled);
 
-  // ── Output items ───────────────────────────────────────────────────────────
+  // - Output items
   const [items, setItems] = useState<OutputItem[]>([]);
 
   const updateItem = useCallback((id: string, patch: Partial<OutputItem>) => {
     setItems((prev) => prev.map((it) => it.id === id ? { ...it, ...patch } : it));
   }, []);
 
-  // ── Processor ──────────────────────────────────────────────────────────────
+  // - Processing
   const { isProcessing, status, analyseFiles, processAll, requestCancel, resetState } =
     useProcessor(updateItem);
 
@@ -63,10 +64,10 @@ export default function App() {
   const handleStart = useCallback(() => processAll(items, opts), [items, opts, processAll]);
   const handleClear = useCallback(() => { setItems([]); resetState(); }, [resetState]);
 
-  // ── Upload ─────────────────────────────────────────────────────────────────
+  // - Upload
   const { isUploadingAll, uploadItem, uploadAll } = useUpload(items, setItems);
 
-  // ── Download all as ZIP ────────────────────────────────────────────────────
+  // - Download all as ZIP
   const [isZipping, setIsZipping] = useState(false);
 
   const downloadAll = useCallback(async () => {
@@ -83,13 +84,12 @@ export default function App() {
     }
   }, [items]);
 
-  // ── Preview modal ──────────────────────────────────────────────────────────
+  // - Preview modal
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
-  // ── Derived ────────────────────────────────────────────────────────────────
+  // - Derived from Outputs
   const doneItems = items.filter((i) => i.status === "done" && i.outputBlob && i.outputName);
   const allMetaReady = items.length > 0 && items.every((i) => i.metadata !== undefined);
-  const enabledDests = destinations.filter((d) => d.enabled);
 
   return (
     <>
@@ -106,8 +106,7 @@ export default function App() {
             className="icon-btn dest-manager-btn"
             title="Manage upload destinations"
             onClick={() => setShowDestManager(true)}
-          >
-            ☁️ Destinations {destinations.length > 0 ? `(${destinations.filter(d => d.enabled).length}/${destinations.length})` : ""}
+          >☁️ Upload Destinations {destinations.length > 0 ? `(${destinations.filter(d => d.enabled).length}/${destinations.length})` : ""}
           </button>
         </div>
       </header>

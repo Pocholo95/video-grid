@@ -6,8 +6,6 @@ import type { DestinationUploadState, OutputItem, UploadDestination, UploadResul
 const UPLOAD_DELAY_MS = 1200;
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
-//type Updater = (id: string, patch: Partial<OutputItem>) => void;
-
 /**
  * Merges a partial DestinationUploadState into item.uploads[destId].
  *
@@ -15,6 +13,7 @@ const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
  * @param id     - ID of the item to update.
  * @param destId - Destination ID whose upload state should be patched.
  * @param patch  - Partial state to merge.
+ * @returns Updated array with the target item replaced.
  */
 function patchUpload(
   prev: OutputItem[],
@@ -41,9 +40,8 @@ function patchUpload(
 /**
  * Hook providing upload logic for one or multiple destinations.
  *
- * @param items     - Current output item list (used read-only for lookups).
- * @param setItems  - Setter for the output item list.
- * @param updateItem - Patch updater for a single item.
+ * @param items    - Current output item list (used read-only for lookups).
+ * @param setItems - Setter for the output item list.
  */
 export function useUpload(
   items: OutputItem[],
@@ -101,8 +99,7 @@ export function useUpload(
 
   /**
    * Upload all completed, not-yet-uploaded items to all enabled destinations.
-   * Runs sequentially with a small delay between each upload to respect
-   * rate limits.
+   * Runs sequentially with a small delay between each upload to respect rate limits.
    *
    * @param destinations - Full list of configured destinations.
    */

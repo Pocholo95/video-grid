@@ -1,4 +1,4 @@
-/* ─── Design tokens ──────────────────────────────────────────────────────── */
+/* Design tokens */
 :root {
   color-scheme: dark;
   --bg: #0f172a;
@@ -23,7 +23,7 @@
     sans-serif;
 }
 
-/* ─── Reset / base ───────────────────────────────────────────────────────── */
+/* Reset / base */
 html,
 body {
   margin: 0;
@@ -52,7 +52,7 @@ body {
   gap: 20px;
 }
 
-/* ─── Header ─────────────────────────────────────────────────────────────── */
+/* Header */
 .app-header {
   display: flex;
   align-items: center;
@@ -117,7 +117,7 @@ h3 {
   border-radius: 12px;
 }
 
-/* ─── Panel ──────────────────────────────────────────────────────────────── */
+/* Panel */
 .panel {
   background: linear-gradient(
     180deg,
@@ -132,7 +132,7 @@ h3 {
   overflow: hidden;
 }
 
-/* ─── Controls grid ──────────────────────────────────────────────────────── */
+/* Controls grid */
 .controls {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -224,7 +224,7 @@ h3 {
   height: 18px;
 }
 
-/* ─── Presets ────────────────────────────────────────────────────────────── */
+/* Presets */
 .presets-row {
   grid-column: 1 / -1;
   display: flex;
@@ -280,7 +280,7 @@ h3 {
   border-color: rgba(130, 213, 253, 0.45);
 }
 
-/* ─── Buttons ────────────────────────────────────────────────────────────── */
+/* Buttons */
 .actions {
   grid-column: 1 / -1;
   display: flex;
@@ -356,7 +356,7 @@ button:disabled {
   color: var(--danger) !important;
 }
 
-/* ─── Progress ───────────────────────────────────────────────────────────── */
+/* Progress */
 .progress-area {
   margin-top: 18px;
   display: grid;
@@ -403,7 +403,7 @@ progress::-webkit-progress-value {
   white-space: normal;
 }
 
-/* ─── Outputs ────────────────────────────────────────────────────────────── */
+/* Outputs */
 .outputs-header {
   display: flex;
   align-items: center;
@@ -434,7 +434,7 @@ progress::-webkit-progress-value {
   padding: 24px 0;
 }
 
-/* ─── Output card ────────────────────────────────────────────────────────── */
+/* Output card */
 .output-card {
   background: rgba(8, 17, 31, 0.56);
   border: 1px solid rgba(130, 213, 253, 0.16);
@@ -516,7 +516,7 @@ progress::-webkit-progress-value {
   overflow-wrap: break-word;
 }
 
-/* ─── Output grid (preview + info) ──────────────────────────────────────── */
+/* Output grid - preview + info */
 .output-grid {
   display: grid;
   grid-template-columns: 320px minmax(0, 1fr);
@@ -569,7 +569,7 @@ progress::-webkit-progress-value {
   color: var(--muted);
 }
 
-/* ─── Action row (download + upload) ────────────────────────────────────── */
+/* Action row - download + upload */
 .action-row {
   display: flex;
   align-items: center;
@@ -612,7 +612,7 @@ progress::-webkit-progress-value {
   font-size: 0.88rem;
 }
 
-/* ─── Upload links panel ─────────────────────────────────────────────────── */
+/* Upload links panel */
 .upload-links {
   background: rgba(4, 26, 20, 0.6);
   border: 1px solid rgba(74, 222, 128, 0.25);
@@ -730,7 +730,7 @@ progress::-webkit-progress-value {
   color: var(--success);
 }
 
-/* ─── Preview modal ──────────────────────────────────────────────────────── */
+/* Preview modal */
 #previewModal {
   position: fixed;
   inset: 0;
@@ -771,7 +771,7 @@ progress::-webkit-progress-value {
   max-height: 96vh;
 }
 
-/* ─── Destination manager modal ──────────────────────────────────────────── */
+/* Destination manager modal */
 .modal-backdrop {
   position: fixed;
   inset: 0;
@@ -940,7 +940,7 @@ progress::-webkit-progress-value {
   padding: 4px 6px !important;
 }
 
-/* ─── Copy All panel ──────────────────────────────────────────────────────── */
+/* Copy All panel */
 .copy-all-panel {
   margin-bottom: 18px;
   padding: 12px 16px;
@@ -962,7 +962,7 @@ progress::-webkit-progress-value {
   white-space: nowrap;
 }
 
-/* ─── Upload links — collapsible per-destination ─────────────────────────── */
+/* Upload links - collapsible per-destination */
 .upload-results {
   display: grid;
   gap: 8px;
@@ -990,7 +990,7 @@ progress::-webkit-progress-value {
   color: var(--muted);
 }
 
-/* ─── Responsive ─────────────────────────────────────────────────────────── */
+/* Responsive */
 @media (max-width: 860px) {
   .controls {
     grid-template-columns: 1fr;

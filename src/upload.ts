@@ -1,14 +1,13 @@
 import type { UploadDestination, UploadResult } from "./types";
 
-// ─── chevereto ────────────────────────────────────────────────────────────────────
-
 /**
- * Upload a Blob to chevereto using the v1 API.
+ * Upload a Blob to a Chevereto-compatible host using the v1 API.
+ * Resolves with structured URLs on success, rejects with a descriptive error otherwise.
  *
  * @param blob       - The image data to upload.
- * @param filename   - Original filename (extension is stripped for the chevereto `name` field).
- * @param apiKey     - chevereto API key.
- * @param onProgress - Called with 0–100 as the XHR upload progresses.
+ * @param filename   - Original filename (extension is stripped for the `name` field).
+ * @param apiKey     - API key for the host.
+ * @param onProgress - Called with 0-100 as the XHR upload progresses.
  */
 const uploadToChevereto = (
   blob: Blob,
@@ -79,16 +78,14 @@ const uploadToChevereto = (
     reader.readAsDataURL(blob);
   });
 
-// ─── Dispatcher ───────────────────────────────────────────────────────────────
-
 /**
- * Upload a Blob to the given destination.
- * Throws on failure so the caller can record the error.
+ * Upload a Blob to the given destination, dispatching to the correct
+ * provider implementation. Throws on failure so the caller can record the error.
  *
  * @param blob        - Image data to upload.
  * @param filename    - Suggested filename for the host.
  * @param destination - Target upload destination config.
- * @param onProgress  - Called with 0–100 during upload.
+ * @param onProgress  - Called with 0-100 during upload.
  */
 export const uploadBlob = (
   blob: Blob,

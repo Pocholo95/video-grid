@@ -1,4 +1,4 @@
-// ─── Grid / Video ────────────────────────────────────────────────────────────
+// - Grid / Video
 
 export type Position =
   | "top-left"
@@ -14,7 +14,7 @@ export type VideoMetadata = {
   bitrate: number;
 };
 
-// ─── Upload ───────────────────────────────────────────────────────────────────
+// - Upload
 
 export type UploadStatus = "idle" | "uploading" | "done" | "error";
 
@@ -39,7 +39,7 @@ export type UploadDestination = {
   enabled: boolean;
 };
 
-// ─── Per-destination upload state on an OutputItem ───────────────────────────
+// - Per-destination upload state on an OutputItem
 
 export type DestinationUploadState = {
   status: UploadStatus;
@@ -48,7 +48,7 @@ export type DestinationUploadState = {
   result?: UploadResult;
 };
 
-// ─── Queue items ──────────────────────────────────────────────────────────────
+// - Queue items
 
 export type OutputItem = {
   id: string;
@@ -67,7 +67,7 @@ export type OutputItem = {
   uploads?: Record<string, DestinationUploadState>;
 };
 
-// ─── Settings ─────────────────────────────────────────────────────────────────
+// - Settings / Options
 
 export type SavedOptions = {
   width: number;

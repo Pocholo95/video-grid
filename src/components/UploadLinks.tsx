@@ -15,8 +15,11 @@ type LinkFormat = {
 };
 
 /**
- * Derive a human-readable resolution label (e.g. "1080p") from pixel height.
- * Falls back to raw dimensions if no standard label matches.
+ * Derives a human-readable resolution label (e.g. "1080p") from pixel height,
+ * with BBCode colour tags for forum use. Returns an empty string if metadata
+ * is missing or height is zero.
+ *
+ * @param meta - Optional VideoMetadata; height is used to pick the label.
  */
 function resolutionLabel(meta?: VideoMetadata): string {
   if (!meta || meta.height === 0) return "";
@@ -30,15 +33,12 @@ function resolutionLabel(meta?: VideoMetadata): string {
   return `${h}p`;
 }
 
-
-
-
-
 /**
  * Build the list of copyable link formats for a given upload result.
+ * The returned array is order-stable; CopyAllPanel relies on index positions.
  *
  * @param r        - The UploadResult from the host.
- * @param filename - Original output filename (used to derive alt text).
+ * @param filename - Original output filename (extension stripped for alt text).
  */
 function buildFormats(r: UploadResult, filename: string): LinkFormat[] {
   const altText = filename.replace(/\.[^.]+$/, "");
@@ -54,12 +54,12 @@ function buildFormats(r: UploadResult, filename: string): LinkFormat[] {
       description: "Host viewer page",
     },
     {
-      label: "BBCode — full image",
+      label: "BBCode - full image",
       value: `[img]${r.directUrl}[/img]`,
       description: "Displays the image inline",
     },
     {
-      label: "BBCode — thumbnail → full",
+      label: "BBCode - thumbnail → full",
       value: `[url=${r.pageUrl}][img]${r.thumbUrl}[/img][/url]`,
       description: "Thumbnail that links to the viewer page",
     },

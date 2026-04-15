@@ -2,7 +2,7 @@
 
 A fully **client-side** video thumbnail grid generator. Drop in one or more
 video files and get a single JPG contact sheet for each one — no upload, no
-server processing, no account.
+server processing, no account required.
 
 ---
 
@@ -12,16 +12,17 @@ VidGrid-HTML analyses each video, samples frames at evenly-spaced timestamps
 across the duration, and assembles them into a configurable grid. Each cell can
 be annotated with a timecode overlay. An optional header row shows the filename,
 resolution, duration, bitrate, and file size. The result is saved as a
-high-quality JPEG you can preview and download immediately.
+high-quality JPEG you can preview, download, and/or upload to an image host.
 
 ---
 
 ## Privacy
 
-**Nothing ever leaves your device.** All processing — metadata reading, frame
-extraction, canvas compositing, and JPEG encoding — happens entirely inside
-your browser. No file data, no metadata, and no generated images are
-transmitted to any server.
+**Nothing ever leaves your device** unless you explicitly upload to an image
+host. All processing — metadata reading, frame extraction, canvas compositing,
+and JPEG encoding — happens entirely inside your browser. No file data, no
+metadata, and no generated images are transmitted to any server unless you
+trigger an upload.
 
 ---
 
@@ -29,7 +30,7 @@ transmitted to any server.
 
 - **In-browser preview** — thumbnail previews of completed grids with a
   full-size modal viewer.
-- **Universal metadata reading** — Thanks to MediaInfo.js (WASM) which accurately reads
+- **Universal metadata reading** — MediaInfo.js (WASM) accurately reads
   duration, resolution, and bitrate from virtually any container format (MP4,
   MKV, AVI, MOV, WMV, WebM, TS, and many more) without decoding frames.
 - **Native frame extraction** using the browser's built-in video decoder for
@@ -39,17 +40,20 @@ transmitted to any server.
   processing starts when this path will be taken.
 - **Batch processing** — queue multiple files and process them one after
   another with combined progress tracking.
-- **Batch download** — generated outputs can be downloaded in ZIP-compressed format.
+- **Batch download** — completed outputs can be downloaded together as a
+  ZIP archive.
+- **Upload to image hosts** — upload generated grids to one or more configured
+  Chevereto-compatible image hosts (e.g. ImgBB). See [Upload Destinations](#upload-destinations).
+- **Copy links** — after uploading, copy links in multiple formats per output
+  or for all outputs at once. See [Copying Links](#copying-links).
 - **Configurable grid** — choose columns, rows, output width, frame spacing,
   and timecode position (or disable the overlay entirely).
 - **Custom colours** — set the background and text colour for the header and
   timecode overlays.
 - **Optional metadata header** — toggle a header row showing file info above
   the grid.
-- **Presets** — save and switch between named option sets. Presets are stored
-  in localStorage and accessible from a compact dropdown at the top of the
-  options panel. The built-in `<Default options>` entry always restores the
-  factory defaults.
+- **Presets** — save and switch between named option sets stored in
+  localStorage. See [Presets](#presets).
 - **Cancel at any time** — interrupt a running batch cleanly after the current
   frame.
 
@@ -84,8 +88,78 @@ The 🗂️ dropdown at the top of the options panel lets you manage named prese
 - **🗑️ Delete preset** — removes the currently selected preset. Disabled when
   `<Default options>` is selected.
 
-Presets are stored in `localStorage` under the key `vidgrid_presets` and
-persist between browser sessions.
+Presets are stored in the browsers `localStorage` and persist between browser sessions.
+The last selected presets will also be restored in your next session.
+
+---
+
+## Upload Destinations
+
+VidGrid-HTML can upload completed grids to one or more image hosts compatible
+with the Chevereto v1 API (including [ImgBB](https://imgbb.com)) as long as they
+have enabled API uploads and provide you with an API key (Under Settings).
+
+### Managing destinations
+
+Click **☁️ Destinations** in the top-right corner to open the destination
+manager. From there you can:
+
+- **Add** a new destination by clicking **＋ Add destination** and filling in
+  its name, type, and API key.
+- **Edit** an existing destination with the ✏️ button.
+- **Enable / disable** a destination with its toggle (✅ / ⬜) without deleting it.
+- **Delete** a destination with the 🗑️ button.
+- Click **Save & close** to persist your changes, or **Discard changes** to
+  cancel.
+
+Destinations are stored in `localStorage` alongside presets and persist between
+sessions.
+
+### Uploading
+
+Once one or more destinations are enabled and processing is complete:
+
+- Each output card shows a **☁️ Upload** button. Clicking it uploads that grid
+  to all enabled destinations.
+- The **☁️ Upload All** button in the outputs header uploads every completed
+  grid to all enabled destinations in sequence, with a short delay between
+  requests to respect rate limits.
+
+Upload progress is shown per-destination on each output card. Once complete,
+the card expands a link panel for each destination (see below).
+
+---
+
+## Copying Links
+
+After a successful upload, each output card shows a collapsible link panel
+(one per destination). Expand it to access the following link formats:
+
+| Format | Description |
+| --- | --- |
+| **Direct URL** | Full-resolution image link |
+| **Viewer page** | Host viewer/page URL |
+| **BBCode - full image** | `[img]...[/img]` tag |
+| **BBCode - thumbnail** | `[url=...][img]...[/img][/url]` — thumbnail linking to the viewer page |
+| **Markdown** | `![alt](url)` |
+| **HTML img** | `<img src="..." alt="..." />` |
+
+Each row has an individual **Copy** button.
+
+You can also **delete the image** from the host using the 🗑 Delete link in the
+panel header (opens the host's delete URL in a new tab).
+
+### Copy All
+
+When at least one output has been uploaded, a **Copy all links** bar appears
+above the output list. Use the dropdown to select a format and click **Copy All**
+to copy links for all uploaded outputs at once, one per line.
+
+An additional format is available here:
+
+| Format | Description |
+| --- | --- |
+| **Post Template** | A BBCode block per output: a bold title line (`[b]filename resolution[/b]`) followed by thumbnail links from every destination on the same line, ready to paste into a forum post. |
 
 ---
 
@@ -142,8 +216,8 @@ See [RELEASE.md](./RELEASE.md) for deployment instructions.
 - [mediainfo.js](https://mediainfo.js.org/) — container/codec metadata
 - [@ffmpeg/ffmpeg](https://github.com/ffmpegwasm/ffmpeg.wasm) — frame
   extraction fallback for natively unsupported formats
-- [JSZip](https://github.com/Stuk/jszip) — Compressing generated output for download
-- [FileSaver.js](https://github.com/eligrey/FileSaver.js/) — Download helper
+- [JSZip](https://github.com/Stuk/jszip) — compressing generated output for download
+- [FileSaver.js](https://github.com/eligrey/FileSaver.js/) — download helper
 - HTML5 Canvas API — grid compositing and JPEG encoding
 - HTML5 Video API — native frame seeking for supported formats
 

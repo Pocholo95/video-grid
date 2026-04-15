@@ -19,7 +19,7 @@ type FormatKey =
 const FORMAT_LABELS: Record<FormatKey, string> = {
   directUrl: "Direct URL",
   pageUrl: "Viewer page",
-  bbcodeFull: "BBCode — full image",
+  bbcodeFull: "BBCode - full image",
   bbcodeThumb: "BBCode — thumbnail",
   markdown: "Markdown",
   htmlImg: "HTML img",
@@ -28,6 +28,8 @@ const FORMAT_LABELS: Record<FormatKey, string> = {
 
 /**
  * Pick the first successful upload result for an item, across all destinations.
+ *
+ * @param item - The OutputItem to inspect.
  */
 function firstResult(item: OutputItem) {
   if (!item.uploads) return null;
@@ -39,10 +41,12 @@ function firstResult(item: OutputItem) {
 
 /**
  * Build the BBCode "Post Template" block for an item with multiple uploads.
- * Format:
- *   [b]filename-without-ext 1080p[/b]
- *   [url=pageUrl][img]thumbUrl[/img][/url] [url=pageUrl][img]thumbUrl[/img][/url]
- *   (two blank lines after)
+ * Format: `[b]filename resolution[/b]` on the first line, then one
+ * `[url=page][img]thumb[/img][/url]` per destination on the second line,
+ * followed by two blank lines to separate entries.
+ *
+ * @param item - The OutputItem to build a block for.
+ * @returns The formatted BBCode string, or null if the item has no uploads.
  */
 function buildPostBlock(item: OutputItem): string | null {
   if (!item.uploads) return null;
@@ -67,9 +71,10 @@ function buildPostBlock(item: OutputItem): string | null {
 
 /**
  * Build the copyable text for a given format key, one line per item.
- */
-/**
- * Build the copyable text for a given format key, one line per item.
+ * For "postTemplate", items are separated by blank lines instead.
+ *
+ * @param items  - The OutputItems to include (should each have at least one upload).
+ * @param format - The FormatKey identifying which link format to emit.
  */
 function buildCopyText(items: OutputItem[], format: FormatKey): string {
   if (format === "postTemplate") {

@@ -15,7 +15,7 @@ export const loadAppSettings = (): AppSettings => {
     const raw = localStorage.getItem(APP_STORAGE_KEY);
     if (!raw) return structuredClone(DEFAULT);
     const parsed = JSON.parse(raw) as Partial<AppSettings>;
-    let destinations: UploadDestination[] = parsed.destinations ?? [];
+    const destinations: UploadDestination[] = parsed.destinations ?? [];
     return {
       presets: {
         entries:  parsed.presets?.entries  ?? {},
@@ -30,6 +30,8 @@ export const loadAppSettings = (): AppSettings => {
 
 /**
  * Persist the full AppSettings object to localStorage.
+ *
+ * @param settings - The settings object to store.
  */
 export const persistAppSettings = (settings: AppSettings): void => {
   try {
@@ -39,12 +41,16 @@ export const persistAppSettings = (settings: AppSettings): void => {
   }
 };
 
-// ─── Preset helpers ───────────────────────────────────────────────────────────
+// Preset helpers
 
 /** Load only the presets map from persisted settings. */
 export const loadPresets = (): Presets => loadAppSettings().presets.entries;
 
-/** Overwrite the presets map while preserving other settings. */
+/**
+ * Overwrite the presets map while preserving other settings.
+ *
+ * @param entries - The full replacement presets map.
+ */
 export const persistPresets = (entries: Presets): void => {
   const s = loadAppSettings();
   s.presets.entries = entries;
@@ -55,7 +61,11 @@ export const persistPresets = (entries: Presets): void => {
 export const getLastUsedPreset = (): string | null =>
   loadAppSettings().presets.lastUsed;
 
-/** Set the last-used preset name. */
+/**
+ * Set the last-used preset name.
+ *
+ * @param name - Preset name to record, or null to clear.
+ */
 export const setLastUsedPreset = (name: string | null): void => {
   const s = loadAppSettings();
   s.presets.lastUsed = name;
@@ -87,7 +97,7 @@ export const deletePreset = (name: string): void => {
   if (getLastUsedPreset() === name) setLastUsedPreset(null);
 };
 
-// ─── Destination helpers ──────────────────────────────────────────────────────
+// Destination helpers
 
 /** Load the destinations array from persisted settings. */
 export const loadDestinations = (): UploadDestination[] =>

@@ -1,12 +1,16 @@
 import { DEBUG } from "./constants";
 import type { VideoMetadata } from "./types";
 
-// ─── Logging ──────────────────────────────────────────────────────────────────
+// Logging - all calls are no-ops when DEBUG is false.
 export const log    = (...a: unknown[]) => DEBUG && console.log("[VidGrid]", ...a);
 export const warn   = (...a: unknown[]) => DEBUG && console.warn("[VidGrid]", ...a);
 export const errlog = (...a: unknown[]) => DEBUG && console.error("[VidGrid]", ...a);
 
-// ─── Formatting ───────────────────────────────────────────────────────────────
+/**
+ * Formats a byte count as a human-readable string (B, KB, MB, GB).
+ *
+ * @param bytes - The raw byte count.
+ */
 export const humanSize = (bytes: number): string => {
   const units = ["B", "KB", "MB", "GB"];
   let size = bytes;
@@ -15,6 +19,12 @@ export const humanSize = (bytes: number): string => {
   return `${size.toFixed(i === 0 ? 0 : 1)} ${units[i]}`;
 };
 
+/**
+ * Formats a duration in seconds as `HH:MM:SS`.
+ * Returns `"00:00:00"` for non-finite or negative values.
+ *
+ * @param seconds - Duration in seconds.
+ */
 export const formatTime = (seconds: number): string => {
   if (!Number.isFinite(seconds) || seconds < 0) return "00:00:00";
   const h = Math.floor(seconds / 3600);
@@ -24,9 +34,15 @@ export const formatTime = (seconds: number): string => {
   return `${pad(h)}:${pad(m)}:${pad(s)}`;
 };
 
+/** Generates a random UUID string suitable for use as an item ID. */
 export const makeId = (): string => crypto.randomUUID();
 
-// ─── Metadata guard ───────────────────────────────────────────────────────────
+/**
+ * Type guard that returns true when `meta` contains valid, usable video dimensions
+ * and a positive duration. Use this before passing metadata to grid generation.
+ *
+ * @param meta - The VideoMetadata object to check (may be undefined).
+ */
 export const hasUsableMetadata = (
   meta: VideoMetadata | undefined,
 ): meta is VideoMetadata =>

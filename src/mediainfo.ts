@@ -3,11 +3,11 @@ import type { MediaInfo } from "mediainfo.js";
 import { errlog, log } from "./utils";
 import type { VideoMetadata } from "./types";
 
-// ─── Singleton ────────────────────────────────────────────────────────────────
-
+// Singleton instance and load promise, shared across the module.
 let mediaInfoInstance: MediaInfo | null = null;
 let mediaInfoLoadPromise: Promise<MediaInfo> | null = null;
 
+/** Returns the shared MediaInfo instance, initialising it on first call. */
 const getMediaInfo = async (): Promise<MediaInfo> => {
   if (mediaInfoInstance) return mediaInfoInstance;
   if (!mediaInfoLoadPromise) {
@@ -24,6 +24,7 @@ const getMediaInfo = async (): Promise<MediaInfo> => {
   return mediaInfoLoadPromise;
 };
 
+/** Closes the MediaInfo instance and clears the singleton state. */
 export const closeMediaInfo = (): void => {
   if (mediaInfoInstance) {
     try { mediaInfoInstance.close(); } catch { /* already closed */ }
@@ -32,8 +33,14 @@ export const closeMediaInfo = (): void => {
   mediaInfoLoadPromise = null;
 };
 
-// ─── Metadata reading ─────────────────────────────────────────────────────────
-
+/**
+ * Reads video metadata from a file using MediaInfo.
+ * Returns zeroed fields on failure rather than throwing.
+ *
+ * @param file       - The video file to analyse.
+ * @param onProgress - Optional callback for progress updates (0-100, status message).
+ * @returns Parsed metadata including duration, dimensions, and bitrate.
+ */
 export const readMetadataMediaInfo = async (
   file: File,
   onProgress?: (pct: number, status: string) => void,
@@ -70,8 +77,12 @@ export const readMetadataMediaInfo = async (
   }
 };
 
-// ─── Native decode check ──────────────────────────────────────────────────────
-
+/**
+ * Returns true if the browser can decode the given file natively.
+ * Files with no MIME type are assumed playable to avoid false negatives.
+ *
+ * @param file - The video file to check.
+ */
 export const canNativelyPlay = (file: File): boolean => {
   const mime = file.type;
   if (!mime) return true;

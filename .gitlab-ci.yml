@@ -4,7 +4,6 @@ stages:
   - build
   - deploy
 
-# ── Build ────────────────────────────────────────────────────────────────────
 build:
   stage: build
   cache:
@@ -24,7 +23,7 @@ build:
   rules:
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
 
-# ── Deploy to GitLab Pages ───────────────────────────────────────────────────
+# - Deploy to GitLab Pages
 # GitLab Pages requires the artifact to live in a directory named `public/`.
 # We simply rename the Vite output.
 pages:

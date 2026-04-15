@@ -29,7 +29,7 @@ export default function ControlPanel({
   const [nameVisible, setNameVisible] = useState(false);
   const [nameValue, setNameValue] = useState("");
 
-  // ── Controlled field helpers ──────────────────────────────────────────────
+  // Controlled field helpers
   const numField = (key: "width" | "cols" | "rows" | "spacing") => ({
     value: String(opts[key]),
     onChange: (e: React.ChangeEvent<HTMLInputElement>) =>
@@ -42,7 +42,7 @@ export default function ControlPanel({
       setOpts({ ...opts, [key]: e.target.checked }),
   });
 
-  // ── Preset management ─────────────────────────────────────────────────────
+  // Presets management
   const applyPreset = (name: string) => {
     if (name === PRESETS_DEFAULT_VALUE) {
       setOpts(DEFAULTS);
@@ -87,7 +87,7 @@ export default function ControlPanel({
     <div className="panel">
       <div className="controls">
 
-        {/* ── Presets row ── */}
+        {/* Presets row */}
         <div className="presets-row">
           <span className="presets-label" title="Presets">🗂️</span>
           <select value={selectedPreset} onChange={(e) => applyPreset(e.target.value)}>
@@ -122,7 +122,7 @@ export default function ControlPanel({
           </div>
         )}
 
-        {/* ── File picker ── */}
+        {/* File picker */}
         <label className="field">
           <span>Video files</span>
           <input
@@ -137,7 +137,7 @@ export default function ControlPanel({
           />
         </label>
 
-        {/* ── Grid options ── */}
+        {/* Grid options */}
         <label className="field">
           <span>Output width (px)</span>
           <input type="number" min={240} step={1} {...numField("width")} />
@@ -221,7 +221,7 @@ export default function ControlPanel({
         </div>
       </div>
 
-      {/* ── Progress ── */}
+      {/* Progress */}
       <div className="progress-area">
         <div className="progress-block">
           <div className="progress-label">
