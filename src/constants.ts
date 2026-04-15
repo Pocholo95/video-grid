@@ -12,7 +12,7 @@ export const DEFAULTS: SavedOptions = {
   preview:   true,
 };
 
-// Header layout — match Python VidGrid defaults
+// Header layout
 export const HEADER_HEIGHT       = 160;
 export const HEADER_PADDING_LEFT = 12;
 export const HEADER_TEXT_SIZE    = 24;
@@ -20,10 +20,8 @@ export const HEADER_LINE_SPACING = 26;
 
 export const SEEK_TIMEOUT_MS = 10_000;
 
-/** localStorage key for app settings (presets, etc.) */
-export const APP_STORAGE_KEY          = "vidgrid_settings";
-/** localStorage key for upload destinations */
-export const DESTINATIONS_STORAGE_KEY = "vidgrid_destinations";
+/** localStorage key for all persisted app settings (presets, destinations, …) */
+export const APP_STORAGE_KEY = "vidgrid_settings";
 
 export const PRESETS_DEFAULT_VALUE = "__default__";
 

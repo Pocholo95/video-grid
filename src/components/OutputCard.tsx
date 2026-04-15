@@ -8,17 +8,12 @@ interface Props {
   item: OutputItem;
   showPreview: boolean;
   destinations: UploadDestination[];
-  activeDestId: string;
   onPreview: (url: string) => void;
-  onUpload: (id: string, destId: string) => void;
+  onUpload: (id: string) => void;
 }
 
-export default function OutputCard({
-  item, showPreview, destinations, activeDestId,
-  onPreview, onUpload,
-}: Props) {
-  // Manage object URL lifecycle locally
-  const urlRef             = useRef<string | null>(null);
+export default function OutputCard({ item, showPreview, destinations, onPreview, onUpload }: Props) {
+  const urlRef = useRef<string | null>(null);
   const [blobUrl, setBlobUrl] = useState<string | null>(null);
 
   useEffect(() => {
@@ -27,39 +22,27 @@ export default function OutputCard({
       setBlobUrl(null);
       return;
     }
-    if (!urlRef.current) {
-      urlRef.current = URL.createObjectURL(item.outputBlob);
-    }
+    if (!urlRef.current) urlRef.current = URL.createObjectURL(item.outputBlob);
     setBlobUrl(urlRef.current);
     return () => {
       if (urlRef.current) { URL.revokeObjectURL(urlRef.current); urlRef.current = null; }
     };
   }, [item.outputBlob, showPreview]);
 
-  const meta    = item.metadata;
-  const isDone  = item.status === "done";
-  const canUpload = isDone && !!item.outputBlob && destinations.length > 0 &&
-                    item.uploadStatus !== "uploading" && item.uploadStatus !== "done";
-
-  const destForSelect = destinations.find((d) => d.id === activeDestId) ?? destinations[0];
-
-  const [selectedDestId, setSelectedDestId] = useState<string>(activeDestId);
-  useEffect(() => setSelectedDestId(activeDestId), [activeDestId]);
+  const meta = item.metadata;
+  const isDone = item.status === "done";
+  const enabledDests = destinations.filter((d) => d.enabled);
+  const anyUploading = enabledDests.some((d) => item.uploads?.[d.id]?.status === "uploading");
+  const allDone = enabledDests.length > 0 && enabledDests.every((d) => item.uploads?.[d.id]?.status === "done");
+  const canUpload = isDone && !!item.outputBlob && enabledDests.length > 0 && !anyUploading && !allDone;
 
   const handleDownload = () => {
     if (!item.outputBlob || !item.outputName) return;
     saveAs(item.outputBlob, item.outputName);
   };
 
-  const handleUpload = () => {
-    const dest = destinations.find((d) => d.id === selectedDestId) ?? destForSelect;
-    if (!dest) return;
-    onUpload(item.id, dest.id);
-  };
-
   return (
-    <article className={`output-card output-${item.status}${item.uploadStatus === "done" ? " output-uploaded" : ""}`}>
-      {/* ── Top row ── */}
+    <article className={`output-card output-${item.status}${allDone ? " output-uploaded" : ""}`}>
       <div className="output-top">
         <div className="output-top-text">
           <h3 title={item.file.name}>{item.file.name}</h3>
@@ -76,9 +59,7 @@ export default function OutputCard({
         <div className="badge">{item.status}</div>
       </div>
 
-      {/* ── Content grid ── */}
       <div className="output-grid">
-        {/* Preview */}
         <div className="output-preview">
           {blobUrl ? (
             <img
@@ -96,14 +77,12 @@ export default function OutputCard({
           )}
         </div>
 
-        {/* Info + actions */}
         <div className="output-info">
           <p><strong>Output:</strong> {item.outputName ?? "—"}</p>
           <p><strong>Size:</strong> {item.outputSize ? humanSize(item.outputSize) : "—"}</p>
           <p><strong>Status:</strong> {item.status}</p>
           {item.error && <p className="error">{item.error}</p>}
 
-          {/* Action buttons row */}
           <div className="action-row">
             {isDone && item.outputBlob && item.outputName ? (
               <button className="button-link" onClick={handleDownload}>⬇️ Download JPG</button>
@@ -111,53 +90,59 @@ export default function OutputCard({
               <span className="muted">No download yet</span>
             )}
 
-            {/* Upload section */}
-            {isDone && destinations.length > 0 && item.uploadStatus !== "done" && (
-              <div className="upload-action">
-                {destinations.length > 1 && (
-                  <select
-                    className="dest-select"
-                    value={selectedDestId}
-                    onChange={(e) => setSelectedDestId(e.target.value)}
-                    disabled={item.uploadStatus === "uploading"}
-                  >
-                    {destinations.map((d) => (
-                      <option key={d.id} value={d.id}>{d.name}</option>
-                    ))}
-                  </select>
-                )}
-                <button
-                  className="button-link upload-btn"
-                  onClick={handleUpload}
-                  disabled={!canUpload}
-                  title={destinations.length === 1 ? `Upload to ${destinations[0].name}` : "Upload to selected destination"}
-                >
-                  ☁️ Upload{destinations.length === 1 ? ` to ${destinations[0].name}` : ""}
-                </button>
-              </div>
+            {isDone && enabledDests.length > 0 && !allDone && (
+              <button
+                className="button-link upload-btn"
+                onClick={() => onUpload(item.id)}
+                disabled={!canUpload}
+                title={`Upload to ${enabledDests.map((d) => d.name).join(", ")}`}
+              >
+                ☁️ Upload{enabledDests.length === 1 ? ` to ${enabledDests[0].name}` : ` (${enabledDests.length} destinations)`}
+              </button>
             )}
           </div>
 
-          {/* Upload progress */}
-          {item.uploadStatus === "uploading" && (
-            <div className="upload-progress-wrap">
-              <div className="progress-label">
-                <span>Uploading…</span>
-                <span>{item.uploadProgress ?? 0}%</span>
+          {/* Per-destination upload progress */}
+          {enabledDests.map((dest) => {
+            const state = item.uploads?.[dest.id];
+            if (!state || state.status === "idle") return null;
+            return (
+              <div key={dest.id} className="upload-progress-wrap">
+                {state.status === "uploading" && (
+                  <>
+                    <div className="progress-label">
+                      <span>Uploading to {dest.name}…</span>
+                      <span>{state.progress}%</span>
+                    </div>
+                    <progress value={state.progress} max={100} />
+                  </>
+                )}
+                {state.status === "error" && state.error && (
+                  <p className="error">Upload to {dest.name} failed: {state.error}</p>
+                )}
               </div>
-              <progress value={item.uploadProgress ?? 0} max={100} />
-            </div>
-          )}
-
-          {item.uploadStatus === "error" && item.uploadError && (
-            <p className="error">Upload failed: {item.uploadError}</p>
-          )}
+            );
+          })}
         </div>
       </div>
 
-      {/* ── Upload links panel ── */}
-      {item.uploadStatus === "done" && item.uploadResult && (
-        <UploadLinks result={item.uploadResult} filename={item.outputName ?? item.file.name} />
+      {/* Per-destination upload results */}
+      {enabledDests.some((d) => item.uploads?.[d.id]?.status === "done") && (
+        <div className="upload-results">
+          {enabledDests.map((dest) => {
+            const state = item.uploads?.[dest.id];
+            if (state?.status !== "done" || !state.result) return null;
+            return (
+              <UploadLinks
+                key={dest.id}
+                destName={dest.name}
+                result={state.result}
+                filename={item.outputName ?? item.file.name}
+                metadata={item.metadata}
+              />
+            );
+          })}
+        </div>
       )}
     </article>
   );

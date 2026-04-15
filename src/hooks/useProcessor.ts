@@ -6,8 +6,6 @@ import { resetFFmpeg } from "../ffmpeg";
 import type { OutputItem, SavedOptions } from "../types";
 import { errlog, formatTime, hasUsableMetadata, log, makeId, warn } from "../utils";
 
-// ─── Types ────────────────────────────────────────────────────────────────────
-
 export type ProcessorStatus = {
   text: string;
   currentPct: number;
@@ -17,8 +15,11 @@ export type ProcessorStatus = {
 
 type Updater = (id: string, patch: Partial<OutputItem>) => void;
 
-// ─── Hook ─────────────────────────────────────────────────────────────────────
-
+/**
+ * Hook that manages video analysis and grid-generation processing.
+ *
+ * @param updateItem - Callback to patch a single OutputItem by id.
+ */
 export function useProcessor(updateItem: Updater) {
   const [isProcessing, setIsProcessing] = useState(false);
   const [status, setStatus]             = useState<ProcessorStatus>({
@@ -28,7 +29,13 @@ export function useProcessor(updateItem: Updater) {
 
   const cancelRef = useRef(false);
 
-  // ── Analyse newly selected files ──────────────────────────────────────────
+  /**
+   * Analyse newly selected files with MediaInfo to populate metadata.
+   * Updates each item in-place and calls updateItem after each file.
+   *
+   * @param files - The File objects selected by the user.
+   * @returns A fully-populated OutputItem array ready for processing.
+   */
   const analyseFiles = useCallback(async (files: File[]): Promise<OutputItem[]> => {
     setStatus({ text: `Analysing ${files.length} file(s)…`, currentPct: 0, batchDone: 0, batchTotal: files.length });
 
@@ -36,17 +43,10 @@ export function useProcessor(updateItem: Updater) {
       id: makeId(), file, status: "queued",
     }));
 
-    // Process metadata sequentially to avoid MediaInfo WASM contention
     for (let i = 0; i < items.length; i++) {
       const item = items[i];
       const progress = ((i + 1) / files.length) * 100;
-      
-      setStatus({ 
-        text: `Analysing "${item.file.name}"…`, 
-        currentPct: progress, 
-        batchDone: i + 1, 
-        batchTotal: files.length 
-      });
+      setStatus({ text: `Analysing "${item.file.name}"…`, currentPct: progress, batchDone: i + 1, batchTotal: files.length });
 
       try {
         const meta = await readMetadataMediaInfo(item.file);
@@ -61,7 +61,6 @@ export function useProcessor(updateItem: Updater) {
             "⚠️ Could not read metadata from this file. Processing may fail or produce incorrect output.";
         }
 
-        // Update UI immediately after each file
         updateItem(item.id, { metadata: item.metadata, warning: item.warning });
       } catch (e) {
         const msg = e instanceof Error ? e.message : "Metadata read failed";
@@ -75,11 +74,13 @@ export function useProcessor(updateItem: Updater) {
     return items;
   }, [updateItem]);
 
-  // ── Main processing loop ──────────────────────────────────────────────────
-  const processAll = useCallback(async (
-    items: OutputItem[],
-    opts: SavedOptions,
-  ) => {
+  /**
+   * Process all queued items, generating a JPEG grid for each one.
+   *
+   * @param items - The OutputItem list to process.
+   * @param opts  - Current SavedOptions controlling grid layout and appearance.
+   */
+  const processAll = useCallback(async (items: OutputItem[], opts: SavedOptions) => {
     if (isProcessing || !items.length) return;
 
     setIsProcessing(true);
@@ -97,7 +98,6 @@ export function useProcessor(updateItem: Updater) {
     };
 
     let done = 0;
-
     setStatus({ text: "Starting…", currentPct: 0, batchDone: 0, batchTotal: items.length });
 
     try {
@@ -115,9 +115,9 @@ export function useProcessor(updateItem: Updater) {
 
         const onFrameDone = (frameIdx: number, totalFrames: number, tSec: number) => {
           setStatus({
-            text: `"${item.file.name}" — frame ${frameIdx}/${totalFrames} @ ${formatTime(tSec)}`,
+            text:       `"${item.file.name}" — frame ${frameIdx}/${totalFrames} @ ${formatTime(tSec)}`,
             currentPct: (frameIdx / totalFrames) * 100,
-            batchDone: done,
+            batchDone:  done,
             batchTotal: items.length,
           });
         };
@@ -181,12 +181,14 @@ export function useProcessor(updateItem: Updater) {
     }
   }, [isProcessing, updateItem]);
 
+  /** Signal the running batch to stop after the current frame completes. */
   const requestCancel = useCallback(() => {
     cancelRef.current = true;
     setStatus((prev) => ({ ...prev, text: "Cancelling…" }));
     warn("Cancel requested by user");
   }, []);
 
+  /** Reset processing state and release WASM resources. */
   const resetState = useCallback(() => {
     resetFFmpeg();
     closeMediaInfo();

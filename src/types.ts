@@ -19,7 +19,7 @@ export type VideoMetadata = {
 export type UploadStatus = "idle" | "uploading" | "done" | "error";
 
 export type UploadResult = {
-  /** URL to the imgBB viewer page */
+  /** URL to the Cheverto viewer page */
   pageUrl: string;
   /** Direct CDN URL for the full-size image */
   directUrl: string;
@@ -29,13 +29,23 @@ export type UploadResult = {
   deleteUrl: string;
 };
 
-export type DestinationType = "imgbb";
+export type DestinationType = "chevereto";
 
 export type UploadDestination = {
   id: string;
   name: string;
   type: DestinationType;
   apiKey: string;
+  enabled: boolean;
+};
+
+// ─── Per-destination upload state on an OutputItem ───────────────────────────
+
+export type DestinationUploadState = {
+  status: UploadStatus;
+  progress: number;
+  error?: string;
+  result?: UploadResult;
 };
 
 // ─── Queue items ──────────────────────────────────────────────────────────────
@@ -50,11 +60,11 @@ export type OutputItem = {
   outputSize?: number;
   outputBlob?: Blob;
   metadata?: VideoMetadata;
-  // Upload
-  uploadStatus?: UploadStatus;
-  uploadProgress?: number;
-  uploadError?: string;
-  uploadResult?: UploadResult;
+  /**
+   * Upload state keyed by destination id.
+   * Only populated once processing completes and an upload is attempted.
+   */
+  uploads?: Record<string, DestinationUploadState>;
 };
 
 // ─── Settings ─────────────────────────────────────────────────────────────────
@@ -78,4 +88,6 @@ export type AppSettings = {
     entries: Presets;
     lastUsed: string | null;
   };
+  /** Upload destinations stored alongside other app settings */
+  destinations: UploadDestination[];
 };
