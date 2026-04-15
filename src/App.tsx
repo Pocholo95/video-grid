@@ -96,7 +96,10 @@ export default function App() {
   }, [resetState]);
 
   // - Upload
-  const { isUploadingAll, uploadItem, uploadAll } = useUpload(items, setItems);
+  const { isUploadingAll, uploadProgress, uploadItem, uploadAll } = useUpload(
+    items,
+    setItems,
+  );
 
   // - Download all as ZIP
   const [isZipping, setIsZipping] = useState(false);
@@ -173,13 +176,20 @@ export default function App() {
             {enabledDests.length > 0 && doneItems.length > 0 && (
               <button
                 className="primary upload-all-btn"
-                disabled={isUploadingAll}
+                disabled={
+                  isUploadingAll ||
+                  (uploadProgress.total > 0 &&
+                    uploadProgress.completed === uploadProgress.total)
+                }
                 onClick={() => uploadAll(destinations)}
                 title={`Upload all to ${enabledDests.map((d) => d.name).join(", ")}`}
               >
                 {isUploadingAll
-                  ? "⏳ Uploading…"
-                  : `☁️ Upload All (${doneItems.length})`}
+                  ? `⏳ Uploading… (${uploadProgress.completed}/${uploadProgress.total})`
+                  : uploadProgress.completed === uploadProgress.total &&
+                      uploadProgress.total > 0
+                    ? "✅ Uploads complete"
+                    : `☁️ Upload All (${doneItems.length})`}
               </button>
             )}
             {doneItems.length > 1 && (

@@ -53,6 +53,10 @@ export function useUpload(
   setItems: React.Dispatch<React.SetStateAction<OutputItem[]>>,
 ) {
   const [isUploadingAll, setIsUploadingAll] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState({
+    completed: 0,
+    total: 0,
+  });
 
   /**
    * Upload a single output item to a single destination.
@@ -140,6 +144,8 @@ export function useUpload(
       );
       if (!pending.length) return;
 
+      const totalUploads = pending.length * enabled.length;
+      setUploadProgress({ completed: 0, total: totalUploads });
       setIsUploadingAll(true);
       try {
         let opCount = 0;
@@ -151,6 +157,7 @@ export function useUpload(
             if (opCount > 0) await sleep(UPLOAD_DELAY_MS);
             await uploadItemToDest(item.id, dest);
             opCount++;
+            setUploadProgress({ completed: opCount, total: totalUploads });
           }
         }
       } finally {
@@ -160,5 +167,5 @@ export function useUpload(
     [isUploadingAll, items, uploadItemToDest],
   );
 
-  return { isUploadingAll, uploadItem, uploadAll };
+  return { isUploadingAll, uploadProgress, uploadItem, uploadAll };
 }

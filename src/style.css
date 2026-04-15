@@ -527,7 +527,6 @@ progress::-webkit-progress-value {
 .output-preview {
   min-height: 180px;
   background: rgba(15, 23, 42, 0.7);
-  border-radius: 8px;
   overflow: hidden;
   display: grid;
   place-items: center;
@@ -748,7 +747,6 @@ progress::-webkit-progress-value {
   position: relative;
   background: #020617;
   border: 1px solid rgba(130, 213, 253, 0.4);
-  border-radius: 16px;
 }
 
 #previewClose {
