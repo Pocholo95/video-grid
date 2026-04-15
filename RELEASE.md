@@ -81,7 +81,6 @@ Monitor progress in **CI/CD → Pipelines** in the GitLab sidebar.
 
 Once the `pages` job completes, the site is available at:
 
-
 #### Default (unique domain)
 
 ```url
