@@ -1,16 +1,12 @@
 import { DEBUG } from "./constants";
 import type { VideoMetadata } from "./types";
 
-// ---------------------------------------------------------------------------
-// Logging
-// ---------------------------------------------------------------------------
+// ─── Logging ──────────────────────────────────────────────────────────────────
 export const log    = (...a: unknown[]) => DEBUG && console.log("[VidGrid]", ...a);
 export const warn   = (...a: unknown[]) => DEBUG && console.warn("[VidGrid]", ...a);
 export const errlog = (...a: unknown[]) => DEBUG && console.error("[VidGrid]", ...a);
 
-// ---------------------------------------------------------------------------
-// Formatting
-// ---------------------------------------------------------------------------
+// ─── Formatting ───────────────────────────────────────────────────────────────
 export const humanSize = (bytes: number): string => {
   const units = ["B", "KB", "MB", "GB"];
   let size = bytes;
@@ -30,9 +26,7 @@ export const formatTime = (seconds: number): string => {
 
 export const makeId = (): string => crypto.randomUUID();
 
-// ---------------------------------------------------------------------------
-// Metadata guard
-// ---------------------------------------------------------------------------
+// ─── Metadata guard ───────────────────────────────────────────────────────────
 export const hasUsableMetadata = (
   meta: VideoMetadata | undefined,
 ): meta is VideoMetadata =>

@@ -2,9 +2,7 @@ import { FFmpeg } from "@ffmpeg/ffmpeg";
 import { fetchFile } from "@ffmpeg/util";
 import { errlog, humanSize, log } from "./utils";
 
-// ---------------------------------------------------------------------------
-// Singleton — loaded on demand
-// ---------------------------------------------------------------------------
+// ─── Singleton ────────────────────────────────────────────────────────────────
 
 let ffmpeg: FFmpeg | null = null;
 let ffmpegLoadPromise: Promise<FFmpeg> | null = null;
@@ -23,10 +21,6 @@ const getFFmpeg = async (): Promise<FFmpeg> => {
   return ffmpegLoadPromise;
 };
 
-/**
- * Fully tear down the FFmpeg instance and clear all cached state.
- * Called on "Clear files". NOT called automatically after every error.
- */
 export const resetFFmpeg = (): void => {
   if (ffmpeg) {
     try { ffmpeg.terminate(); } catch { /* already dead */ }
@@ -36,9 +30,7 @@ export const resetFFmpeg = (): void => {
   currentFFmpegInputKey = null;
 };
 
-// ---------------------------------------------------------------------------
-// Input file management
-// ---------------------------------------------------------------------------
+// ─── Input file management ────────────────────────────────────────────────────
 
 export const prepareFFmpegInput = async (file: File): Promise<FFmpeg> => {
   const ff  = await getFFmpeg();
@@ -63,23 +55,13 @@ export const cleanupFFmpeg = async (): Promise<void> => {
   currentFFmpegInputKey = null;
 };
 
-// ---------------------------------------------------------------------------
-// Frame extraction
-// ---------------------------------------------------------------------------
+// ─── Frame extraction ─────────────────────────────────────────────────────────
 
-/** Returns true for WASM heap / OOM error messages. */
 export const isMemoryError = (e: unknown): boolean =>
   /out.of.bounds|memory|unreachable|OOM|heap|abort/i.test(
     e instanceof Error ? e.message : String(e),
   );
 
-/**
- * Extract all frames in one pass using FFmpeg.
- *
- * prepareFFmpegInput() is called once; subsequent calls for the same file
- * are cache hits (no second full copy). Each frame has its own try/catch so
- * one bad seek does not abort the rest.
- */
 export const extractFramesFFmpegBatch = async (
   file: File,
   times: number[],

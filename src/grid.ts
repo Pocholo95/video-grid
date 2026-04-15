@@ -11,13 +11,10 @@ import {
   isMemoryError,
   resetFFmpeg,
 } from "./ffmpeg";
-import { cancelRequested } from "./state";
 import type { Position, VideoMetadata } from "./types";
 import { errlog, formatTime, humanSize, log, warn } from "./utils";
 
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
+// ─── Types ────────────────────────────────────────────────────────────────────
 
 export type GridOptions = {
   width:     number;
@@ -36,9 +33,7 @@ export type GridResult = {
   outputBlob: Blob;
 };
 
-// ---------------------------------------------------------------------------
-// Seek helper
-// ---------------------------------------------------------------------------
+// ─── Seek helper ──────────────────────────────────────────────────────────────
 
 const seekVideo = (video: HTMLVideoElement, t: number): Promise<void> =>
   new Promise((resolve, reject) => {
@@ -52,13 +47,12 @@ const seekVideo = (video: HTMLVideoElement, t: number): Promise<void> =>
     video.currentTime = t;
   });
 
-// ---------------------------------------------------------------------------
-// Main function
-// ---------------------------------------------------------------------------
+// ─── Main function ────────────────────────────────────────────────────────────
 
 /**
  * Build a JPEG contact sheet for a single video file.
  *
+ * @param isCancelled  Polled before each frame — return true to abort cleanly.
  * @param onFrameDone  Called after every frame — drives the progress bar.
  * @param onWarning    Called for non-fatal issues shown to the user.
  */
@@ -66,6 +60,7 @@ export const createGridJpg = async (
   file: File,
   meta: VideoMetadata,
   opts: GridOptions,
+  isCancelled: () => boolean,
   onFrameDone: (frameIndex: number, totalFrames: number, timestampSec: number) => void,
   onWarning:   (message: string) => void,
 ): Promise<GridResult> => {
@@ -85,7 +80,7 @@ export const createGridJpg = async (
   const canvasWidth  = cols * cellWidth + spacing * (cols - 1);
   const canvasHeight = headerHeight + rows * cellHeight + spacing * (rows - 1);
 
-  const canvas = document.createElement("canvas");
+  const canvas  = document.createElement("canvas");
   canvas.width  = canvasWidth;
   canvas.height = canvasHeight;
   const ctx = canvas.getContext("2d")!;
@@ -93,7 +88,7 @@ export const createGridJpg = async (
   ctx.fillStyle = opts.bgColor;
   ctx.fillRect(0, 0, canvasWidth, canvasHeight);
 
-  // ── Header ───────────────────────────────────────────────────────────────
+  // ── Header ─────────────────────────────────────────────────────────────────
   if (opts.header) {
     ctx.fillStyle    = opts.bgColor;
     ctx.fillRect(0, 0, canvasWidth, headerHeight);
@@ -129,14 +124,14 @@ export const createGridJpg = async (
     ctx.textBaseline = "alphabetic";
   }
 
-  // ── Sample timestamps ────────────────────────────────────────────────────
+  // ── Sample timestamps ───────────────────────────────────────────────────────
   const margin = Math.max(0.5, duration * 0.02);
   const usable = Math.max(duration - 2 * margin, 0.1);
   const times  = Array.from({ length: total }, (_, i) =>
     Math.min(Math.max(0, margin + usable * ((i + 0.5) / total)), duration),
   );
 
-  // ── Timecode position map ────────────────────────────────────────────────
+  // ── Timecode position map ───────────────────────────────────────────────────
   const posMap: Record<
     Exclude<Position, "disabled">,
     { x: "left" | "right"; y: "top" | "bottom" }
@@ -147,7 +142,7 @@ export const createGridJpg = async (
     "bottom-right": { x: "right", y: "bottom" },
   };
 
-  // ── Open <video> for native seeking ─────────────────────────────────────
+  // ── Open <video> for native seeking ────────────────────────────────────────
   const videoUrl = URL.createObjectURL(file);
   const video    = document.createElement("video");
   video.muted       = true;
@@ -164,31 +159,18 @@ export const createGridJpg = async (
   let videoUsable = true;
   try {
     await new Promise<void>((resolve, reject) => {
-      const tid = setTimeout(
-        () => reject(new Error("Video open timeout")),
-        15_000,
-      );
-      video.addEventListener(
-        "loadedmetadata",
-        () => { clearTimeout(tid); resolve(); },
-        { once: true },
-      );
-      video.addEventListener(
-        "error",
-        () => { clearTimeout(tid); reject(new Error("Video failed to open")); },
-        { once: true },
-      );
+      const tid = setTimeout(() => reject(new Error("Video open timeout")), 15_000);
+      video.addEventListener("loadedmetadata", () => { clearTimeout(tid); resolve(); }, { once: true });
+      video.addEventListener("error",          () => { clearTimeout(tid); reject(new Error("Video failed to open")); }, { once: true });
     });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     warn(`Native video failed (${msg}), switching to FFmpeg`);
-    onWarning(
-      `Native decoder unavailable (${msg}) — using FFmpeg fallback`,
-    );
+    onWarning(`Native decoder unavailable (${msg}) — using FFmpeg fallback`);
     videoUsable = false;
   }
 
-  // ── FFmpeg batch results — extracted once on first need ──────────────────
+  // ── FFmpeg batch results ────────────────────────────────────────────────────
   let ffmpegBitmaps: (ImageBitmap | null)[] | null = null;
   let ffmpegFailedFrames = 0;
 
@@ -196,25 +178,22 @@ export const createGridJpg = async (
     if (ffmpegBitmaps !== null) return;
     log(`  Switching to FFmpeg batch extraction for all ${total} frames…`);
     ffmpegBitmaps = await extractFramesFFmpegBatch(
-      file,
-      times,
+      file, times,
       (idx, _total, err) => {
         if (err) {
           ffmpegFailedFrames++;
           onWarning(`FFmpeg frame ${idx + 1}/${total} failed: ${err}`);
           if (ffmpegFailedFrames > 2) {
-            throw new Error(
-              "FFmpeg decoding failed repeatedly — likely OOM or unsupported codec.",
-            );
+            throw new Error("FFmpeg decoding failed repeatedly — likely OOM or unsupported codec.");
           }
         }
       },
     );
   };
 
-  // ── Frame loop ───────────────────────────────────────────────────────────
+  // ── Frame loop ──────────────────────────────────────────────────────────────
   for (let i = 0; i < times.length; i++) {
-    if (cancelRequested) break;
+    if (isCancelled()) break;
 
     const tSec = times[i];
     const col  = i % cols;
@@ -222,10 +201,7 @@ export const createGridJpg = async (
     const x    = col * (cellWidth  + spacing);
     const y    = headerHeight + row * (cellHeight + spacing);
 
-    log(
-      `  Frame ${i + 1}/${total} — t=${tSec.toFixed(3)}s` +
-      ` (${formatTime(tSec)}) from "${file.name}"`,
-    );
+    log(`  Frame ${i + 1}/${total} — t=${tSec.toFixed(3)}s (${formatTime(tSec)}) from "${file.name}"`);
 
     let frameDrawn = false;
 
@@ -238,9 +214,7 @@ export const createGridJpg = async (
       } catch (seekErr) {
         const msg = seekErr instanceof Error ? seekErr.message : String(seekErr);
         warn(`  Native seek failed at frame ${i + 1}: ${msg}`);
-        onWarning(
-          `Native seek failed at frame ${i + 1} (${msg}) — switching to FFmpeg`,
-        );
+        onWarning(`Native seek failed at frame ${i + 1} (${msg}) — switching to FFmpeg`);
         videoUsable = false;
       }
     }
@@ -263,9 +237,7 @@ export const createGridJpg = async (
         errlog(`  FFmpeg frame ${i + 1} error:`, msg);
         onWarning(`FFmpeg error at frame ${i + 1}: ${msg}`);
         if (isMemoryError(ffErr)) {
-          onWarning(
-            `⚠️ Out of memory at frame ${i + 1}. Try reducing output width, columns, or rows.`,
-          );
+          onWarning(`⚠️ Out of memory at frame ${i + 1}. Try reducing output width, columns, or rows.`);
         }
       }
     }
@@ -294,10 +266,8 @@ export const createGridJpg = async (
       const pad      = 6;
       const bgW      = textW + pad * 2;
       const bgH      = tcFontSz + pad * 2;
-      const bgX      =
-        pos.x === "left" ? x + pad : x + cellWidth  - bgW - pad;
-      const bgY      =
-        pos.y === "top"  ? y + pad : y + cellHeight - bgH - pad;
+      const bgX      = pos.x === "left" ? x + pad : x + cellWidth  - bgW - pad;
+      const bgY      = pos.y === "top"  ? y + pad : y + cellHeight - bgH - pad;
 
       ctx.fillStyle = "rgba(0,0,0,0.6)";
       ctx.fillRect(bgX, bgY, bgW, bgH);
@@ -314,17 +284,11 @@ export const createGridJpg = async (
   await cleanupFFmpeg();
   resetFFmpeg();
 
-  // ── Encode ───────────────────────────────────────────────────────────────
   const outputName = `${file.name}.jpg`;
   const jpgBlob    = await new Promise<Blob>((resolve) => {
-    canvas.toBlob(
-      (b) => resolve(b ?? new Blob()),
-      "image/jpeg",
-      0.95,
-    );
+    canvas.toBlob((b) => resolve(b ?? new Blob()), "image/jpeg", 0.95);
   });
 
-  // Free canvas memory immediately
   canvas.width  = 0;
   canvas.height = 0;
 

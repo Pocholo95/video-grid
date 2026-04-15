@@ -1,9 +1,44 @@
+// ─── Grid / Video ────────────────────────────────────────────────────────────
+
 export type Position =
   | "top-left"
   | "top-right"
   | "bottom-left"
   | "bottom-right"
   | "disabled";
+
+export type VideoMetadata = {
+  duration: number;
+  width: number;
+  height: number;
+  bitrate: number;
+};
+
+// ─── Upload ───────────────────────────────────────────────────────────────────
+
+export type UploadStatus = "idle" | "uploading" | "done" | "error";
+
+export type UploadResult = {
+  /** URL to the imgBB viewer page */
+  pageUrl: string;
+  /** Direct CDN URL for the full-size image */
+  directUrl: string;
+  /** Direct CDN URL for the auto-generated thumbnail */
+  thumbUrl: string;
+  /** One-click delete URL */
+  deleteUrl: string;
+};
+
+export type DestinationType = "imgbb";
+
+export type UploadDestination = {
+  id: string;
+  name: string;
+  type: DestinationType;
+  apiKey: string;
+};
+
+// ─── Queue items ──────────────────────────────────────────────────────────────
 
 export type OutputItem = {
   id: string;
@@ -15,14 +50,14 @@ export type OutputItem = {
   outputSize?: number;
   outputBlob?: Blob;
   metadata?: VideoMetadata;
+  // Upload
+  uploadStatus?: UploadStatus;
+  uploadProgress?: number;
+  uploadError?: string;
+  uploadResult?: UploadResult;
 };
 
-export type VideoMetadata = {
-  duration: number;
-  width: number;
-  height: number;
-  bitrate: number;
-};
+// ─── Settings ─────────────────────────────────────────────────────────────────
 
 export type SavedOptions = {
   width: number;
@@ -38,15 +73,9 @@ export type SavedOptions = {
 
 export type Presets = Record<string, SavedOptions>;
 
-/**
- * Root structure persisted under APP_STORAGE_KEY.
- * New top-level settings can be added here alongside `presets`.
- */
 export type AppSettings = {
   presets: {
-    /** Named preset entries keyed by preset name. */
     entries: Presets;
-    /** The last preset the user switched to; null means <Default Preset>. */
     lastUsed: string | null;
   };
 };
