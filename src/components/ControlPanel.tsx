@@ -20,9 +20,18 @@ interface Props {
 }
 
 export default function ControlPanel({
-  opts, setOpts, presets, setPresets,
-  status, isProcessing, hasFiles, allMetadataReady,
-  onFilesChange, onStart, onCancel, onClear,
+  opts,
+  setOpts,
+  presets,
+  setPresets,
+  status,
+  isProcessing,
+  hasFiles,
+  allMetadataReady,
+  onFilesChange,
+  onStart,
+  onCancel,
+  onClear,
 }: Props) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const presetNameRef = useRef<HTMLInputElement>(null);
@@ -78,29 +87,48 @@ export default function ControlPanel({
     setOpts(DEFAULTS);
   };
 
-  const batchPct = status.batchTotal > 0
-    ? Math.round((status.batchDone / status.batchTotal) * 100)
-    : 0;
+  const batchPct =
+    status.batchTotal > 0
+      ? Math.round((status.batchDone / status.batchTotal) * 100)
+      : 0;
   const selectedPreset = presets.lastUsed ?? PRESETS_DEFAULT_VALUE;
 
   return (
     <div className="panel">
       <div className="controls">
-
         {/* Presets row */}
         <div className="presets-row">
-          <span className="presets-label" title="Presets">🗂️</span>
-          <select value={selectedPreset} onChange={(e) => applyPreset(e.target.value)}>
-            <option value={PRESETS_DEFAULT_VALUE}>&lt;Default Preset&gt;</option>
+          <span className="presets-label" title="Presets">
+            🗂️
+          </span>
+          <select
+            value={selectedPreset}
+            onChange={(e) => applyPreset(e.target.value)}
+          >
+            <option value={PRESETS_DEFAULT_VALUE}>
+              &lt;Default Preset&gt;
+            </option>
             {Object.keys(presets.entries).map((n) => (
-              <option key={n} value={n}>{n}</option>
+              <option key={n} value={n}>
+                {n}
+              </option>
             ))}
           </select>
           <button
-            className="icon-btn" title="Delete selected preset"
-            disabled={!presets.lastUsed} onClick={handleDelete}
-          >🗑️</button>
-          <button className="icon-btn" title="Save / add preset" onClick={openSave}>💾</button>
+            className="icon-btn"
+            title="Delete selected preset"
+            disabled={!presets.lastUsed}
+            onClick={handleDelete}
+          >
+            🗑️
+          </button>
+          <button
+            className="icon-btn"
+            title="Save / add preset"
+            onClick={openSave}
+          >
+            💾
+          </button>
         </div>
 
         {nameVisible && (
@@ -113,12 +141,23 @@ export default function ControlPanel({
               value={nameValue}
               onChange={(e) => setNameValue(e.target.value)}
               onKeyDown={(e) => {
-                if (e.key === "Enter") { e.preventDefault(); confirmSave(); }
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  confirmSave();
+                }
                 if (e.key === "Escape") setNameVisible(false);
               }}
             />
-            <button className="icon-btn" title="Confirm" onClick={confirmSave}>✅</button>
-            <button className="icon-btn" title="Cancel" onClick={() => setNameVisible(false)}>✕</button>
+            <button className="icon-btn" title="Confirm" onClick={confirmSave}>
+              ✅
+            </button>
+            <button
+              className="icon-btn"
+              title="Cancel"
+              onClick={() => setNameVisible(false)}
+            >
+              ✕
+            </button>
           </div>
         )}
 
@@ -162,7 +201,12 @@ export default function ControlPanel({
           <span>Timecode position</span>
           <select
             value={opts.position}
-            onChange={(e) => setOpts({ ...opts, position: e.target.value as SavedOptions["position"] })}
+            onChange={(e) =>
+              setOpts({
+                ...opts,
+                position: e.target.value as SavedOptions["position"],
+              })
+            }
           >
             <option value="disabled">Disabled</option>
             <option value="top-left">Top-Left</option>
@@ -175,8 +219,11 @@ export default function ControlPanel({
         <label className="field color-field">
           <span>Background color</span>
           <div className="color-input-row">
-            <input type="color" value={opts.bgColor}
-              onChange={(e) => setOpts({ ...opts, bgColor: e.target.value })} />
+            <input
+              type="color"
+              value={opts.bgColor}
+              onChange={(e) => setOpts({ ...opts, bgColor: e.target.value })}
+            />
             <span className="color-hex">{opts.bgColor}</span>
           </div>
         </label>
@@ -184,8 +231,11 @@ export default function ControlPanel({
         <label className="field color-field">
           <span>Text color</span>
           <div className="color-input-row">
-            <input type="color" value={opts.textColor}
-              onChange={(e) => setOpts({ ...opts, textColor: e.target.value })} />
+            <input
+              type="color"
+              value={opts.textColor}
+              onChange={(e) => setOpts({ ...opts, textColor: e.target.value })}
+            />
             <span className="color-hex">{opts.textColor}</span>
           </div>
         </label>
@@ -205,8 +255,12 @@ export default function ControlPanel({
             className="primary"
             disabled={!hasFiles || !allMetadataReady || isProcessing}
             onClick={onStart}
-          >▶️ Start Processing</button>
-          <button disabled={!isProcessing} onClick={onCancel}>⏹️ Cancel</button>
+          >
+            ▶️ Start Processing
+          </button>
+          <button disabled={!isProcessing} onClick={onCancel}>
+            ⏹️ Cancel
+          </button>
           <button
             disabled={isProcessing}
             onClick={() => {
@@ -234,7 +288,9 @@ export default function ControlPanel({
         {status.batchTotal > 0 && (
           <div className="progress-block">
             <div className="progress-label">
-              <span>Batch progress ({status.batchDone}/{status.batchTotal})</span>
+              <span>
+                Batch progress ({status.batchDone}/{status.batchTotal})
+              </span>
               <span>{batchPct}%</span>
             </div>
             <progress value={batchPct} max={100} />

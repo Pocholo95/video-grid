@@ -61,17 +61,17 @@ trigger an upload.
 
 ## Options
 
-| Option | Description | Default |
-| --- | --- | --- |
-| **Output width** | Total pixel width of the generated JPG | 1920 px |
-| **Grid columns** | Number of columns in the grid | 3 |
-| **Grid rows** | Number of rows in the grid | 4 |
-| **Frame spacing** | Gap in pixels between cells | 0 |
-| **Timecode position** | Corner where the timestamp overlay appears, or **Disabled** to omit it | Top-left |
-| **Background color** | Canvas and header background | `#000000` |
-| **Text color** | Header text and timecode label colour | `#ffffff` |
-| **Show header metadata** | Toggle the filename/info header row | On |
-| **Show preview** | Show thumbnail previews in the output list | On |
+| Option                   | Description                                                            | Default   |
+| ------------------------ | ---------------------------------------------------------------------- | --------- |
+| **Output width**         | Total pixel width of the generated JPG                                 | 1920 px   |
+| **Grid columns**         | Number of columns in the grid                                          | 3         |
+| **Grid rows**            | Number of rows in the grid                                             | 4         |
+| **Frame spacing**        | Gap in pixels between cells                                            | 0         |
+| **Timecode position**    | Corner where the timestamp overlay appears, or **Disabled** to omit it | Top-left  |
+| **Background color**     | Canvas and header background                                           | `#000000` |
+| **Text color**           | Header text and timecode label colour                                  | `#ffffff` |
+| **Show header metadata** | Toggle the filename/info header row                                    | On        |
+| **Show preview**         | Show thumbnail previews in the output list                             | On        |
 
 ---
 
@@ -135,14 +135,14 @@ the card expands a link panel for each destination (see below).
 After a successful upload, each output card shows a collapsible link panel
 (one per destination). Expand it to access the following link formats:
 
-| Format | Description |
-| --- | --- |
-| **Direct URL** | Full-resolution image link |
-| **Viewer page** | Host viewer/page URL |
-| **BBCode - full image** | `[img]...[/img]` tag |
-| **BBCode - thumbnail** | `[url=...][img]...[/img][/url]` — thumbnail linking to the viewer page |
-| **Markdown** | `![alt](url)` |
-| **HTML img** | `<img src="..." alt="..." />` |
+| Format                  | Description                                                            |
+| ----------------------- | ---------------------------------------------------------------------- |
+| **Direct URL**          | Full-resolution image link                                             |
+| **Viewer page**         | Host viewer/page URL                                                   |
+| **BBCode - full image** | `[img]...[/img]` tag                                                   |
+| **BBCode - thumbnail**  | `[url=...][img]...[/img][/url]` — thumbnail linking to the viewer page |
+| **Markdown**            | `![alt](url)`                                                          |
+| **HTML img**            | `<img src="..." alt="..." />`                                          |
 
 Each row has an individual **Copy** button.
 
@@ -157,8 +157,8 @@ to copy links for all uploaded outputs at once, one per line.
 
 An additional format is available here:
 
-| Format | Description |
-| --- | --- |
+| Format            | Description                                                                                                                                                                        |
+| ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Post Template** | A BBCode block per output: a bold title line (`[b]filename resolution[/b]`) followed by thumbnail links from every destination on the same line, ready to paste into a forum post. |
 
 ---

@@ -2,9 +2,11 @@ import { DEBUG } from "./constants";
 import type { VideoMetadata } from "./types";
 
 // Logging - all calls are no-ops when DEBUG is false.
-export const log    = (...a: unknown[]) => DEBUG && console.log("[VidGrid]", ...a);
-export const warn   = (...a: unknown[]) => DEBUG && console.warn("[VidGrid]", ...a);
-export const errlog = (...a: unknown[]) => DEBUG && console.error("[VidGrid]", ...a);
+export const log = (...a: unknown[]) => DEBUG && console.log("[VidGrid]", ...a);
+export const warn = (...a: unknown[]) =>
+  DEBUG && console.warn("[VidGrid]", ...a);
+export const errlog = (...a: unknown[]) =>
+  DEBUG && console.error("[VidGrid]", ...a);
 
 /**
  * Formats a byte count as a human-readable string (B, KB, MB, GB).
@@ -15,7 +17,10 @@ export const humanSize = (bytes: number): string => {
   const units = ["B", "KB", "MB", "GB"];
   let size = bytes;
   let i = 0;
-  while (size >= 1024 && i < units.length - 1) { size /= 1024; i++; }
+  while (size >= 1024 && i < units.length - 1) {
+    size /= 1024;
+    i++;
+  }
   return `${size.toFixed(i === 0 ? 0 : 1)} ${units[i]}`;
 };
 

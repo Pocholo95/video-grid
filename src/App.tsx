@@ -3,11 +3,20 @@ import { saveAs } from "file-saver";
 import JSZip from "jszip";
 
 import { DEFAULTS } from "./constants";
-import { loadAppSettings, persistAppSettings, persistDestinations } from "./presets";
+import {
+  loadAppSettings,
+  persistAppSettings,
+  persistDestinations,
+} from "./presets";
 import { useProcessor } from "./hooks/useProcessor";
 import { useUpload } from "./hooks/useUpload";
 
-import type { AppSettings, OutputItem, SavedOptions, UploadDestination } from "./types";
+import type {
+  AppSettings,
+  OutputItem,
+  SavedOptions,
+  UploadDestination,
+} from "./types";
 
 import ControlPanel from "./components/ControlPanel";
 import OutputCard from "./components/OutputCard";
@@ -17,7 +26,9 @@ import CopyAllPanel from "./components/CopyAllPanel";
 
 export default function App() {
   // - Persisted app settings
-  const [appSettings, setAppSettingsState] = useState<AppSettings>(() => loadAppSettings());
+  const [appSettings, setAppSettingsState] = useState<AppSettings>(() =>
+    loadAppSettings(),
+  );
 
   const [opts, setOptsState] = useState<SavedOptions>(() => {
     const s = loadAppSettings();
@@ -38,31 +49,51 @@ export default function App() {
   const destinations = appSettings.destinations;
   const [showDestManager, setShowDestManager] = useState(false);
 
-  const handleSaveDestinations = useCallback((dests: UploadDestination[]) => {
-    persistDestinations(dests);
-    setAppSettings({ ...appSettings, destinations: dests });
-  }, [appSettings, setAppSettings]);
+  const handleSaveDestinations = useCallback(
+    (dests: UploadDestination[]) => {
+      persistDestinations(dests);
+      setAppSettings({ ...appSettings, destinations: dests });
+    },
+    [appSettings, setAppSettings],
+  );
   const enabledDests = destinations.filter((d) => d.enabled);
 
   // - Output items
   const [items, setItems] = useState<OutputItem[]>([]);
 
   const updateItem = useCallback((id: string, patch: Partial<OutputItem>) => {
-    setItems((prev) => prev.map((it) => it.id === id ? { ...it, ...patch } : it));
+    setItems((prev) =>
+      prev.map((it) => (it.id === id ? { ...it, ...patch } : it)),
+    );
   }, []);
 
   // - Processing
-  const { isProcessing, status, analyseFiles, processAll, requestCancel, resetState } =
-    useProcessor(updateItem);
+  const {
+    isProcessing,
+    status,
+    analyseFiles,
+    processAll,
+    requestCancel,
+    resetState,
+  } = useProcessor(updateItem);
 
-  const handleFilesChange = useCallback(async (files: File[]) => {
+  const handleFilesChange = useCallback(
+    async (files: File[]) => {
+      setItems([]);
+      const newItems = await analyseFiles(files);
+      setItems(newItems);
+    },
+    [analyseFiles],
+  );
+
+  const handleStart = useCallback(
+    () => processAll(items, opts),
+    [items, opts, processAll],
+  );
+  const handleClear = useCallback(() => {
     setItems([]);
-    const newItems = await analyseFiles(files);
-    setItems(newItems);
-  }, [analyseFiles]);
-
-  const handleStart = useCallback(() => processAll(items, opts), [items, opts, processAll]);
-  const handleClear = useCallback(() => { setItems([]); resetState(); }, [resetState]);
+    resetState();
+  }, [resetState]);
 
   // - Upload
   const { isUploadingAll, uploadItem, uploadAll } = useUpload(items, setItems);
@@ -71,7 +102,9 @@ export default function App() {
   const [isZipping, setIsZipping] = useState(false);
 
   const downloadAll = useCallback(async () => {
-    const done = items.filter((i) => i.status === "done" && i.outputBlob && i.outputName);
+    const done = items.filter(
+      (i) => i.status === "done" && i.outputBlob && i.outputName,
+    );
     if (!done.length) return;
     setIsZipping(true);
     try {
@@ -88,8 +121,11 @@ export default function App() {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
   // - Derived from Outputs
-  const doneItems = items.filter((i) => i.status === "done" && i.outputBlob && i.outputName);
-  const allMetaReady = items.length > 0 && items.every((i) => i.metadata !== undefined);
+  const doneItems = items.filter(
+    (i) => i.status === "done" && i.outputBlob && i.outputName,
+  );
+  const allMetaReady =
+    items.length > 0 && items.every((i) => i.metadata !== undefined);
 
   return (
     <>
@@ -106,7 +142,11 @@ export default function App() {
             className="icon-btn dest-manager-btn"
             title="Manage upload destinations"
             onClick={() => setShowDestManager(true)}
-          >☁️ Upload Destinations {destinations.length > 0 ? `(${destinations.filter(d => d.enabled).length}/${destinations.length})` : ""}
+          >
+            ☁️ Upload Destinations{" "}
+            {destinations.length > 0
+              ? `(${destinations.filter((d) => d.enabled).length}/${destinations.length})`
+              : ""}
           </button>
         </div>
       </header>
@@ -137,20 +177,26 @@ export default function App() {
                 onClick={() => uploadAll(destinations)}
                 title={`Upload all to ${enabledDests.map((d) => d.name).join(", ")}`}
               >
-                {isUploadingAll ? "⏳ Uploading…" : `☁️ Upload All (${doneItems.length})`}
+                {isUploadingAll
+                  ? "⏳ Uploading…"
+                  : `☁️ Upload All (${doneItems.length})`}
               </button>
             )}
             {doneItems.length > 1 && (
-              <button className="primary" disabled={isZipping} onClick={downloadAll}>
-                {isZipping ? "⏳ Zipping…" : `⏬ Download All (${doneItems.length})`}
+              <button
+                className="primary"
+                disabled={isZipping}
+                onClick={downloadAll}
+              >
+                {isZipping
+                  ? "⏳ Zipping…"
+                  : `⏬ Download All (${doneItems.length})`}
               </button>
             )}
           </div>
         </div>
 
-        {doneItems.length > 0 && (
-          <CopyAllPanel items={doneItems} />
-        )}
+        {doneItems.length > 0 && <CopyAllPanel items={doneItems} />}
 
         <div className="outputs">
           {items.length === 0 ? (

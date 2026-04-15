@@ -18,9 +18,12 @@ const uploadToChevereto = (
   new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onerror = () => reject(new Error("Failed to read image data"));
-    reader.onload  = () => {
+    reader.onload = () => {
       const b64 = (reader.result as string).split(",")[1];
-      if (!b64) { reject(new Error("Empty base64 data")); return; }
+      if (!b64) {
+        reject(new Error("Empty base64 data"));
+        return;
+      }
 
       const formData = new FormData();
       formData.append("image", b64);
@@ -29,7 +32,8 @@ const uploadToChevereto = (
       const xhr = new XMLHttpRequest();
 
       xhr.upload.addEventListener("progress", (e) => {
-        if (e.lengthComputable) onProgress(Math.min(99, Math.round((e.loaded / e.total) * 100)));
+        if (e.lengthComputable)
+          onProgress(Math.min(99, Math.round((e.loaded / e.total) * 100)));
       });
 
       xhr.addEventListener("load", () => {
@@ -49,30 +53,43 @@ const uploadToChevereto = (
             if (json.success) {
               resolve({
                 directUrl: json.data.url,
-                pageUrl:   json.data.url_viewer,
-                thumbUrl:  json.data.thumb?.url ?? json.data.url,
+                pageUrl: json.data.url_viewer,
+                thumbUrl: json.data.thumb?.url ?? json.data.url,
                 deleteUrl: json.data.delete_url,
               });
             } else {
-              reject(new Error(json.error?.message ?? "Chevereto returned an error"));
+              reject(
+                new Error(json.error?.message ?? "Chevereto returned an error"),
+              );
             }
           } catch {
             reject(new Error("Unexpected response from Chevereto"));
           }
         } else if (xhr.status === 400) {
-          reject(new Error("Chevereto rejected the request — check your API key"));
+          reject(
+            new Error("Chevereto rejected the request — check your API key"),
+          );
         } else if (xhr.status === 429) {
-          reject(new Error("Chevereto rate limit hit — wait a moment and try again"));
+          reject(
+            new Error("Chevereto rate limit hit — wait a moment and try again"),
+          );
         } else {
           reject(new Error(`Chevereto HTTP ${xhr.status}`));
         }
       });
 
-      xhr.addEventListener("error",   () => reject(new Error("Network error during upload")));
-      xhr.addEventListener("timeout", () => reject(new Error("Upload timed out")));
+      xhr.addEventListener("error", () =>
+        reject(new Error("Network error during upload")),
+      );
+      xhr.addEventListener("timeout", () =>
+        reject(new Error("Upload timed out")),
+      );
 
       xhr.timeout = 120_000;
-      xhr.open("POST", `https://api.imgbb.com/1/upload?key=${encodeURIComponent(apiKey)}`);
+      xhr.open(
+        "POST",
+        `https://api.imgbb.com/1/upload?key=${encodeURIComponent(apiKey)}`,
+      );
       xhr.send(formData);
     };
     reader.readAsDataURL(blob);
@@ -97,6 +114,8 @@ export const uploadBlob = (
     case "chevereto":
       return uploadToChevereto(blob, filename, destination.apiKey, onProgress);
     default:
-      return Promise.reject(new Error(`Unknown destination type: ${destination.type as string}`));
+      return Promise.reject(
+        new Error(`Unknown destination type: ${destination.type as string}`),
+      );
   }
 };

@@ -1,6 +1,11 @@
 import { useCallback, useState } from "react";
 import { uploadBlob } from "../upload";
-import type { DestinationUploadState, OutputItem, UploadDestination, UploadResult } from "../types";
+import type {
+  DestinationUploadState,
+  OutputItem,
+  UploadDestination,
+  UploadResult,
+} from "../types";
 
 /** Delay between sequential uploads to avoid rate-limiting. */
 const UPLOAD_DELAY_MS = 1200;
@@ -45,7 +50,8 @@ function patchUpload(
  */
 export function useUpload(
   items: OutputItem[],
-  setItems: React.Dispatch<React.SetStateAction<OutputItem[]>>) {
+  setItems: React.Dispatch<React.SetStateAction<OutputItem[]>>,
+) {
   const [isUploadingAll, setIsUploadingAll] = useState(false);
 
   /**
@@ -54,31 +60,48 @@ export function useUpload(
    * @param itemId - ID of the OutputItem to upload.
    * @param dest   - The destination to upload to.
    */
-  const uploadItemToDest = useCallback(async (itemId: string, dest: UploadDestination) => {
-    const item = items.find((i) => i.id === itemId);
-    if (!item?.outputBlob || !item.outputName) return;
+  const uploadItemToDest = useCallback(
+    async (itemId: string, dest: UploadDestination) => {
+      const item = items.find((i) => i.id === itemId);
+      if (!item?.outputBlob || !item.outputName) return;
 
-    setItems((prev) => patchUpload(prev, itemId, dest.id, {
-      status: "uploading", progress: 0, error: undefined,
-    }));
-
-    try {
-      const result: UploadResult = await uploadBlob(
-        item.outputBlob,
-        item.outputName,
-        dest,
-        (pct) => setItems((prev) => patchUpload(prev, itemId, dest.id, { progress: pct })),
+      setItems((prev) =>
+        patchUpload(prev, itemId, dest.id, {
+          status: "uploading",
+          progress: 0,
+          error: undefined,
+        }),
       );
-      setItems((prev) => patchUpload(prev, itemId, dest.id, {
-        status: "done", progress: 100, result,
-      }));
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : "Upload failed";
-      setItems((prev) => patchUpload(prev, itemId, dest.id, {
-        status: "error", error: msg,
-      }));
-    }
-  }, [items, setItems]);
+
+      try {
+        const result: UploadResult = await uploadBlob(
+          item.outputBlob,
+          item.outputName,
+          dest,
+          (pct) =>
+            setItems((prev) =>
+              patchUpload(prev, itemId, dest.id, { progress: pct }),
+            ),
+        );
+        setItems((prev) =>
+          patchUpload(prev, itemId, dest.id, {
+            status: "done",
+            progress: 100,
+            result,
+          }),
+        );
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : "Upload failed";
+        setItems((prev) =>
+          patchUpload(prev, itemId, dest.id, {
+            status: "error",
+            error: msg,
+          }),
+        );
+      }
+    },
+    [items, setItems],
+  );
 
   /**
    * Upload a single output item to all enabled destinations that haven't
@@ -87,15 +110,18 @@ export function useUpload(
    * @param itemId       - ID of the OutputItem to upload.
    * @param destinations - Full list of configured destinations.
    */
-  const uploadItem = useCallback(async (itemId: string, destinations: UploadDestination[]) => {
-    const enabled = destinations.filter((d) => d.enabled);
-    for (const dest of enabled) {
-      const item = items.find((i) => i.id === itemId);
-      const state = item?.uploads?.[dest.id];
-      if (state?.status === "done" || state?.status === "uploading") continue;
-      await uploadItemToDest(itemId, dest);
-    }
-  }, [items, uploadItemToDest]);
+  const uploadItem = useCallback(
+    async (itemId: string, destinations: UploadDestination[]) => {
+      const enabled = destinations.filter((d) => d.enabled);
+      for (const dest of enabled) {
+        const item = items.find((i) => i.id === itemId);
+        const state = item?.uploads?.[dest.id];
+        if (state?.status === "done" || state?.status === "uploading") continue;
+        await uploadItemToDest(itemId, dest);
+      }
+    },
+    [items, uploadItemToDest],
+  );
 
   /**
    * Upload all completed, not-yet-uploaded items to all enabled destinations.
@@ -103,32 +129,36 @@ export function useUpload(
    *
    * @param destinations - Full list of configured destinations.
    */
-  const uploadAll = useCallback(async (destinations: UploadDestination[]) => {
-    if (isUploadingAll) return;
-    const enabled = destinations.filter((d) => d.enabled);
-    if (!enabled.length) return;
+  const uploadAll = useCallback(
+    async (destinations: UploadDestination[]) => {
+      if (isUploadingAll) return;
+      const enabled = destinations.filter((d) => d.enabled);
+      if (!enabled.length) return;
 
-    const pending = items.filter(
-      (i) => i.status === "done" && i.outputBlob && i.outputName,
-    );
-    if (!pending.length) return;
+      const pending = items.filter(
+        (i) => i.status === "done" && i.outputBlob && i.outputName,
+      );
+      if (!pending.length) return;
 
-    setIsUploadingAll(true);
-    try {
-      let opCount = 0;
-      for (const item of pending) {
-        for (const dest of enabled) {
-          const state = item.uploads?.[dest.id];
-          if (state?.status === "done" || state?.status === "uploading") continue;
-          if (opCount > 0) await sleep(UPLOAD_DELAY_MS);
-          await uploadItemToDest(item.id, dest);
-          opCount++;
+      setIsUploadingAll(true);
+      try {
+        let opCount = 0;
+        for (const item of pending) {
+          for (const dest of enabled) {
+            const state = item.uploads?.[dest.id];
+            if (state?.status === "done" || state?.status === "uploading")
+              continue;
+            if (opCount > 0) await sleep(UPLOAD_DELAY_MS);
+            await uploadItemToDest(item.id, dest);
+            opCount++;
+          }
         }
+      } finally {
+        setIsUploadingAll(false);
       }
-    } finally {
-      setIsUploadingAll(false);
-    }
-  }, [isUploadingAll, items, uploadItemToDest]);
+    },
+    [isUploadingAll, items, uploadItemToDest],
+  );
 
   return { isUploadingAll, uploadItem, uploadAll };
 }

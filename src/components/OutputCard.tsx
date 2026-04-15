@@ -12,29 +12,50 @@ interface Props {
   onUpload: (id: string) => void;
 }
 
-export default function OutputCard({ item, showPreview, destinations, onPreview, onUpload }: Props) {
+export default function OutputCard({
+  item,
+  showPreview,
+  destinations,
+  onPreview,
+  onUpload,
+}: Props) {
   const urlRef = useRef<string | null>(null);
   const [blobUrl, setBlobUrl] = useState<string | null>(null);
 
   useEffect(() => {
     if (!item.outputBlob || !showPreview) {
-      if (urlRef.current) { URL.revokeObjectURL(urlRef.current); urlRef.current = null; }
+      if (urlRef.current) {
+        URL.revokeObjectURL(urlRef.current);
+        urlRef.current = null;
+      }
       setBlobUrl(null);
       return;
     }
     if (!urlRef.current) urlRef.current = URL.createObjectURL(item.outputBlob);
     setBlobUrl(urlRef.current);
     return () => {
-      if (urlRef.current) { URL.revokeObjectURL(urlRef.current); urlRef.current = null; }
+      if (urlRef.current) {
+        URL.revokeObjectURL(urlRef.current);
+        urlRef.current = null;
+      }
     };
   }, [item.outputBlob, showPreview]);
 
   const meta = item.metadata;
   const isDone = item.status === "done";
   const enabledDests = destinations.filter((d) => d.enabled);
-  const anyUploading = enabledDests.some((d) => item.uploads?.[d.id]?.status === "uploading");
-  const allDone = enabledDests.length > 0 && enabledDests.every((d) => item.uploads?.[d.id]?.status === "done");
-  const canUpload = isDone && !!item.outputBlob && enabledDests.length > 0 && !anyUploading && !allDone;
+  const anyUploading = enabledDests.some(
+    (d) => item.uploads?.[d.id]?.status === "uploading",
+  );
+  const allDone =
+    enabledDests.length > 0 &&
+    enabledDests.every((d) => item.uploads?.[d.id]?.status === "done");
+  const canUpload =
+    isDone &&
+    !!item.outputBlob &&
+    enabledDests.length > 0 &&
+    !anyUploading &&
+    !allDone;
 
   const handleDownload = () => {
     if (!item.outputBlob || !item.outputName) return;
@@ -42,7 +63,9 @@ export default function OutputCard({ item, showPreview, destinations, onPreview,
   };
 
   return (
-    <article className={`output-card output-${item.status}${allDone ? " output-uploaded" : ""}`}>
+    <article
+      className={`output-card output-${item.status}${allDone ? " output-uploaded" : ""}`}
+    >
       <div className="output-top">
         <div className="output-top-text">
           <h3 title={item.file.name}>{item.file.name}</h3>
@@ -51,7 +74,10 @@ export default function OutputCard({ item, showPreview, destinations, onPreview,
             <p className="small">
               Duration: {formatTime(meta.duration)} &nbsp;·&nbsp;
               {meta.width}×{meta.height} &nbsp;·&nbsp;
-              {meta.bitrate ? `${Math.round(meta.bitrate / 1000)} kbps` : "n/a"} &nbsp;·&nbsp;
+              {meta.bitrate
+                ? `${Math.round(meta.bitrate / 1000)} kbps`
+                : "n/a"}{" "}
+              &nbsp;·&nbsp;
               {humanSize(item.file.size)}
             </p>
           )}
@@ -71,21 +97,32 @@ export default function OutputCard({ item, showPreview, destinations, onPreview,
           ) : (
             <div className="preview-placeholder">
               {showPreview
-                ? item.status === "processing" ? "Processing…" : "No preview"
+                ? item.status === "processing"
+                  ? "Processing…"
+                  : "No preview"
                 : "Preview off"}
             </div>
           )}
         </div>
 
         <div className="output-info">
-          <p><strong>Output:</strong> {item.outputName ?? "—"}</p>
-          <p><strong>Size:</strong> {item.outputSize ? humanSize(item.outputSize) : "—"}</p>
-          <p><strong>Status:</strong> {item.status}</p>
+          <p>
+            <strong>Output:</strong> {item.outputName ?? "—"}
+          </p>
+          <p>
+            <strong>Size:</strong>{" "}
+            {item.outputSize ? humanSize(item.outputSize) : "—"}
+          </p>
+          <p>
+            <strong>Status:</strong> {item.status}
+          </p>
           {item.error && <p className="error">{item.error}</p>}
 
           <div className="action-row">
             {isDone && item.outputBlob && item.outputName ? (
-              <button className="button-link" onClick={handleDownload}>⬇️ Download JPG</button>
+              <button className="button-link" onClick={handleDownload}>
+                ⬇️ Download JPG
+              </button>
             ) : (
               <span className="muted">No download yet</span>
             )}
@@ -97,7 +134,10 @@ export default function OutputCard({ item, showPreview, destinations, onPreview,
                 disabled={!canUpload}
                 title={`Upload to ${enabledDests.map((d) => d.name).join(", ")}`}
               >
-                ☁️ Upload{enabledDests.length === 1 ? ` to ${enabledDests[0].name}` : ` (${enabledDests.length} destinations)`}
+                ☁️ Upload
+                {enabledDests.length === 1
+                  ? ` to ${enabledDests[0].name}`
+                  : ` (${enabledDests.length} destinations)`}
               </button>
             )}
           </div>
@@ -118,7 +158,9 @@ export default function OutputCard({ item, showPreview, destinations, onPreview,
                   </>
                 )}
                 {state.status === "error" && state.error && (
-                  <p className="error">Upload to {dest.name} failed: {state.error}</p>
+                  <p className="error">
+                    Upload to {dest.name} failed: {state.error}
+                  </p>
                 )}
               </div>
             );

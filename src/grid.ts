@@ -17,13 +17,13 @@ import { errlog, formatTime, humanSize, log, warn } from "./utils";
 // Types
 
 export type GridOptions = {
-  width:     number;
-  cols:      number;
-  rows:      number;
-  spacing:   number;
-  position:  Position;
-  header:    boolean;
-  bgColor:   string;
+  width: number;
+  cols: number;
+  rows: number;
+  spacing: number;
+  position: Position;
+  header: boolean;
+  bgColor: string;
   textColor: string;
 };
 
@@ -49,7 +49,10 @@ const seekVideo = (video: HTMLVideoElement, t: number): Promise<void> =>
       reject(new Error(`Seek timeout at ${t.toFixed(3)}s`));
     }, SEEK_TIMEOUT_MS);
 
-    const onSeeked = () => { clearTimeout(tid); resolve(); };
+    const onSeeked = () => {
+      clearTimeout(tid);
+      resolve();
+    };
     video.addEventListener("seeked", onSeeked, { once: true });
     video.currentTime = t;
   });
@@ -71,27 +74,31 @@ export const createGridJpg = async (
   meta: VideoMetadata,
   opts: GridOptions,
   isCancelled: () => boolean,
-  onFrameDone: (frameIndex: number, totalFrames: number, timestampSec: number) => void,
-  onWarning:   (message: string) => void,
+  onFrameDone: (
+    frameIndex: number,
+    totalFrames: number,
+    timestampSec: number,
+  ) => void,
+  onWarning: (message: string) => void,
 ): Promise<GridResult> => {
   const totalWidth = Math.max(240, opts.width);
-  const cols       = Math.max(1, opts.cols);
-  const rows       = Math.max(1, opts.rows);
-  const spacing    = Math.max(0, opts.spacing);
-  const total      = cols * rows;
-  const duration   = Math.max(1, meta.duration || 1);
+  const cols = Math.max(1, opts.cols);
+  const rows = Math.max(1, opts.rows);
+  const spacing = Math.max(0, opts.spacing);
+  const total = cols * rows;
+  const duration = Math.max(1, meta.duration || 1);
 
-  const cellWidth  = Math.floor((totalWidth - spacing * (cols - 1)) / cols);
-  const aspect     =
+  const cellWidth = Math.floor((totalWidth - spacing * (cols - 1)) / cols);
+  const aspect =
     meta.width > 0 && meta.height > 0 ? meta.height / meta.width : 9 / 16;
   const cellHeight = Math.max(1, Math.floor(cellWidth * aspect));
 
   const headerHeight = opts.header ? HEADER_HEIGHT : 0;
-  const canvasWidth  = cols * cellWidth + spacing * (cols - 1);
+  const canvasWidth = cols * cellWidth + spacing * (cols - 1);
   const canvasHeight = headerHeight + rows * cellHeight + spacing * (rows - 1);
 
-  const canvas  = document.createElement("canvas");
-  canvas.width  = canvasWidth;
+  const canvas = document.createElement("canvas");
+  canvas.width = canvasWidth;
   canvas.height = canvasHeight;
   const ctx = canvas.getContext("2d")!;
 
@@ -100,10 +107,10 @@ export const createGridJpg = async (
 
   // Header
   if (opts.header) {
-    ctx.fillStyle    = opts.bgColor;
+    ctx.fillStyle = opts.bgColor;
     ctx.fillRect(0, 0, canvasWidth, headerHeight);
-    ctx.fillStyle    = opts.textColor;
-    ctx.font         = `${HEADER_TEXT_SIZE}px system-ui, Arial, sans-serif`;
+    ctx.fillStyle = opts.textColor;
+    ctx.font = `${HEADER_TEXT_SIZE}px system-ui, Arial, sans-serif`;
     ctx.textBaseline = "top";
 
     const infoLines = [
@@ -137,7 +144,7 @@ export const createGridJpg = async (
   // Sample timestamps - distributed evenly with a small margin at each end.
   const margin = Math.max(0.5, duration * 0.02);
   const usable = Math.max(duration - 2 * margin, 0.1);
-  const times  = Array.from({ length: total }, (_, i) =>
+  const times = Array.from({ length: total }, (_, i) =>
     Math.min(Math.max(0, margin + usable * ((i + 0.5) / total)), duration),
   );
 
@@ -146,19 +153,19 @@ export const createGridJpg = async (
     Exclude<Position, "disabled">,
     { x: "left" | "right"; y: "top" | "bottom" }
   > = {
-    "top-left":     { x: "left",  y: "top"    },
-    "top-right":    { x: "right", y: "top"    },
-    "bottom-left":  { x: "left",  y: "bottom" },
+    "top-left": { x: "left", y: "top" },
+    "top-right": { x: "right", y: "top" },
+    "bottom-left": { x: "left", y: "bottom" },
     "bottom-right": { x: "right", y: "bottom" },
   };
 
   // Open a <video> element for native seeking.
   const videoUrl = URL.createObjectURL(file);
-  const video    = document.createElement("video");
-  video.muted       = true;
+  const video = document.createElement("video");
+  video.muted = true;
   video.playsInline = true;
-  video.preload     = "metadata";
-  video.src         = videoUrl;
+  video.preload = "metadata";
+  video.src = videoUrl;
 
   const videoCleanup = () => {
     video.removeAttribute("src");
@@ -169,9 +176,26 @@ export const createGridJpg = async (
   let videoUsable = true;
   try {
     await new Promise<void>((resolve, reject) => {
-      const tid = setTimeout(() => reject(new Error("Video open timeout")), 15_000);
-      video.addEventListener("loadedmetadata", () => { clearTimeout(tid); resolve(); }, { once: true });
-      video.addEventListener("error",          () => { clearTimeout(tid); reject(new Error("Video failed to open")); }, { once: true });
+      const tid = setTimeout(
+        () => reject(new Error("Video open timeout")),
+        15_000,
+      );
+      video.addEventListener(
+        "loadedmetadata",
+        () => {
+          clearTimeout(tid);
+          resolve();
+        },
+        { once: true },
+      );
+      video.addEventListener(
+        "error",
+        () => {
+          clearTimeout(tid);
+          reject(new Error("Video failed to open"));
+        },
+        { once: true },
+      );
     });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
@@ -188,13 +212,16 @@ export const createGridJpg = async (
     if (ffmpegBitmaps !== null) return;
     log(`  Switching to FFmpeg batch extraction for all ${total} frames…`);
     ffmpegBitmaps = await extractFramesFFmpegBatch(
-      file, times,
+      file,
+      times,
       (idx, _total, err) => {
         if (err) {
           ffmpegFailedFrames++;
           onWarning(`FFmpeg frame ${idx + 1}/${total} failed: ${err}`);
           if (ffmpegFailedFrames > 2) {
-            throw new Error("FFmpeg decoding failed repeatedly — likely OOM or unsupported codec.");
+            throw new Error(
+              "FFmpeg decoding failed repeatedly — likely OOM or unsupported codec.",
+            );
           }
         }
       },
@@ -206,12 +233,14 @@ export const createGridJpg = async (
     if (isCancelled()) break;
 
     const tSec = times[i];
-    const col  = i % cols;
-    const row  = Math.floor(i / cols);
-    const x    = col * (cellWidth  + spacing);
-    const y    = headerHeight + row * (cellHeight + spacing);
+    const col = i % cols;
+    const row = Math.floor(i / cols);
+    const x = col * (cellWidth + spacing);
+    const y = headerHeight + row * (cellHeight + spacing);
 
-    log(`  Frame ${i + 1}/${total} — t=${tSec.toFixed(3)}s (${formatTime(tSec)}) from "${file.name}"`);
+    log(
+      `  Frame ${i + 1}/${total} — t=${tSec.toFixed(3)}s (${formatTime(tSec)}) from "${file.name}"`,
+    );
 
     let frameDrawn = false;
 
@@ -222,9 +251,12 @@ export const createGridJpg = async (
         ctx.drawImage(video, x, y, cellWidth, cellHeight);
         frameDrawn = true;
       } catch (seekErr) {
-        const msg = seekErr instanceof Error ? seekErr.message : String(seekErr);
+        const msg =
+          seekErr instanceof Error ? seekErr.message : String(seekErr);
         warn(`  Native seek failed at frame ${i + 1}: ${msg}`);
-        onWarning(`Native seek failed at frame ${i + 1} (${msg}) — switching to FFmpeg`);
+        onWarning(
+          `Native seek failed at frame ${i + 1} (${msg}) — switching to FFmpeg`,
+        );
         videoUsable = false;
       }
     }
@@ -240,44 +272,48 @@ export const createGridJpg = async (
           ffmpegBitmaps![i] = null;
           frameDrawn = true;
         } else {
-          onWarning(`FFmpeg returned no image for frame ${i + 1} — cell left blank`);
+          onWarning(
+            `FFmpeg returned no image for frame ${i + 1} — cell left blank`,
+          );
         }
       } catch (ffErr) {
         const msg = ffErr instanceof Error ? ffErr.message : String(ffErr);
         errlog(`  FFmpeg frame ${i + 1} error:`, msg);
         onWarning(`FFmpeg error at frame ${i + 1}: ${msg}`);
         if (isMemoryError(ffErr)) {
-          onWarning(`⚠️ Out of memory at frame ${i + 1}. Try reducing output width, columns, or rows.`);
+          onWarning(
+            `⚠️ Out of memory at frame ${i + 1}. Try reducing output width, columns, or rows.`,
+          );
         }
       }
     }
 
     // Error placeholder when both paths failed
     if (!frameDrawn) {
-      ctx.fillStyle    = opts.bgColor;
+      ctx.fillStyle = opts.bgColor;
       ctx.fillRect(x, y, cellWidth, cellHeight);
-      ctx.fillStyle    = "#555";
-      ctx.font         = "18px system-ui";
-      ctx.textAlign    = "center";
+      ctx.fillStyle = "#555";
+      ctx.font = "18px system-ui";
+      ctx.textAlign = "center";
       ctx.textBaseline = "middle";
       ctx.fillText("FAILED", x + cellWidth / 2, y + cellHeight / 2);
-      ctx.textAlign    = "left";
+      ctx.textAlign = "left";
       ctx.textBaseline = "alphabetic";
     }
 
     // Timecode overlay
     if (opts.position !== "disabled") {
-      const pos      = posMap[opts.position];
-      const label    = formatTime(tSec);
+      const pos = posMap[opts.position];
+      const label = formatTime(tSec);
       const tcFontSz = Math.max(11, Math.round(totalWidth * 0.012));
-      ctx.font         = `${tcFontSz}px system-ui, Arial, sans-serif`;
+      ctx.font = `${tcFontSz}px system-ui, Arial, sans-serif`;
       ctx.textBaseline = "top";
-      const textW    = ctx.measureText(label).width;
-      const pad      = 6;
-      const bgW      = textW + pad * 2;
-      const bgH      = tcFontSz + pad * 2;
-      const bgX      = pos.x === "left" ? x + pad : x + cellWidth  - bgW - pad;
-      const bgY      = pos.y === "top"  ? y + pad : y + cellHeight - bgH - pad;
+      const textW = ctx.measureText(label).width;
+      const pad = 6;
+      const bgW = textW + pad * 2;
+      const bgH = tcFontSz + pad * 2;
+      const bgX = pos.x === "left" ? x + pad : x + cellWidth - bgW - pad;
+      const bgY = pos.y === "top" ? y + pad : y + cellHeight - bgH - pad;
 
       ctx.fillStyle = "rgba(0,0,0,0.6)";
       ctx.fillRect(bgX, bgY, bgW, bgH);
@@ -295,11 +331,11 @@ export const createGridJpg = async (
   resetFFmpeg();
 
   const outputName = `${file.name}.jpg`;
-  const jpgBlob    = await new Promise<Blob>((resolve) => {
+  const jpgBlob = await new Promise<Blob>((resolve) => {
     canvas.toBlob((b) => resolve(b ?? new Blob()), "image/jpeg", 0.95);
   });
 
-  canvas.width  = 0;
+  canvas.width = 0;
   canvas.height = 0;
 
   return { outputName, outputSize: jpgBlob.size, outputBlob: jpgBlob };

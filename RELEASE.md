@@ -134,10 +134,10 @@ npm run preview    # serves dist/ at http://localhost:4173/VidGrid-HTML/
 
 ## Troubleshooting
 
-| Symptom | Likely cause | Fix |
-| --- | --- | --- |
-| 404 on the Pages URL | `base` mismatch in `vite.config.ts` | Use `/` for unique domains or match repo path for legacy URLs |
-| Assets not loading | Incorrect base path | Double-check `base` setting |
-| WASM files not loading | Browser blocked request | Ensure HTTPS (Pages always uses HTTPS) |
-| Pipeline fails at `npm ci` | `package-lock.json` not committed | Commit the lockfile |
-| `pages` job skipped | Push was not to the default branch | Merge / push to `main` (or update `.gitlab-ci.yml`) |
+| Symptom                    | Likely cause                        | Fix                                                           |
+| -------------------------- | ----------------------------------- | ------------------------------------------------------------- |
+| 404 on the Pages URL       | `base` mismatch in `vite.config.ts` | Use `/` for unique domains or match repo path for legacy URLs |
+| Assets not loading         | Incorrect base path                 | Double-check `base` setting                                   |
+| WASM files not loading     | Browser blocked request             | Ensure HTTPS (Pages always uses HTTPS)                        |
+| Pipeline fails at `npm ci` | `package-lock.json` not committed   | Commit the lockfile                                           |
+| `pages` job skipped        | Push was not to the default branch  | Merge / push to `main` (or update `.gitlab-ci.yml`)           |

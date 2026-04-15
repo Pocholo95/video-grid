@@ -1,5 +1,9 @@
 import { useState } from "react";
-import type { DestinationUploadState, OutputItem, UploadResult } from "../types";
+import type {
+  DestinationUploadState,
+  OutputItem,
+  UploadResult,
+} from "../types";
 import { resolutionLabel, buildFormats } from "./UploadLinks";
 
 interface Props {
@@ -52,8 +56,9 @@ function buildPostBlock(item: OutputItem): string | null {
   if (!item.uploads) return null;
 
   const results = Object.values(item.uploads)
-    .filter((state): state is DestinationUploadState & { result: UploadResult } =>
-      state.status === "done" && !!state.result
+    .filter(
+      (state): state is DestinationUploadState & { result: UploadResult } =>
+        state.status === "done" && !!state.result,
     )
     .map((state) => state.result);
 
@@ -63,7 +68,9 @@ function buildPostBlock(item: OutputItem): string | null {
   const res = resolutionLabel(item.metadata);
   const titleLine = `[b]${baseName}${res ? ` ${res}` : ""}[/b]`;
   const imgLine = results
-    .map((result) => `[url=${result.pageUrl}][img]${result.thumbUrl}[/img][/url]`)
+    .map(
+      (result) => `[url=${result.pageUrl}][img]${result.thumbUrl}[/img][/url]`,
+    )
     .join(" ");
 
   return `${titleLine}\n${imgLine}\n\n`;
@@ -88,9 +95,11 @@ function buildCopyText(items: OutputItem[], format: FormatKey): string {
     .map((item) => {
       const uploads = item.uploads
         ? Object.values(item.uploads).filter(
-          (state): state is DestinationUploadState & { result: UploadResult } =>
-            state.status === "done" && !!state.result
-        )
+            (
+              state,
+            ): state is DestinationUploadState & { result: UploadResult } =>
+              state.status === "done" && !!state.result,
+          )
         : [];
 
       if (!uploads.length) return null;
@@ -165,12 +174,14 @@ export default function CopyAllPanel({ items }: Props) {
       <div className="copy-all-row">
         <span className="copy-all-label">Copy all links:</span>
         <select
-          className="dest-select"
+          className="copy-all-select"
           value={format}
           onChange={(e) => setFormat(e.target.value as FormatKey)}
         >
           {(Object.keys(FORMAT_LABELS) as FormatKey[]).map((k) => (
-            <option key={k} value={k}>{FORMAT_LABELS[k]}</option>
+            <option key={k} value={k}>
+              {FORMAT_LABELS[k]}
+            </option>
           ))}
         </select>
         <CopyButton text={copyText} disabled={uploadedItems.length === 0} />

@@ -27,7 +27,11 @@ const getMediaInfo = async (): Promise<MediaInfo> => {
 /** Closes the MediaInfo instance and clears the singleton state. */
 export const closeMediaInfo = (): void => {
   if (mediaInfoInstance) {
-    try { mediaInfoInstance.close(); } catch { /* already closed */ }
+    try {
+      mediaInfoInstance.close();
+    } catch {
+      /* already closed */
+    }
     mediaInfoInstance = null;
   }
   mediaInfoLoadPromise = null;
@@ -49,7 +53,10 @@ export const readMetadataMediaInfo = async (
   const mi = await getMediaInfo();
   onProgress?.(20, "Analysing container…");
 
-  const readChunk = async (chunkSize: number, offset: number): Promise<Uint8Array> => {
+  const readChunk = async (
+    chunkSize: number,
+    offset: number,
+  ): Promise<Uint8Array> => {
     const buf = await file.slice(offset, offset + chunkSize).arrayBuffer();
     return new Uint8Array(buf);
   };
@@ -58,14 +65,19 @@ export const readMetadataMediaInfo = async (
     const result = await mi.analyzeData(file.size, readChunk);
     onProgress?.(90, "Parsing track info…");
 
-    const tracks  = result.media?.track ?? [];
-    const general = tracks.find((t) => t["@type"] === "General") as Record<string, string> | undefined;
-    const video   = tracks.find((t) => t["@type"] === "Video")   as Record<string, string> | undefined;
+    const tracks = result.media?.track ?? [];
+    const general = tracks.find((t) => t["@type"] === "General") as
+      | Record<string, string>
+      | undefined;
+    const video = tracks.find((t) => t["@type"] === "Video") as
+      | Record<string, string>
+      | undefined;
 
-    const duration = parseFloat(video?.Duration ?? general?.Duration ?? "0") || 0;
-    const width    = parseInt(video?.Width  ?? "0", 10) || 0;
-    const height   = parseInt(video?.Height ?? "0", 10) || 0;
-    const bitrate  = parseInt(general?.OverallBitRate ?? "0", 10) || 0;
+    const duration =
+      parseFloat(video?.Duration ?? general?.Duration ?? "0") || 0;
+    const width = parseInt(video?.Width ?? "0", 10) || 0;
+    const height = parseInt(video?.Height ?? "0", 10) || 0;
+    const bitrate = parseInt(general?.OverallBitRate ?? "0", 10) || 0;
 
     log(`MediaInfo: duration=${duration}s, ${width}x${height}, ${bitrate}bps`);
     onProgress?.(100, "Metadata ready");

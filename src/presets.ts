@@ -1,8 +1,13 @@
 import { APP_STORAGE_KEY } from "./constants";
-import type { AppSettings, Presets, SavedOptions, UploadDestination } from "./types";
+import type {
+  AppSettings,
+  Presets,
+  SavedOptions,
+  UploadDestination,
+} from "./types";
 
 const DEFAULT: AppSettings = {
-  presets:      { entries: {}, lastUsed: null },
+  presets: { entries: {}, lastUsed: null },
   destinations: [],
 };
 
@@ -18,7 +23,7 @@ export const loadAppSettings = (): AppSettings => {
     const destinations: UploadDestination[] = parsed.destinations ?? [];
     return {
       presets: {
-        entries:  parsed.presets?.entries  ?? {},
+        entries: parsed.presets?.entries ?? {},
         lastUsed: parsed.presets?.lastUsed ?? null,
       },
       destinations,
@@ -79,8 +84,8 @@ export const setLastUsedPreset = (name: string | null): void => {
  * @param opts - The SavedOptions to store.
  */
 export const savePreset = (name: string, opts: SavedOptions): void => {
-  const entries  = loadPresets();
-  entries[name]  = opts;
+  const entries = loadPresets();
+  entries[name] = opts;
   persistPresets(entries);
   setLastUsedPreset(name);
 };
@@ -108,7 +113,9 @@ export const loadDestinations = (): UploadDestination[] =>
  *
  * @param destinations - Full replacement list of upload destinations.
  */
-export const persistDestinations = (destinations: UploadDestination[]): void => {
+export const persistDestinations = (
+  destinations: UploadDestination[],
+): void => {
   const s = loadAppSettings();
   s.destinations = destinations;
   persistAppSettings(s);
