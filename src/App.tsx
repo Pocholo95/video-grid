@@ -125,7 +125,10 @@ export default function App() {
 
   // - Derived from Outputs
   const doneItems = items.filter(
-    (i) => i.status === "done" && i.outputBlob && i.outputName,
+    (i) =>
+      (i.status === "done" || i.status === "processing") &&
+      i.outputBlob &&
+      i.outputName,
   );
   const allMetaReady =
     items.length > 0 && items.every((i) => i.metadata !== undefined);
@@ -145,7 +148,10 @@ export default function App() {
         </div>
         <div className="header-text">
           <h1>VidGrid-HTML</h1>
-          <p className="subtitle">Client-side JPG thumbnail grid generator</p>
+          <p className="subtitle">
+            Thumbnail Grids Generator for Videos. Client-Side only processing,
+            no upload required!
+          </p>
         </div>
         <div className="header-actions">
           <button
