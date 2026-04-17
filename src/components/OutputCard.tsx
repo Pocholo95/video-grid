@@ -120,7 +120,7 @@ export default function OutputCard({
 
           <div className="action-row">
             {isDone && item.outputBlob && item.outputName ? (
-              <button className="button-link" onClick={handleDownload}>
+              <button className="icon-btn button-link" onClick={handleDownload}>
                 ⬇️ Download JPG
               </button>
             ) : (
@@ -129,7 +129,7 @@ export default function OutputCard({
 
             {isDone && enabledDests.length > 0 && !allDone && (
               <button
-                className="button-link upload-btn"
+                className="icon-btn button-link upload-btn"
                 onClick={() => onUpload(item.id)}
                 disabled={!canUpload}
                 title={`Upload to ${enabledDests.map((d) => d.name).join(", ")}`}

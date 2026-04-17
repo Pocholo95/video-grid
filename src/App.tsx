@@ -175,7 +175,7 @@ export default function App() {
           <div className="outputs-bulk-actions">
             {enabledDests.length > 0 && doneItems.length > 0 && (
               <button
-                className="primary upload-all-btn"
+                className="icon-btn primary upload-all-btn"
                 disabled={
                   isUploadingAll ||
                   (uploadProgress.total > 0 &&
@@ -194,7 +194,7 @@ export default function App() {
             )}
             {doneItems.length > 1 && (
               <button
-                className="primary"
+                className="icon-btn primary"
                 disabled={isZipping}
                 onClick={downloadAll}
               >

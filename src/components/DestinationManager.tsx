@@ -219,23 +219,23 @@ export default function DestinationManager({
             {error && <p className="form-error">{error}</p>}
 
             <div className="edit-actions">
-              <button className="primary" onClick={confirmEdit}>
+              <button className="icon-btn primary" onClick={confirmEdit}>
                 {editing.id === "__new__" ? "Add" : "Update"}
               </button>
-              <button onClick={cancelEdit}>Cancel</button>
+              <button className="icon-btn" onClick={cancelEdit}>Cancel</button>
             </div>
           </div>
         )}
 
         {!editing && (
-          <button className="add-dest-btn" onClick={openAdd}>
+          <button className="icon-btn add-dest-btn" onClick={openAdd}>
             ＋ Add destination
           </button>
         )}
 
         <div className="modal-footer">
           <button
-            className="primary"
+            className="icon-btn primary"
             onClick={() => {
               onSave(list);
               onClose();
@@ -243,7 +243,7 @@ export default function DestinationManager({
           >
             Save &amp; close
           </button>
-          <button onClick={onClose}>Discard changes</button>
+          <button className="icon-btn" onClick={onClose}>Discard changes</button>
         </div>
       </div>
     </div>

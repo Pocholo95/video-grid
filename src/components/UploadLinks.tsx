@@ -96,7 +96,7 @@ function CopyButton({ text }: { text: string }) {
 
   return (
     <button
-      className={`copy-btn${copied ? " copied" : ""}`}
+      className={`icon-btn copy-btn${copied ? " copied" : ""}`}
       onClick={handleCopy}
       title={copied ? "Copied!" : "Copy to clipboard"}
     >
@@ -113,7 +113,7 @@ export default function UploadLinks({ destName, result, filename }: Props) {
     <div className="upload-links">
       <div className="upload-links-header">
         <button
-          className="upload-links-toggle"
+          className="icon-btn upload-links-toggle"
           onClick={() => setExpanded((v) => !v)}
           aria-expanded={expanded}
         >

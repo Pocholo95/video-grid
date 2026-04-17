@@ -24,7 +24,7 @@ export default function PreviewModal({ url, onClose }: Props) {
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
       <div id="previewModalWrapper">
-        <button id="previewClose" onClick={onClose}>
+        <button className="icon-btn" id="previewClose" onClick={onClose}>
           ✕ Close
         </button>
         <img id="previewModalImg" src={url} alt="Preview" />

@@ -156,7 +156,7 @@ export default function ControlPanel({
               title="Cancel"
               onClick={() => setNameVisible(false)}
             >
-              ✕
+              ✖️
             </button>
           </div>
         )}
@@ -252,16 +252,21 @@ export default function ControlPanel({
 
         <div className="actions">
           <button
-            className="primary"
+            className="icon-btn primary"
             disabled={!hasFiles || !allMetadataReady || isProcessing}
             onClick={onStart}
           >
             ▶️ Start Processing
           </button>
-          <button disabled={!isProcessing} onClick={onCancel}>
+          <button
+            className="icon-btn"
+            disabled={!isProcessing}
+            onClick={onCancel}
+          >
             ⏹️ Cancel
           </button>
           <button
+            className="icon-btn"
             disabled={isProcessing}
             onClick={() => {
               onClear();
