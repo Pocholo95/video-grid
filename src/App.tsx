@@ -130,6 +130,13 @@ export default function App() {
   const allMetaReady =
     items.length > 0 && items.every((i) => i.metadata !== undefined);
 
+  const totalPossibleUploads = doneItems.length * enabledDests.length;
+  const completedUploads =
+    items.filter((item) =>
+      enabledDests.every((dest) => item.uploads?.[dest.id]?.status === "done"),
+    ).length * enabledDests.length;
+  const hasPendingUploads = completedUploads < totalPossibleUploads;
+
   return (
     <>
       <header className="app-header">
@@ -176,20 +183,15 @@ export default function App() {
             {enabledDests.length > 0 && doneItems.length > 0 && (
               <button
                 className="icon-btn primary upload-all-btn"
-                disabled={
-                  isUploadingAll ||
-                  (uploadProgress.total > 0 &&
-                    uploadProgress.completed === uploadProgress.total)
-                }
+                disabled={isUploadingAll || !hasPendingUploads}
                 onClick={() => uploadAll(destinations)}
-                title={`Upload all to ${enabledDests.map((d) => d.name).join(", ")}`}
+                title={`Upload all to ${enabledDests.map((d) => d.name).join(", ")} ${
+                  hasPendingUploads ? "" : "(All uploads complete)"
+                }`}
               >
                 {isUploadingAll
-                  ? `⏳ Uploading… (${uploadProgress.completed}/${uploadProgress.total})`
-                  : uploadProgress.completed === uploadProgress.total &&
-                      uploadProgress.total > 0
-                    ? "✅ Uploads complete"
-                    : `☁️ Upload All (${doneItems.length})`}
+                  ? `⏳ Uploading… (${uploadProgress.attempted}/${uploadProgress.total})`
+                  : `☁️ Upload All (${completedUploads}/${totalPossibleUploads})`}
               </button>
             )}
             {doneItems.length > 1 && (

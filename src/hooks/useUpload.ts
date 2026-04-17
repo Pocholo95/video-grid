@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { uploadBlob } from "../upload";
 import type {
   DestinationUploadState,
@@ -54,9 +54,18 @@ export function useUpload(
 ) {
   const [isUploadingAll, setIsUploadingAll] = useState(false);
   const [uploadProgress, setUploadProgress] = useState({
-    completed: 0,
-    total: 0,
+    completed: 0, // Successful uploads
+    total: 0, // Total possible uploads
+    attempted: 0, // Uploads we've tried
   });
+
+  useEffect(() => {
+    // Reset on new files/clear
+    setUploadProgress({ completed: 0, total: 0, attempted: 0 });
+    setIsUploadingAll(false);
+  }, [items]);
+
+  // Remove the complex counting useEffect entirely;
 
   /**
    * Upload a single output item to a single destination.
@@ -145,19 +154,23 @@ export function useUpload(
       if (!pending.length) return;
 
       const totalUploads = pending.length * enabled.length;
-      setUploadProgress({ completed: 0, total: totalUploads });
+      setUploadProgress({ completed: 0, total: totalUploads, attempted: 0 });
       setIsUploadingAll(true);
+
       try {
-        let opCount = 0;
+        let attempted = 0;
         for (const item of pending) {
           for (const dest of enabled) {
             const state = item.uploads?.[dest.id];
-            if (state?.status === "done" || state?.status === "uploading")
-              continue;
-            if (opCount > 0) await sleep(UPLOAD_DELAY_MS);
+            if (state?.status === "done") continue;
+
+            if (attempted > 0) await sleep(UPLOAD_DELAY_MS);
+
             await uploadItemToDest(item.id, dest);
-            opCount++;
-            setUploadProgress({ completed: opCount, total: totalUploads });
+            attempted++;
+
+            // Just track attempts, forget success count
+            setUploadProgress({ completed: 0, total: totalUploads, attempted });
           }
         }
       } finally {
