@@ -45,8 +45,8 @@ export default function ControlPanel({
       setOpts({ ...opts, [key]: Number(e.target.value) || 0 }),
   });
 
-  const checkField = (key: "header" | "preview") => ({
-    checked: opts[key],
+  const checkField = (key: "header" | "preview" | "animated") => ({
+    checked: opts[key] ?? false,
     onChange: (e: React.ChangeEvent<HTMLInputElement>) =>
       setOpts({ ...opts, [key]: e.target.checked }),
   });
@@ -130,7 +130,6 @@ export default function ControlPanel({
             💾
           </button>
         </div>
-
         {nameVisible && (
           <div className="preset-name-area">
             <input
@@ -160,7 +159,6 @@ export default function ControlPanel({
             </button>
           </div>
         )}
-
         {/* File picker */}
         <label className="field">
           <span>Video files</span>
@@ -175,28 +173,23 @@ export default function ControlPanel({
             }}
           />
         </label>
-
         {/* Grid options */}
         <label className="field">
           <span>Output width (px)</span>
           <input type="number" min={240} step={1} {...numField("width")} />
         </label>
-
         <label className="field">
           <span>Grid columns</span>
           <input type="number" min={1} step={1} {...numField("cols")} />
         </label>
-
         <label className="field">
           <span>Grid rows</span>
           <input type="number" min={1} step={1} {...numField("rows")} />
         </label>
-
         <label className="field">
           <span>Frame spacing (px)</span>
           <input type="number" min={0} step={1} {...numField("spacing")} />
         </label>
-
         <label className="field">
           <span>Timecode position</span>
           <select
@@ -215,7 +208,6 @@ export default function ControlPanel({
             <option value="bottom-right">Bottom-Right</option>
           </select>
         </label>
-
         <label className="field color-field">
           <span>Background color</span>
           <div className="color-input-row">
@@ -227,7 +219,6 @@ export default function ControlPanel({
             <span className="color-hex">{opts.bgColor}</span>
           </div>
         </label>
-
         <label className="field color-field">
           <span>Text color</span>
           <div className="color-input-row">
@@ -239,17 +230,92 @@ export default function ControlPanel({
             <span className="color-hex">{opts.textColor}</span>
           </div>
         </label>
-
         <label className="check">
           <input type="checkbox" {...checkField("header")} />
           <span>Show header metadata</span>
         </label>
-
         <label className="check">
           <input type="checkbox" {...checkField("preview")} />
           <span>Show preview</span>
         </label>
-
+        <label className="check">
+          <input type="checkbox" {...checkField("animated")} />
+          <span>Animated output (WebP)</span>
+        </label>
+        {/* Animation sub-options — shown only when animated is enabled */}
+        {(opts.animated ?? false) && (
+          <fieldset className="animated-options">
+            <legend>Animation settings</legend>
+            <label className="field">
+              <span>Duration (s)</span>
+              <input
+                type="number"
+                min={1}
+                step={1}
+                value={String(opts.animDuration ?? DEFAULTS.animDuration)}
+                onChange={(e) =>
+                  setOpts({
+                    ...opts,
+                    animDuration: Math.max(1, Number(e.target.value) || 1),
+                  })
+                }
+              />
+            </label>
+            <label className="field">
+              <span>FPS</span>
+              <input
+                type="number"
+                min={1}
+                step={1}
+                value={String(opts.animFps ?? DEFAULTS.animFps)}
+                onChange={(e) =>
+                  setOpts({
+                    ...opts,
+                    animFps: Math.max(1, Number(e.target.value) || 1),
+                  })
+                }
+              />
+            </label>
+            <label className="field">
+              <span>WebP method (0-6)</span>
+              <input
+                type="number"
+                min={0}
+                max={6}
+                step={1}
+                value={String(opts.webpMethod ?? DEFAULTS.webpMethod)}
+                onChange={(e) =>
+                  setOpts({
+                    ...opts,
+                    webpMethod: Math.min(
+                      6,
+                      Math.max(0, Number(e.target.value) || 0),
+                    ),
+                  })
+                }
+              />
+            </label>
+            <label className="field">
+              <span>WebP quality (5-100)</span>
+              <input
+                type="number"
+                min={5}
+                max={100}
+                step={1}
+                value={String(opts.webpQuality ?? DEFAULTS.webpQuality)}
+                onChange={(e) =>
+                  setOpts({
+                    ...opts,
+                    webpQuality: Math.min(
+                      100,
+                      Math.max(5, Number(e.target.value) || 5),
+                    ),
+                  })
+                }
+              />
+            </label>
+          </fieldset>
+        )}
         <div className="actions">
           <button
             className="icon-btn primary"
@@ -279,7 +345,6 @@ export default function ControlPanel({
           </button>
         </div>
       </div>
-
       {/* Progress */}
       <div className="progress-area">
         <div className="progress-block">
@@ -289,7 +354,6 @@ export default function ControlPanel({
           </div>
           <progress value={status.currentPct} max={100} />
         </div>
-
         {status.batchTotal > 0 && (
           <div className="progress-block">
             <div className="progress-label">
@@ -301,7 +365,6 @@ export default function ControlPanel({
             <progress value={batchPct} max={100} />
           </div>
         )}
-
         <div className="status">{status.text}</div>
       </div>
     </div>

@@ -121,7 +121,7 @@ export default function OutputCard({
           <div className="action-row">
             {isDone && item.outputBlob && item.outputName ? (
               <button className="icon-btn button-link" onClick={handleDownload}>
-                ⬇️ Download JPG
+                ⬇️ Download {item.outputName.endsWith(".webp") ? "WebP" : "JPG"}
               </button>
             ) : (
               <span className="muted">No download yet</span>

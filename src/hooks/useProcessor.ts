@@ -7,6 +7,8 @@ import {
   readMetadataMediaInfo,
 } from "../mediainfo";
 import { resetFFmpeg } from "../ffmpeg";
+import { createAnimatedGridWebP } from "../animatedGrid";
+import type { AnimatedGridOptions } from "../animatedGrid";
 import type { OutputItem, SavedOptions } from "../types";
 import {
   errlog,
@@ -39,7 +41,6 @@ export function useProcessor(updateItem: Updater) {
     batchDone: 0,
     batchTotal: 0,
   });
-
   const cancelRef = useRef(false);
 
   /**
@@ -57,13 +58,11 @@ export function useProcessor(updateItem: Updater) {
         batchDone: 0,
         batchTotal: files.length,
       });
-
       const items: OutputItem[] = files.map((file) => ({
         id: makeId(),
         file,
         status: "queued",
       }));
-
       for (let i = 0; i < items.length; i++) {
         const item = items[i];
         const progress = ((i + 1) / files.length) * 100;
@@ -73,11 +72,9 @@ export function useProcessor(updateItem: Updater) {
           batchDone: i + 1,
           batchTotal: files.length,
         });
-
         try {
           const meta = await readMetadataMediaInfo(item.file);
           item.metadata = meta;
-
           if (!canNativelyPlay(item.file)) {
             item.warning =
               "⚠️ Browser cannot decode this format natively — FFmpeg WASM will be used " +
@@ -86,7 +83,6 @@ export function useProcessor(updateItem: Updater) {
             item.warning =
               "⚠️ Could not read metadata from this file. Processing may fail or produce incorrect output.";
           }
-
           updateItem(item.id, {
             metadata: item.metadata,
             warning: item.warning,
@@ -98,7 +94,6 @@ export function useProcessor(updateItem: Updater) {
           warn(`Metadata failed for "${item.file.name}":`, e);
         }
       }
-
       setStatus({
         text: `${files.length} file(s) ready. Press ▶️ Start Processing.`,
         currentPct: 0,
@@ -111,7 +106,7 @@ export function useProcessor(updateItem: Updater) {
   );
 
   /**
-   * Process all queued items, generating a JPEG grid for each one.
+   * Process all queued items, generating a JPEG grid or animated WebP for each one.
    *
    * @param items - The OutputItem list to process.
    * @param opts  - Current SavedOptions controlling grid layout and appearance.
@@ -119,7 +114,6 @@ export function useProcessor(updateItem: Updater) {
   const processAll = useCallback(
     async (items: OutputItem[], opts: SavedOptions) => {
       if (isProcessing || !items.length) return;
-
       setIsProcessing(true);
       cancelRef.current = false;
 
@@ -132,6 +126,20 @@ export function useProcessor(updateItem: Updater) {
         header: opts.header ?? DEFAULTS.header,
         bgColor: opts.bgColor || DEFAULTS.bgColor,
         textColor: opts.textColor || DEFAULTS.textColor,
+      };
+
+      const isAnimated = opts.animated ?? false;
+
+      // Animated options — safe to build once; only used when isAnimated is true.
+      const animGridOpts: AnimatedGridOptions = {
+        ...gridOpts,
+        animDuration: Math.max(1, opts.animDuration ?? DEFAULTS.animDuration),
+        animFps: Math.max(1, opts.animFps ?? DEFAULTS.animFps),
+        webpMethod: opts.webpMethod ?? DEFAULTS.webpMethod,
+        webpQuality: Math.min(
+          100,
+          Math.max(5, opts.webpQuality ?? DEFAULTS.webpQuality),
+        ),
       };
 
       let done = 0;
@@ -160,18 +168,24 @@ export function useProcessor(updateItem: Updater) {
           });
           log(`Starting "${item.file.name}"`);
 
-          const onFrameDone = (
-            frameIdx: number,
-            totalFrames: number,
-            tSec: number,
-          ) => {
-            setStatus({
-              text: `"${item.file.name}" — frame ${frameIdx}/${totalFrames} @ ${formatTime(tSec)}`,
-              currentPct: (frameIdx / totalFrames) * 100,
-              batchDone: done,
-              batchTotal: items.length,
+          // For animated mode, non-natively-playable files cannot be processed.
+          if (isAnimated && !canNativelyPlay(item.file)) {
+            updateItem(item.id, {
+              status: "error",
+              error:
+                "Animated WebP mode requires native browser video support. " +
+                "This format is not natively decodable — FFmpeg fallback is unavailable for animated output. " +
+                "Disable animated mode to use the FFmpeg fallback for static JPEG generation.",
+              warning: undefined,
             });
-          };
+            done++;
+            setStatus((prev) => ({
+              ...prev,
+              batchDone: done,
+              text: `"${item.file.name}" — skipped (format unsupported in animated mode)`,
+            }));
+            continue;
+          }
 
           const onWarning = (message: string) => {
             updateItem(item.id, { warning: message });
@@ -198,14 +212,50 @@ export function useProcessor(updateItem: Updater) {
               );
             }
 
-            const res = await createGridJpg(
-              item.file,
-              meta,
-              gridOpts,
-              () => cancelRef.current,
-              onFrameDone,
-              onWarning,
-            );
+            let res;
+
+            if (isAnimated) {
+              const onAnimFrameDone = (
+                composedFrame: number,
+                totalFrames: number,
+              ) => {
+                setStatus({
+                  text: `"${item.file.name}" — composing frame ${composedFrame}/${totalFrames}`,
+                  currentPct: (composedFrame / totalFrames) * 100,
+                  batchDone: done,
+                  batchTotal: items.length,
+                });
+              };
+              res = await createAnimatedGridWebP(
+                item.file,
+                meta,
+                animGridOpts,
+                () => cancelRef.current,
+                onAnimFrameDone,
+                onWarning,
+              );
+            } else {
+              const onFrameDone = (
+                frameIdx: number,
+                totalFrames: number,
+                tSec: number,
+              ) => {
+                setStatus({
+                  text: `"${item.file.name}" — frame ${frameIdx}/${totalFrames} @ ${formatTime(tSec)}`,
+                  currentPct: (frameIdx / totalFrames) * 100,
+                  batchDone: done,
+                  batchTotal: items.length,
+                });
+              };
+              res = await createGridJpg(
+                item.file,
+                meta,
+                gridOpts,
+                () => cancelRef.current,
+                onFrameDone,
+                onWarning,
+              );
+            }
 
             updateItem(item.id, {
               outputName: res.outputName,
@@ -228,7 +278,6 @@ export function useProcessor(updateItem: Updater) {
               text: `Error on "${item.file.name}": ${msg}`,
             }));
           }
-
           done++;
           setStatus((prev) => ({ ...prev, batchDone: done }));
         }

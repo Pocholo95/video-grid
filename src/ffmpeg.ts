@@ -45,7 +45,6 @@ export const resetFFmpeg = (): void => {
 export const prepareFFmpegInput = async (file: File): Promise<FFmpeg> => {
   const ff = await getFFmpeg();
   const key = `${file.name}:${file.size}:${file.lastModified}`;
-
   if (currentFFmpegInputKey !== key) {
     try {
       await ff.deleteFile("input.mp4");
@@ -59,7 +58,6 @@ export const prepareFFmpegInput = async (file: File): Promise<FFmpeg> => {
   } else {
     log("  Reusing cached FFmpeg FS entry.");
   }
-
   return ff;
 };
 
@@ -102,7 +100,6 @@ export const extractFramesFFmpegBatch = async (
 ): Promise<(ImageBitmap | null)[]> => {
   const ff = await prepareFFmpegInput(file);
   const results: (ImageBitmap | null)[] = new Array(times.length).fill(null);
-
   for (let i = 0; i < times.length; i++) {
     const t = times[i];
     const name = `frame_${i}.jpg`;
@@ -140,6 +137,82 @@ export const extractFramesFFmpegBatch = async (
       }
     }
   }
-
   return results;
+};
+
+/**
+ * Encodes a sequence of PNG Blob frames into an animated WebP using FFmpeg WASM.
+ * Frames are written to the virtual filesystem, encoded, then cleaned up.
+ * Requires the @ffmpeg/core build to include libwebp (standard builds do).
+ *
+ * @param frames  - Array of PNG Blobs in display order.
+ * @param fps     - Target frame rate for the animation.
+ * @param quality - WebP quality (0-100).
+ * @param method  - WebP compression method (0-6).
+ * @returns The encoded animated WebP as a Blob.
+ */
+export const encodeAnimatedWebP = async (
+  frames: Blob[],
+  fps: number,
+  quality: number,
+  method: number,
+): Promise<Blob> => {
+  const ff = await getFFmpeg();
+  const frameNames: string[] = [];
+
+  log(`  [AnimWebP] Writing ${frames.length} PNG frames to FFmpeg FS…`);
+  for (let i = 0; i < frames.length; i++) {
+    const name = `anim_${String(i).padStart(5, "0")}.png`;
+    frameNames.push(name);
+    const buf = await frames[i].arrayBuffer();
+    await ff.writeFile(name, new Uint8Array(buf));
+  }
+
+  const outputName = "anim_output.webp";
+
+  try {
+    log(
+      `  [AnimWebP] Encoding at ${fps} fps, quality=${quality}, method=${method}…`,
+    );
+    await ff.exec([
+      "-framerate",
+      String(fps),
+      "-i",
+      "anim_%05d.png",
+      "-c:v",
+      "libwebp",
+      "-lossless",
+      "0",
+      "-quality",
+      String(quality),
+      "-method",
+      String(method),
+      "-loop",
+      "0",
+      "-an",
+      "-loglevel",
+      "error",
+      outputName,
+    ]);
+
+    const data = await ff.readFile(outputName);
+    const buffer = new Uint8Array(
+      typeof data === "string" ? new TextEncoder().encode(data) : data,
+    ).buffer;
+    log(`  [AnimWebP] Encoding complete.`);
+    return new Blob([buffer], { type: "image/webp" });
+  } finally {
+    for (const name of frameNames) {
+      try {
+        await ff.deleteFile(name);
+      } catch {
+        /* ignore */
+      }
+    }
+    try {
+      await ff.deleteFile(outputName);
+    } catch {
+      /* ignore */
+    }
+  }
 };

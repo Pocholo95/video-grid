@@ -1,5 +1,4 @@
 // - Grid / Video
-
 export type Position =
   | "top-left"
   | "top-right"
@@ -15,9 +14,7 @@ export type VideoMetadata = {
 };
 
 // - Upload
-
 export type UploadStatus = "idle" | "uploading" | "done" | "error";
-
 export type UploadResult = {
   /** URL to the host viewer page */
   pageUrl: string;
@@ -32,7 +29,6 @@ export type UploadResult = {
 };
 
 export type DestinationType = "chevereto";
-
 export type UploadDestination = {
   id: string;
   name: string;
@@ -48,7 +44,6 @@ export type UploadDestination = {
 };
 
 // - Per-destination upload state on an OutputItem
-
 export type DestinationUploadState = {
   status: UploadStatus;
   progress: number;
@@ -57,7 +52,6 @@ export type DestinationUploadState = {
 };
 
 // - Queue items
-
 export type OutputItem = {
   id: string;
   file: File;
@@ -76,7 +70,6 @@ export type OutputItem = {
 };
 
 // - Settings / Options
-
 export type SavedOptions = {
   width: number;
   cols: number;
@@ -87,10 +80,14 @@ export type SavedOptions = {
   textColor: string;
   header: boolean;
   preview: boolean;
+  animated: boolean;
+  animDuration: number;
+  animFps: number;
+  webpMethod: number;
+  webpQuality: number;
 };
 
 export type Presets = Record<string, SavedOptions>;
-
 export type AppSettings = {
   presets: {
     entries: Presets;

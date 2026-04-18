@@ -10,6 +10,11 @@ export const DEFAULTS: SavedOptions = {
   textColor: "#ffffff",
   header: true,
   preview: true,
+  animated: false,
+  animDuration: 3,
+  animFps: 10,
+  webpMethod: 5,
+  webpQuality: 90,
 };
 
 // Header layout

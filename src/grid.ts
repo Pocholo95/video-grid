@@ -42,7 +42,7 @@ export type GridResult = {
  * @param video - The HTMLVideoElement to seek.
  * @param t     - Target time in seconds.
  */
-const seekVideo = (video: HTMLVideoElement, t: number): Promise<void> =>
+export const seekVideo = (video: HTMLVideoElement, t: number): Promise<void> =>
   new Promise((resolve, reject) => {
     const tid = setTimeout(() => {
       video.removeEventListener("seeked", onSeeked);
