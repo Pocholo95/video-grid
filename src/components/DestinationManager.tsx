@@ -8,10 +8,13 @@ interface Props {
   onClose: () => void;
 }
 
+const DEFAULT_URL = "https://api.imgbb.com/1/upload?key={key}";
+
 const EMPTY: Omit<UploadDestination, "id"> = {
   name: "",
   type: "chevereto",
   apiKey: "",
+  url: DEFAULT_URL,
   enabled: true,
 };
 
@@ -39,6 +42,7 @@ export default function DestinationManager({
       name: d.name,
       type: d.type,
       apiKey: d.apiKey,
+      url: d.url,
       enabled: d.enabled,
     });
     setError("");
@@ -54,6 +58,29 @@ export default function DestinationManager({
       setError("Name is required.");
       return;
     }
+
+    const trimmedUrl = draft.url.trim();
+    if (!trimmedUrl) {
+      setError("Upload URL is required.");
+      return;
+    }
+    try {
+      new URL(trimmedUrl);
+    } catch {
+      setError("Upload URL is not a valid URL.");
+      return;
+    }
+    if (!trimmedUrl.startsWith("https://")) {
+      setError("Upload URL must start with https://.");
+      return;
+    }
+    if (!trimmedUrl.includes("{key}")) {
+      setError(
+        "Upload URL must contain {key} as a placeholder for the API key.",
+      );
+      return;
+    }
+
     if (!draft.apiKey.trim()) {
       setError("API key is required.");
       return;
@@ -67,6 +94,7 @@ export default function DestinationManager({
           ...draft,
           name: draft.name.trim(),
           apiKey: draft.apiKey.trim(),
+          url: trimmedUrl,
         },
       ]);
     } else {
@@ -78,6 +106,7 @@ export default function DestinationManager({
                 ...draft,
                 name: draft.name.trim(),
                 apiKey: draft.apiKey.trim(),
+                url: trimmedUrl,
               }
             : d,
         ),
@@ -189,22 +218,24 @@ export default function DestinationManager({
             </label>
 
             <label className="field">
-              <span>
-                API Key
-                {draft.type === "chevereto" && (
-                  <>
-                    {" "}
-                    —{" "}
-                    <a
-                      href="https://api.imgbb.com/"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                    >
-                      get one here for imgBB
-                    </a>
-                  </>
-                )}
+              <span>Upload URL</span>
+              <input
+                type="text"
+                value={draft.url}
+                placeholder={DEFAULT_URL}
+                onChange={(e) =>
+                  setDraft((p) => ({ ...p, url: e.target.value }))
+                }
+                autoComplete="off"
+              />
+              <span style={{ fontSize: "0.8rem", color: "var(--muted)" }}>
+                Use <code>{"{key}"}</code> as a placeholder for the API key.
+                HTTPS required.
               </span>
+            </label>
+
+            <label className="field">
+              <span>API Key</span>
               <input
                 type="text"
                 value={draft.apiKey}
@@ -222,7 +253,9 @@ export default function DestinationManager({
               <button className="icon-btn primary" onClick={confirmEdit}>
                 {editing.id === "__new__" ? "Add" : "Update"}
               </button>
-              <button className="icon-btn" onClick={cancelEdit}>Cancel</button>
+              <button className="icon-btn" onClick={cancelEdit}>
+                Cancel
+              </button>
             </div>
           </div>
         )}
@@ -243,7 +276,9 @@ export default function DestinationManager({
           >
             Save &amp; close
           </button>
-          <button className="icon-btn" onClick={onClose}>Discard changes</button>
+          <button className="icon-btn" onClick={onClose}>
+            Discard changes
+          </button>
         </div>
       </div>
     </div>

@@ -1,21 +1,57 @@
 import type { UploadDestination, UploadResult } from "./types";
 
 /**
+ * Builds the upload URL by substituting the `{key}` placeholder with the
+ * URL-encoded API key. Throws if the URL is invalid, does not use HTTPS,
+ * or does not contain the `{key}` placeholder.
+ *
+ * @param urlTemplate - The URL template containing `{key}`.
+ * @param apiKey - The API key to substitute in place of `{key}`.
+ * @returns The ready-to-use upload URL.
+ */
+function buildUploadUrl(urlTemplate: string, apiKey: string): string {
+  try {
+    new URL(urlTemplate);
+  } catch {
+    throw new Error("Upload URL is not a valid URL.");
+  }
+  if (!urlTemplate.startsWith("https://")) {
+    throw new Error("Upload URL must use HTTPS.");
+  }
+  if (!urlTemplate.includes("{key}")) {
+    throw new Error(
+      "Upload URL must contain {key} as a placeholder for the API key.",
+    );
+  }
+  return urlTemplate.replaceAll("{key}", encodeURIComponent(apiKey));
+}
+
+/**
  * Upload a Blob to a Chevereto-compatible host using the v1 API.
  * Resolves with structured URLs on success, rejects with a descriptive error otherwise.
  *
  * @param blob       - The image data to upload.
  * @param filename   - Original filename (extension is stripped for the `name` field).
  * @param apiKey     - API key for the host.
+ * @param urlTemplate - Upload endpoint URL template containing `{key}` placeholder.
  * @param onProgress - Called with 0-100 as the XHR upload progresses.
  */
 const uploadToChevereto = (
   blob: Blob,
   filename: string,
   apiKey: string,
+  urlTemplate: string,
   onProgress: (pct: number) => void,
 ): Promise<UploadResult> =>
   new Promise((resolve, reject) => {
+    let uploadUrl: string;
+    try {
+      uploadUrl = buildUploadUrl(urlTemplate, apiKey);
+    } catch (e) {
+      reject(e);
+      return;
+    }
+
     const reader = new FileReader();
     reader.onerror = () => reject(new Error("Failed to read image data"));
     reader.onload = () => {
@@ -86,10 +122,7 @@ const uploadToChevereto = (
       );
 
       xhr.timeout = 120_000;
-      xhr.open(
-        "POST",
-        `https://api.imgbb.com/1/upload?key=${encodeURIComponent(apiKey)}`,
-      );
+      xhr.open("POST", uploadUrl);
       xhr.send(formData);
     };
     reader.readAsDataURL(blob);
@@ -112,7 +145,13 @@ export const uploadBlob = (
 ): Promise<UploadResult> => {
   switch (destination.type) {
     case "chevereto":
-      return uploadToChevereto(blob, filename, destination.apiKey, onProgress);
+      return uploadToChevereto(
+        blob,
+        filename,
+        destination.apiKey,
+        destination.url,
+        onProgress,
+      );
     default:
       return Promise.reject(
         new Error(`Unknown destination type: ${destination.type as string}`),

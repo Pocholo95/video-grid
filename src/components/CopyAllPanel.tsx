@@ -23,7 +23,7 @@ type FormatKey =
 const FORMAT_LABELS: Record<FormatKey, string> = {
   directUrl: "Direct URL",
   pageUrl: "Viewer page",
-  bbcodeFull: "BBCode - full image",
+  bbcodeFull: "BBCode — full image",
   bbcodeThumb: "BBCode — thumbnail",
   markdown: "Markdown",
   htmlImg: "HTML img",

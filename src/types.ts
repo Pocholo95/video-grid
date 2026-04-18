@@ -19,7 +19,7 @@ export type VideoMetadata = {
 export type UploadStatus = "idle" | "uploading" | "done" | "error";
 
 export type UploadResult = {
-  /** URL to the Cheverto viewer page */
+  /** URL to the host viewer page */
   pageUrl: string;
   /** Direct CDN URL for the full-size image */
   directUrl: string;
@@ -36,6 +36,12 @@ export type UploadDestination = {
   name: string;
   type: DestinationType;
   apiKey: string;
+  /**
+   * Upload endpoint URL template. Must use HTTPS.
+   * Use `{key}` as a placeholder for the API key, e.g.
+   * `https://api.imgbb.com/1/upload?key={key}`.
+   */
+  url: string;
   enabled: boolean;
 };
 
