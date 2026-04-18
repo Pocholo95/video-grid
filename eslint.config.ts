@@ -19,5 +19,15 @@ export default [
       "react/react-in-jsx-scope": "off",
     },
   },
-  prettierRecommended,
+  {
+    ...prettierRecommended,
+    rules: {
+      "prettier/prettier": [
+        "error",
+        {
+          endOfLine: "auto",
+        },
+      ],
+    },
+  },
 ];

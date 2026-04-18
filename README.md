@@ -1,8 +1,8 @@
 # VidGrid-HTML
 
 A fully **client-side** video thumbnail grid generator. Drop in one or more
-video files and get a single JPG contact sheet for each one — no upload, no
-server processing, no account required.
+video files and get a single JPG contact sheet or an **animated WebP** for
+each video. No upload, no server processing, no account required.
 
 ---
 
@@ -12,7 +12,8 @@ VidGrid-HTML analyses each video, samples frames at evenly-spaced timestamps
 across the duration, and assembles them into a configurable grid. Each cell can
 be annotated with a timecode overlay. An optional header row shows the filename,
 resolution, duration, bitrate, and file size. The result is saved as a
-high-quality JPEG you can preview, download, and/or upload to an image host.
+high-quality JPEG or animated WebP you can preview, download, and/or upload to
+an image host.
 
 ---
 
@@ -20,7 +21,7 @@ high-quality JPEG you can preview, download, and/or upload to an image host.
 
 **Nothing ever leaves your device** unless you explicitly upload to an image
 host. All processing — metadata reading, frame extraction, canvas compositing,
-and JPEG encoding — happens entirely inside your browser. No file data, no
+JPEG/WebP encoding — happens entirely inside your browser. No file data, no
 metadata, and no generated images are transmitted to any server unless you
 trigger an upload.
 
@@ -38,6 +39,9 @@ trigger an upload.
 - **FFmpeg WASM fallback** — formats the browser cannot decode natively
   (e.g. AVI, WMV, certain MKV/H.265 files). A warning is shown on the file
   card during the analysis phase when this path will be taken.
+- **Animated WebP output** — generate an animated thumbnail grid where each
+  cell plays a short clip from its sampled timestamp. See
+  [Animated Thumbnail Grids](#animated-thumbnail-grids).
 - **Batch processing** — queue multiple files and process them one after
   another with combined progress tracking.
 - **Batch download** — completed outputs can be downloaded together as a
@@ -61,17 +65,65 @@ trigger an upload.
 
 ## Options
 
-| Option                   | Description                                                             | Default   |
-| ------------------------ | ----------------------------------------------------------------------- | --------- |
-| **Output width**         | Total pixel width of the generated JPG                                  | 1920 px   |
-| **Grid columns**         | Number of columns in the grid                                           | 3         |
-| **Grid rows**            | Number of rows in the grid                                              | 4         |
-| **Frame spacing**        | Gap in pixels between cells                                             | 0         |
-| **Timecode position**    | Corner where the timestamp overlay appears, or **Disabled** to omit it  | Top-left  |
-| **Background color**     | Canvas and header background                                            | `#000000` |
-| **Text color**           | Header text and timecode label colour                                   | `#ffffff` |
-| **Show header metadata** | Toggle the filename/info header row                                     | On        |
-| **Show preview**         | Show thumbnail previews in the output list                              | On        |
+| Option                   | Description                                                            | Default   |
+| ------------------------ | ---------------------------------------------------------------------- | --------- |
+| **Output width**         | Total pixel width of the generated image                               | 1920 px   |
+| **Grid columns**         | Number of columns in the grid                                          | 3         |
+| **Grid rows**            | Number of rows in the grid                                             | 4         |
+| **Frame spacing**        | Gap in pixels between cells                                            | 0         |
+| **Timecode position**    | Corner where the timestamp overlay appears, or **Disabled** to omit it | Top-left  |
+| **Background color**     | Canvas and header background                                           | `#000000` |
+| **Text color**           | Header text and timecode label colour                                  | `#ffffff` |
+| **Show header metadata** | Toggle the filename/info header row                                    | On        |
+| **Show preview**         | Show thumbnail previews in the output list                             | On        |
+| **Animated output**      | Generate an animated WebP instead of a static JPEG                     | Off       |
+
+---
+
+## Animated Thumbnail Grids
+
+When **Animated output (WebP)** is enabled, VidGrid-HTML generates an animated
+WebP instead of a static JPEG. Each grid cell shows a short looping video clip
+sampled from its evenly-distributed timestamp, giving a quick visual overview
+of the entire video in motion.
+
+### How it works
+
+1. **Frame composition** — for each animation frame the app seeks the source
+   video to the appropriate timestamp for every cell, draws it onto a canvas,
+   and exports the result as a PNG. This phase is driven entirely by the
+   browser's native video decoder.
+2. **WebP encoding** — once all canvas frames are composed, they are passed to
+   FFmpeg WASM which assembles them into a single animated WebP file using
+   libwebp.
+
+### Animation settings
+
+The **Animation settings** panel is shown below the main options whenever
+animated mode is enabled.
+
+| Setting          | Description                                                                                         | Default |
+| ---------------- | --------------------------------------------------------------------------------------------------- | ------- |
+| **Duration (s)** | Length of each cell's clip. The whole animation loops from the start                                | 3 s     |
+| **FPS**          | Frame rate of the animated WebP. Higher values are smoother but produce larger files                | 10 fps  |
+| **WebP method**  | Compression effort (0 = fastest, 6 = smallest file). Higher values slow down encoding significantly | 5       |
+| **WebP quality** | Output quality (5–100). Lower values produce smaller files with more visible artefacts              | 90      |
+
+### Requirements and limitations
+
+- **Native browser decoding only.** Animated mode uses the browser's built-in
+  `<video>` element to seek frames. Files that require the FFmpeg fallback
+  (AVI, WMV, some MKV) are incompatible with animated mode. Disable animated
+  mode and regenerate as a static JPEG if you need to cover those formats.
+- **Large output files.** Animated WebPs are significantly larger than static
+  JPEGs. A 3×4 grid at 3 s / 10 fps will composite 30 PNG frames before
+  encoding. Reduce FPS, duration, or quality to keep file sizes manageable.
+- **Encoding time.** libwebp encoding through FFmpeg WASM is single-threaded.
+  High method values (5–6) combined with large frame counts can take many
+  seconds or minutes.
+- **Memory.** All composed PNG frames are held in browser memory before being
+  handed to FFmpeg. Very high frame counts (long duration × high FPS) can
+  exhaust available RAM.
 
 ---
 
@@ -87,9 +139,9 @@ The 🗂️ dropdown at the top of the options panel lets you manage named prese
   confirm to create a new preset or overwrite an existing one with the same name.
 - **🗑️ Delete preset** — removes the currently selected preset. Disabled when
   `<Default Preset>` is selected.
-
-Presets are stored in the browser's `localStorage` and persist between sessions.
-The last selected preset will also be restored when you return.
+  Presets are stored in the browser's `localStorage` and persist between sessions.
+  The last selected preset will also be restored when you return. All animation
+  settings are included in saved presets.
 
 ---
 
@@ -112,9 +164,8 @@ manager. From there you can:
 - **Delete** a destination with the 🗑️ button.
 - Click **Save & close** to persist your changes, or **Discard changes** to
   cancel.
-
-Destinations are stored in `localStorage` alongside presets and persist between
-sessions.
+  Destinations are stored in `localStorage` alongside presets and persist between
+  sessions.
 
 ### Uploading
 
@@ -125,9 +176,8 @@ Once one or more destinations are enabled and processing is complete:
 - The **☁️ Upload All** button in the outputs header uploads every completed
   grid to all enabled destinations in sequence, with a short delay between
   requests to respect rate limits.
-
-Upload progress is shown per-destination on each output card. Once complete,
-the card expands a link panel for each destination (see below).
+  Upload progress is shown per-destination on each output card. Once complete,
+  the card expands a link panel for each destination (see below).
 
 ---
 
@@ -157,10 +207,9 @@ host's delete URL in a new tab.
 When at least one output has been uploaded, a **Copy all links** bar appears
 above the output list. Use the dropdown to select a format and click **Copy All**
 to copy links for all uploaded outputs at once, one per line.
-
 The **Post Template** format produces a BBCode block per output: a bold title
 line (`[b]filename resolution[/b]`) followed by thumbnail links from every
-destination on the same line, ready to paste into a forum post.
+destination on the same line, ready to paste into a forum post
 
 ---
 
@@ -182,9 +231,8 @@ real trade-offs:
 - **Out-of-memory errors are unrecoverable.** If the WASM heap runs out, the
   current file is skipped with an error. Reducing output width, columns, or
   rows lowers peak memory usage.
-
-If you regularly work with formats that require FFmpeg (AVI, WMV, older MKV),
-consider re-muxing them to MP4/H.264 beforehand for the best experience.
+  If you regularly work with formats that require FFmpeg (AVI, WMV, older MKV),
+  consider re-muxing them to MP4/H.264 beforehand for the best experience.
 
 ---
 
@@ -192,8 +240,10 @@ consider re-muxing them to MP4/H.264 beforehand for the best experience.
 
 VidGrid-HTML requires a modern browser with WebAssembly support. Chrome 90+,
 Firefox 90+, Edge 90+, and Safari 16.4+ are supported.
-Also note that certain browsers support more video codec natively, e.g.
+Also note that certain browsers support more video codecs natively, e.g.
 Chrome, and they will have a higher rate of success generating thumbnails.
+Animated WebP output requires the browser to support native video seeking, so
+the same codec support rules apply
 
 ---
 
@@ -206,19 +256,17 @@ npm run build      # production build → dist/
 npm run preview    # preview the production build locally
 ```
 
-See [RELEASE.md](./RELEASE.md) for deployment instructions.
-
----
+See [RELEASE.md](./RELEASE.md) for deployment instructions
 
 ## Tech stack
 
 - [Vite](https://vitejs.dev/) + TypeScript
 - [mediainfo.js](https://mediainfo.js.org/) — container/codec metadata
-- [@ffmpeg/ffmpeg](https://github.com/ffmpegwasm/ffmpeg.wasm) — frame
-  extraction fallback for natively unsupported formats
+- [@ffmpeg/ffmpeg](https://github.com/ffmpegwasm/ffmpeg.wasm) — animated WebP
+  encoding via libwebp, and frame extraction fallback for natively unsupported formats
 - [JSZip](https://github.com/Stuk/jszip) — compressing generated output for download
 - [FileSaver.js](https://github.com/eligrey/FileSaver.js/) — download helper
-- HTML5 Canvas API — grid compositing and JPEG encoding
+- HTML5 Canvas API — grid compositing and JPEG/PNG encoding
 - HTML5 Video API — native frame seeking for supported formats
 
 ## License
