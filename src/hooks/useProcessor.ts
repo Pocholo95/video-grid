@@ -29,6 +29,12 @@ export type ProcessorStatus = {
 type Updater = (id: string, patch: Partial<OutputItem>) => void;
 
 /**
+ * Fraction of per-file progress (0–100) allocated to the frame-composition
+ * phase of animated WebP generation. The remaining share goes to FFmpeg encoding.
+ */
+const ANIMATED_COMPOSE_PCT = 70;
+const ANIMATED_ENCODE_PCT = 100 - ANIMATED_COMPOSE_PCT;
+/**
  * Hook that manages video analysis and grid-generation processing.
  *
  * @param updateItem - Callback to patch a single OutputItem by id.
@@ -215,16 +221,41 @@ export function useProcessor(updateItem: Updater) {
             let res;
 
             if (isAnimated) {
+              /**
+               * Animated WebP progress is split into two phases:
+               *   1. Frame composition (seeks + canvas draw):  0 – ANIMATED_COMPOSE_PCT %
+               *   2. FFmpeg WebP encoding:  ANIMATED_COMPOSE_PCT – 100 %
+               *
+               * The encode callback receives a 0–1 ratio where:
+               *   0.0–0.5 = PNG frames being written to FFmpeg's virtual FS
+               *   0.5–1.0 = libwebp encoding in progress (driven by FFmpeg progress events)
+               */
               const onAnimFrameDone = (
                 composedFrame: number,
                 totalFrames: number,
               ) => {
                 setStatus({
                   text: `"${item.file.name}" — composing frame ${composedFrame}/${totalFrames}`,
-                  currentPct: (composedFrame / totalFrames) * 100,
+                  currentPct:
+                    (composedFrame / totalFrames) * ANIMATED_COMPOSE_PCT,
                   batchDone: done,
                   batchTotal: items.length,
                 });
+              };
+              const onEncodeProgress = (ratio: number) => {
+                const pct = ANIMATED_COMPOSE_PCT + ratio * ANIMATED_ENCODE_PCT;
+                const encodePct = Math.round(ratio * 100);
+                const phaseLabel =
+                  ratio < 0.5
+                    ? `preparing frames (${Math.round((ratio / 0.5) * 100)}%)`
+                    : `encoding WebP (${Math.round(((ratio - 0.5) / 0.5) * 100)}%)`;
+                setStatus({
+                  text: `"${item.file.name}" — ${phaseLabel}`,
+                  currentPct: pct,
+                  batchDone: done,
+                  batchTotal: items.length,
+                });
+                void encodePct; // used implicitly via phaseLabel
               };
               res = await createAnimatedGridWebP(
                 item.file,
@@ -232,6 +263,7 @@ export function useProcessor(updateItem: Updater) {
                 animGridOpts,
                 () => cancelRef.current,
                 onAnimFrameDone,
+                onEncodeProgress,
                 onWarning,
               );
             } else {

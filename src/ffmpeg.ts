@@ -145,10 +145,15 @@ export const extractFramesFFmpegBatch = async (
  * Frames are written to the virtual filesystem, encoded, then cleaned up.
  * Requires the @ffmpeg/core build to include libwebp (standard builds do).
  *
- * @param frames  - Array of PNG Blobs in display order.
- * @param fps     - Target frame rate for the animation.
- * @param quality - WebP quality (0-100).
- * @param method  - WebP compression method (0-6).
+ * Progress is reported in two phases via `onProgress`:
+ *   0.0–0.5  Writing PNG frames to the FFmpeg virtual filesystem.
+ *   0.5–1.0  FFmpeg libwebp encoding (driven by FFmpeg's built-in progress events).
+ *
+ * @param frames     - Array of PNG Blobs in display order.
+ * @param fps        - Target frame rate for the animation.
+ * @param quality    - WebP quality (0-100).
+ * @param method     - WebP compression method (0-6).
+ * @param onProgress - Optional callback receiving a 0–1 ratio as encoding proceeds.
  * @returns The encoded animated WebP as a Blob.
  */
 export const encodeAnimatedWebP = async (
@@ -156,6 +161,7 @@ export const encodeAnimatedWebP = async (
   fps: number,
   quality: number,
   method: number,
+  onProgress?: (ratio: number) => void,
 ): Promise<Blob> => {
   const ff = await getFFmpeg();
   const frameNames: string[] = [];
@@ -166,10 +172,17 @@ export const encodeAnimatedWebP = async (
     frameNames.push(name);
     const buf = await frames[i].arrayBuffer();
     await ff.writeFile(name, new Uint8Array(buf));
+    // Phase 1: frame-writing progress maps to the 0–0.5 range.
+    onProgress?.(((i + 1) / frames.length) * 0.5);
   }
 
   const outputName = "anim_output.webp";
 
+  // Phase 2: FFmpeg encoding progress events map to the 0.5–1.0 range.
+  const progressHandler = ({ progress }: { progress: number }) => {
+    onProgress?.(0.5 + Math.min(Math.max(progress, 0), 1) * 0.5);
+  };
+  ff.on("progress", progressHandler);
   try {
     log(
       `  [AnimWebP] Encoding at ${fps} fps, quality=${quality}, method=${method}…`,
@@ -190,8 +203,6 @@ export const encodeAnimatedWebP = async (
       "-loop",
       "0",
       "-an",
-      "-loglevel",
-      "error",
       outputName,
     ]);
 
@@ -200,8 +211,10 @@ export const encodeAnimatedWebP = async (
       typeof data === "string" ? new TextEncoder().encode(data) : data,
     ).buffer;
     log(`  [AnimWebP] Encoding complete.`);
+    onProgress?.(1.0);
     return new Blob([buffer], { type: "image/webp" });
   } finally {
+    ff.off("progress", progressHandler);
     for (const name of frameNames) {
       try {
         await ff.deleteFile(name);

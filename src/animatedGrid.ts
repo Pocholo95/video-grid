@@ -29,13 +29,21 @@ export type AnimatedGridOptions = GridOptions & {
  * Only files natively supported by the browser are accepted — FFmpeg fallback
  * is not available for frame extraction in animated mode.
  *
- * @param file          - The source video file.
- * @param meta          - Pre-read metadata (dimensions, duration, etc.).
- * @param opts          - Grid layout, appearance, and animation options.
- * @param isCancelled   - Polled before each animation frame; return true to abort.
- * @param onFrameDone   - Called after each composed animation frame with
- *                        (composedFrame, totalFrames).
- * @param onWarning     - Called for non-fatal issues to surface to the user.
+ * Progress is split into two phases:
+ *   • Frame composition  — `onFrameDone` is called after each canvas frame is
+ *     composed and exported as PNG, representing the bulk of the seek+draw work.
+ *   • WebP encoding      — `onEncodeProgress` receives a 0–1 ratio as FFmpeg
+ *     writes the PNG frames to its virtual FS (0–0.5) and then encodes the
+ *     animated WebP (0.5–1.0).
+ *
+ * @param file              - The source video file.
+ * @param meta              - Pre-read metadata (dimensions, duration, etc.).
+ * @param opts              - Grid layout, appearance, and animation options.
+ * @param isCancelled       - Polled before each animation frame; return true to abort.
+ * @param onFrameDone       - Called after each composed animation frame with
+ *                            (composedFrame, totalFrames).
+ * @param onEncodeProgress  - Called with a 0–1 ratio during the FFmpeg encode phase.
+ * @param onWarning         - Called for non-fatal issues to surface to the user.
  * @returns The output filename, byte size, and animated WebP blob.
  */
 export const createAnimatedGridWebP = async (
@@ -44,6 +52,7 @@ export const createAnimatedGridWebP = async (
   opts: AnimatedGridOptions,
   isCancelled: () => boolean,
   onFrameDone: (composedFrame: number, totalFrames: number) => void,
+  onEncodeProgress: (ratio: number) => void,
   onWarning: (message: string) => void,
 ): Promise<GridResult> => {
   if (!canNativelyPlay(file)) {
@@ -259,13 +268,15 @@ export const createAnimatedGridWebP = async (
   log(
     `  [AnimWebP] Compositing done (${composedFrames.length} frames). Starting FFmpeg WebP encode…`,
   );
-
-  // Encode via FFmpeg, then release the WASM instance so the next file starts fresh.
+  // Signal that the encode phase is starting (ratio = 0).
+  onEncodeProgress(0);
+  // Encode via FFmpeg, forwarding real-time progress, then release WASM.
   const webpBlob = await encodeAnimatedWebP(
     composedFrames,
     opts.animFps,
     opts.webpQuality,
     opts.webpMethod,
+    onEncodeProgress,
   ).finally(() => {
     resetFFmpeg();
   });
