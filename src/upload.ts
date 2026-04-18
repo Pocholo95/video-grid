@@ -82,7 +82,8 @@ const uploadToChevereto = (
                 url: string;
                 url_viewer: string;
                 delete_url: string;
-                thumb?: { url: string };
+                medium?: { url?: string | null };
+                thumb?: { url: string | null };
               };
               error?: { message: string };
             };
@@ -90,6 +91,7 @@ const uploadToChevereto = (
               resolve({
                 directUrl: json.data.url,
                 pageUrl: json.data.url_viewer,
+                mediumUrl: json.data.medium?.url ?? undefined,
                 thumbUrl: json.data.thumb?.url ?? json.data.url,
                 deleteUrl: json.data.delete_url,
               });

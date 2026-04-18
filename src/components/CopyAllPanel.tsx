@@ -15,6 +15,7 @@ type FormatKey =
   | "directUrl"
   | "pageUrl"
   | "bbcodeFull"
+  | "bbcodeMedium"
   | "bbcodeThumb"
   | "markdown"
   | "htmlImg"
@@ -24,6 +25,7 @@ const FORMAT_LABELS: Record<FormatKey, string> = {
   directUrl: "Direct URL",
   pageUrl: "Viewer page",
   bbcodeFull: "BBCode — full image",
+  bbcodeMedium: "BBCode — medium",
   bbcodeThumb: "BBCode — thumbnail",
   markdown: "Markdown",
   htmlImg: "HTML img",
@@ -34,6 +36,7 @@ const FORMAT_LABELS: Record<FormatKey, string> = {
  * Pick the first successful upload result for an item, across all destinations.
  *
  * @param item - The OutputItem to inspect.
+ * @returns The first completed upload result, or null if none exists.
  */
 function firstResult(item: OutputItem) {
   if (!item.uploads) return null;
@@ -69,7 +72,8 @@ function buildPostBlock(item: OutputItem): string | null {
   const titleLine = `[b]${baseName}${res ? ` ${res}` : ""}[/b]`;
   const imgLine = results
     .map(
-      (result) => `[url=${result.pageUrl}][img]${result.thumbUrl}[/img][/url]`,
+      (result) =>
+        `[url=${result.pageUrl}][img]${result.mediumUrl ?? result.thumbUrl}[/img][/url]`,
     )
     .join(" ");
 
@@ -80,8 +84,9 @@ function buildPostBlock(item: OutputItem): string | null {
  * Build the copyable text for a given format key, one line per item.
  * For "postTemplate", items are separated by blank lines instead.
  *
- * @param items  - The OutputItems to include (should each have at least one upload).
- * @param format - The FormatKey identifying which link format to emit.
+ * @param items - The OutputItems to include (should each have at least one upload).
+ * @param format - The FormatKey identifying which named link format to emit.
+ * @returns The combined copyable text for the selected format.
  */
 function buildCopyText(items: OutputItem[], format: FormatKey): string {
   if (format === "postTemplate") {
@@ -108,19 +113,9 @@ function buildCopyText(items: OutputItem[], format: FormatKey): string {
 
       const values = uploads.map((state) => {
         const result = state.result;
-        const formats = buildFormats(result, filename);
-
-        const map: Record<FormatKey, string> = {
-          directUrl: formats[0].value,
-          pageUrl: formats[1].value,
-          bbcodeFull: formats[2].value,
-          bbcodeThumb: formats[3].value,
-          markdown: formats[4].value,
-          htmlImg: formats[5].value,
-          postTemplate: "",
-        };
-
-        return map[format];
+        const formats = buildFormats(result, filename, item.metadata);
+        const selected = formats.find((f) => f.key === format);
+        return selected?.value ?? "";
       });
 
       return values.filter(Boolean).join(" ");

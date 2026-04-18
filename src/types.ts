@@ -23,6 +23,8 @@ export type UploadResult = {
   pageUrl: string;
   /** Direct CDN URL for the full-size image */
   directUrl: string;
+  /** Direct CDN URL for the medium image, when provided by the API */
+  mediumUrl?: string;
   /** Direct CDN URL for the auto-generated thumbnail */
   thumbUrl: string;
   /** One-click delete URL */

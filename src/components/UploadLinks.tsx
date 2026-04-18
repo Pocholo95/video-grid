@@ -9,9 +9,11 @@ interface Props {
 }
 
 type LinkFormat = {
+  key: string;
   label: string;
   value: string;
   description: string;
+  fieldType?: "input" | "textarea";
 };
 
 /**
@@ -20,6 +22,7 @@ type LinkFormat = {
  * is missing or height is zero.
  *
  * @param meta - Optional VideoMetadata; height is used to pick the label.
+ * @returns The formatted resolution label, or an empty string.
  */
 function resolutionLabel(meta?: VideoMetadata): string {
   if (!meta || meta.height === 0) return "";
@@ -35,45 +38,78 @@ function resolutionLabel(meta?: VideoMetadata): string {
 
 /**
  * Build the list of copyable link formats for a given upload result.
- * The returned array is order-stable; CopyAllPanel relies on index positions.
+ * Each item uses a named key so callers do not depend on array positions.
  *
- * @param r        - The UploadResult from the host.
+ * @param r - The UploadResult from the host.
  * @param filename - Original output filename (extension stripped for alt text).
+ * @param metadata - Optional video metadata used for the post template title.
+ * @returns The available link formats for the upload result.
  */
-function buildFormats(r: UploadResult, filename: string): LinkFormat[] {
-  const altText = filename.replace(/\.[^.]+$/, "");
-  return [
+function buildFormats(
+  r: UploadResult,
+  filename: string,
+  metadata?: VideoMetadata,
+): LinkFormat[] {
+  const filenameNoExt = filename
+    .replace(/\.[^.]+$/, "") // Remove thumbnail image file extension
+    .replace(/\.[^.]+$/, ""); // Remove video file exttension  const resolution = resolutionLabel(metadata);
+  const resolution = resolutionLabel(metadata);
+  const formats: LinkFormat[] = [
     {
+      key: "directUrl",
       label: "Direct URL",
       value: r.directUrl,
       description: "Full-resolution image link",
     },
     {
+      key: "pageUrl",
       label: "Viewer page",
       value: r.pageUrl,
       description: "Host viewer page",
     },
     {
-      label: "BBCode - full image",
+      key: "bbcodeFull",
+      label: "BBCode — full image",
       value: `[img]${r.directUrl}[/img]`,
       description: "Displays the image inline",
     },
     {
-      label: "BBCode - thumbnail → full",
+      key: "bbcodeThumb",
+      label: "BBCode — thumbnail → full",
       value: `[url=${r.pageUrl}][img]${r.thumbUrl}[/img][/url]`,
       description: "Thumbnail that links to the viewer page",
     },
     {
+      key: "markdown",
       label: "Markdown",
-      value: `![${altText}](${r.directUrl})`,
+      value: `![${filenameNoExt}](${r.directUrl})`,
       description: "For GitHub, GitLab, Reddit…",
     },
     {
+      key: "htmlImg",
       label: "HTML img",
-      value: `<img src="${r.directUrl}" alt="${altText}" />`,
+      value: `<img src="${r.directUrl}" alt="${filenameNoExt}" />`,
       description: "Inline HTML image tag",
     },
+    {
+      key: "postTemplate",
+      label: "Post Template",
+      value: `[b]${filenameNoExt}${resolution ? ` ${resolution}` : ""}[/b]\n[url=${r.pageUrl}][img]${r.mediumUrl ?? r.thumbUrl}[/img][/url]`,
+      description: "Forum-style template for this upload",
+      fieldType: "textarea",
+    },
   ];
+
+  if (r.mediumUrl) {
+    formats.splice(3, 0, {
+      key: "bbcodeMedium",
+      label: "BBCode — medium → full",
+      value: `[url=${r.pageUrl}][img]${r.mediumUrl}[/img][/url]`,
+      description: "Medium image that links to the viewer page",
+    });
+  }
+
+  return formats;
 }
 
 function CopyButton({ text }: { text: string }) {
@@ -105,9 +141,14 @@ function CopyButton({ text }: { text: string }) {
   );
 }
 
-export default function UploadLinks({ destName, result, filename }: Props) {
+export default function UploadLinks({
+  destName,
+  result,
+  filename,
+  metadata,
+}: Props) {
   const [expanded, setExpanded] = useState(false);
-  const formats = buildFormats(result, filename);
+  const formats = buildFormats(result, filename, metadata);
 
   return (
     <div className="upload-links">
@@ -134,19 +175,29 @@ export default function UploadLinks({ destName, result, filename }: Props) {
       {expanded && (
         <div className="link-rows">
           {formats.map((f) => (
-            <div key={f.label} className="link-row">
+            <div key={f.key} className="link-row">
               <div className="link-meta">
                 <span className="link-label">{f.label}</span>
                 <span className="link-desc">{f.description}</span>
               </div>
               <div className="link-value-row">
-                <input
-                  className="link-input"
-                  type="text"
-                  readOnly
-                  value={f.value}
-                  onFocus={(e) => e.target.select()}
-                />
+                {f.fieldType === "textarea" ? (
+                  <textarea
+                    className="link-input link-textarea"
+                    readOnly
+                    value={f.value}
+                    rows={3}
+                    onFocus={(e) => e.target.select()}
+                  />
+                ) : (
+                  <input
+                    className="link-input"
+                    type="text"
+                    readOnly
+                    value={f.value}
+                    onFocus={(e) => e.target.select()}
+                  />
+                )}
                 <CopyButton text={f.value} />
               </div>
             </div>

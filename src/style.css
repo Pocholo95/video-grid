@@ -683,7 +683,8 @@ progress::-webkit-progress-value {
   align-items: center;
 }
 
-.link-input {
+.link-input,
+.link-textarea {
   flex: 1;
   min-width: 0;
   background: rgba(8, 17, 31, 0.8);
@@ -697,8 +698,15 @@ progress::-webkit-progress-value {
   cursor: text;
 }
 
-.link-input:focus {
+.link-input:focus,
+.link-textarea:focus {
   border-color: rgba(130, 213, 253, 0.35);
+}
+
+.link-textarea {
+  resize: vertical;
+  min-height: 72px;
+  line-height: 1.4;
 }
 
 .copy-btn {
