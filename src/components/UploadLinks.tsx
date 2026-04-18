@@ -52,7 +52,7 @@ function buildFormats(
 ): LinkFormat[] {
   const filenameNoExt = filename
     .replace(/\.[^.]+$/, "") // Remove thumbnail image file extension
-    .replace(/\.[^.]+$/, ""); // Remove video file exttension  const resolution = resolutionLabel(metadata);
+    .replace(/\.[^.]+$/, ""); // Remove video file exttension
   const resolution = resolutionLabel(metadata);
   const formats: LinkFormat[] = [
     {

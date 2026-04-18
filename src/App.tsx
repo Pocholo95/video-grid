@@ -26,14 +26,14 @@ import CopyAllPanel from "./components/CopyAllPanel";
 
 export default function App() {
   // - Persisted app settings
-  const [appSettings, setAppSettingsState] = useState<AppSettings>(() =>
-    loadAppSettings(),
-  );
+  const initialSettings = loadAppSettings();
 
+  const [appSettings, setAppSettingsState] =
+    useState<AppSettings>(initialSettings);
   const [opts, setOptsState] = useState<SavedOptions>(() => {
-    const s = loadAppSettings();
-    if (s.presets.lastUsed && s.presets.entries[s.presets.lastUsed]) {
-      return s.presets.entries[s.presets.lastUsed];
+    const { lastUsed, entries } = initialSettings.presets;
+    if (lastUsed && entries[lastUsed]) {
+      return entries[lastUsed];
     }
     return { ...DEFAULTS };
   });
