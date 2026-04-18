@@ -868,6 +868,7 @@ progress::-webkit-progress-value {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  min-width: 0;
 }
 
 .dest-key-preview {
@@ -1052,6 +1053,21 @@ progress::-webkit-progress-value {
   }
   .modal-box {
     padding: 18px;
+  }
+  .dest-row {
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 10px 12px;
+  }
+  .dest-name {
+    flex-basis: 100%;
+    order: -1; /* pull the name to the front */
+  }
+  .dest-key-preview {
+    display: none;
+  }
+  .dest-actions {
+    margin-left: auto;
   }
   .link-value-row {
     flex-direction: column;

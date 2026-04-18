@@ -36,8 +36,8 @@ trigger an upload.
 - **Native frame extraction** using the browser's built-in video decoder for
   all formats the browser supports — fast, with no extra memory overhead.
 - **FFmpeg WASM fallback** — formats the browser cannot decode natively
-  (e.g. AVI, WMV, certain MKV/H.265 files). A warning is shown before
-  processing starts when this path will be taken.
+  (e.g. AVI, WMV, certain MKV/H.265 files). A warning is shown on the file
+  card during the analysis phase when this path will be taken.
 - **Batch processing** — queue multiple files and process them one after
   another with combined progress tracking.
 - **Batch download** — completed outputs can be downloaded together as a
@@ -61,17 +61,17 @@ trigger an upload.
 
 ## Options
 
-| Option                   | Description                                                            | Default   |
-| ------------------------ | ---------------------------------------------------------------------- | --------- |
-| **Output width**         | Total pixel width of the generated JPG                                 | 1920 px   |
-| **Grid columns**         | Number of columns in the grid                                          | 3         |
-| **Grid rows**            | Number of rows in the grid                                             | 4         |
-| **Frame spacing**        | Gap in pixels between cells                                            | 0         |
-| **Timecode position**    | Corner where the timestamp overlay appears, or **Disabled** to omit it | Top-left  |
-| **Background color**     | Canvas and header background                                           | `#000000` |
-| **Text color**           | Header text and timecode label colour                                  | `#ffffff` |
-| **Show header metadata** | Toggle the filename/info header row                                    | On        |
-| **Show preview**         | Show thumbnail previews in the output list                             | On        |
+| Option                   | Description                                                             | Default   |
+| ------------------------ | ----------------------------------------------------------------------- | --------- |
+| **Output width**         | Total pixel width of the generated JPG                                  | 1920 px   |
+| **Grid columns**         | Number of columns in the grid                                           | 3         |
+| **Grid rows**            | Number of rows in the grid                                              | 4         |
+| **Frame spacing**        | Gap in pixels between cells                                             | 0         |
+| **Timecode position**    | Corner where the timestamp overlay appears, or **Disabled** to omit it  | Top-left  |
+| **Background color**     | Canvas and header background                                            | `#000000` |
+| **Text color**           | Header text and timecode label colour                                   | `#ffffff` |
+| **Show header metadata** | Toggle the filename/info header row                                     | On        |
+| **Show preview**         | Show thumbnail previews in the output list                              | On        |
 
 ---
 
@@ -80,16 +80,16 @@ trigger an upload.
 The 🗂️ dropdown at the top of the options panel lets you manage named presets:
 
 - **Select a preset** from the dropdown to instantly apply its settings.
-- **`<Default options>`** is a permanent, undeletable entry that resets all
+- **`<Default Preset>`** is a permanent, undeletable entry that resets all
   settings to the factory defaults.
-- **💾 Add / save preset** — opens an inline name field pre-filled with the
-  current preset name (or blank when `<Default options>` is selected). Enter a
-  name and confirm to create a new preset or overwrite an existing one.
+- **💾 Save / Add preset** — opens an inline name field pre-filled with the current
+  preset name (or blank when `<Default Preset>` is selected). Enter a name and
+  confirm to create a new preset or overwrite an existing one with the same name.
 - **🗑️ Delete preset** — removes the currently selected preset. Disabled when
-  `<Default options>` is selected.
+  `<Default Preset>` is selected.
 
-Presets are stored in the browsers `localStorage` and persist between browser sessions.
-The last selected presets will also be restored in your next session.
+Presets are stored in the browser's `localStorage` and persist between sessions.
+The last selected preset will also be restored when you return.
 
 ---
 
@@ -101,13 +101,14 @@ have enabled API uploads and provide you with an API key (Under Settings).
 
 ### Managing destinations
 
-Click **☁️ Destinations** in the top-right corner to open the destination
+Click **☁️ Upload Destinations** in the top-right corner to open the destination
 manager. From there you can:
 
 - **Add** a new destination by clicking **＋ Add destination** and filling in
-  its name, type, and API key.
+  its name, type, upload URL, and API key.
 - **Edit** an existing destination with the ✏️ button.
 - **Enable / disable** a destination with its toggle (✅ / ⬜) without deleting it.
+  Disabled destinations are skipped during uploads.
 - **Delete** a destination with the 🗑️ button.
 - Click **Save & close** to persist your changes, or **Discard changes** to
   cancel.
@@ -133,21 +134,23 @@ the card expands a link panel for each destination (see below).
 ## Copying Links
 
 After a successful upload, each output card shows a collapsible link panel
-(one per destination). Expand it to access the following link formats:
+(one per destination). Expand it with the destination name button to access the
+following link formats:
 
 | Format                  | Description                                                            |
 | ----------------------- | ---------------------------------------------------------------------- |
 | **Direct URL**          | Full-resolution image link                                             |
 | **Viewer page**         | Host viewer/page URL                                                   |
 | **BBCode - full image** | `[img]...[/img]` tag                                                   |
-| **BBCode - thumbnail**  | `[url=...][img]...[/img][/url]` — thumbnail linking to the viewer page |
+| **BBCode - medium**     | Medium-size image linking to the viewer page (when provided by host)   |
+| **BBCode - thumbnail**  | Thumbnail linking to the viewer page                                   |
 | **Markdown**            | `![alt](url)`                                                          |
 | **HTML img**            | `<img src="..." alt="..." />`                                          |
+| **Post Template**       | Forum-style BBCode block with title and thumbnail (see Copy All below) |
 
-Each row has an individual **Copy** button.
-
-You can also **delete the image** from the host using the 🗑 Delete link in the
-panel header (opens the host's delete URL in a new tab).
+Each row has an individual **Copy** button. You can also **delete the image**
+from the host using the 🗑 Delete link in the panel header — this opens the
+host's delete URL in a new tab.
 
 ### Copy All
 
@@ -155,11 +158,9 @@ When at least one output has been uploaded, a **Copy all links** bar appears
 above the output list. Use the dropdown to select a format and click **Copy All**
 to copy links for all uploaded outputs at once, one per line.
 
-An additional format is available here:
-
-| Format            | Description                                                                                                                                                                        |
-| ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Post Template** | A BBCode block per output: a bold title line (`[b]filename resolution[/b]`) followed by thumbnail links from every destination on the same line, ready to paste into a forum post. |
+The **Post Template** format produces a BBCode block per output: a bold title
+line (`[b]filename resolution[/b]`) followed by thumbnail links from every
+destination on the same line, ready to paste into a forum post.
 
 ---
 
@@ -189,11 +190,10 @@ consider re-muxing them to MP4/H.264 beforehand for the best experience.
 
 ## Browser compatibility
 
-VidGrid-HTML requires a modern browser with WebAssembly and OffscreenCanvas
-support. Chrome 90+, Firefox 90+, Edge 90+, and Safari 16.4+ are supported.
-The FFmpeg fallback additionally requires `SharedArrayBuffer`, which needs the
-page to be served over HTTPS with appropriate COOP/COEP headers (handled
-automatically by GitLab Pages).
+VidGrid-HTML requires a modern browser with WebAssembly support. Chrome 90+,
+Firefox 90+, Edge 90+, and Safari 16.4+ are supported.
+Also note that certain browsers support more video codec natively, e.g.
+Chrome, and they will have a higher rate of success generating thumbnails.
 
 ---
 
