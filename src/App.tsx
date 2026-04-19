@@ -144,9 +144,9 @@ export default function App() {
   return (
     <>
       <header className="app-header">
-        <div className="brand-mark" aria-hidden="true">
+        <a href="/" className="brand-mark" aria-label="Go to homepage">
           <img src="favicon.svg" alt="Logo" />
-        </div>
+        </a>
         <div className="header-text">
           <h1>{PROJECT_NAME}</h1>
           <p className="subtitle">
