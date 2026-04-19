@@ -2,7 +2,7 @@ import { useCallback, useState } from "react";
 import { saveAs } from "file-saver";
 import JSZip from "jszip";
 
-import { DEFAULTS } from "./constants";
+import { DEFAULTS, PROJECT_NAME } from "./constants";
 import {
   loadAppSettings,
   persistAppSettings,
@@ -23,6 +23,7 @@ import OutputCard from "./components/OutputCard";
 import DestinationManager from "./components/DestinationManager";
 import PreviewModal from "./components/PreviewModal";
 import CopyAllPanel from "./components/CopyAllPanel";
+import Footer from "./components/Footer";
 
 export default function App() {
   // - Persisted app settings
@@ -147,7 +148,7 @@ export default function App() {
           <img src="favicon.svg" alt="Logo" />
         </div>
         <div className="header-text">
-          <h1>VidGrid-HTML</h1>
+          <h1>{PROJECT_NAME}</h1>
           <p className="subtitle">
             Thumbnail Grids Generator for videos. Client-side only processing,
             no upload required!
@@ -243,6 +244,7 @@ export default function App() {
           onClose={() => setShowDestManager(false)}
         />
       )}
+      <Footer />
     </>
   );
 }

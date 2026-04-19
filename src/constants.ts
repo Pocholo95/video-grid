@@ -1,5 +1,13 @@
 import type { SavedOptions } from "./types";
 
+export const PROJECT_NAME = import.meta.env.VITE_PROJECT_NAME || "VidGrid-HTML";
+export const PROJECT_URL =
+  import.meta.env.VITE_PROJECT_URL ||
+  "https://gitlab.com/aknott001/vidgrid-html";
+export const AUTHOR_URL =
+  import.meta.env.VITE_AUTHOR_URL || "https://gitlab.com/aknott00";
+export const AUTHOR_NAME = import.meta.env.VITE_AUTHOR_NAME || "aknott";
+
 export const DEFAULTS: SavedOptions = {
   width: 1920,
   cols: 3,

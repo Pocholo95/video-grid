@@ -139,6 +139,10 @@ h3 {
   gap: 16px;
 }
 
+.controls .actions button {
+  padding: 15px;
+}
+
 .field,
 .check {
   display: grid;
@@ -223,6 +227,7 @@ h3 {
   width: 18px;
   height: 18px;
 }
+
 
 /* Animated output sub-options */
 .animated-options {
@@ -1099,4 +1104,27 @@ progress::-webkit-progress-value {
   .copy-btn {
     width: 100%;
   }
+}
+
+/* Footer */
+.app-footer {
+  text-align: center;
+  padding: 12px 0 4px;
+  font-size: 0.78rem;
+  color: var(--muted);
+  opacity: 0.6;
+}
+
+.app-footer a {
+  color: var(--muted);
+  transition: color 0.15s, opacity 0.15s;
+}
+
+.app-footer a:hover {
+  color: var(--accent-strong);
+  opacity: 1;
+}
+
+.footer-sep {
+  margin: 0 6px;
 }
