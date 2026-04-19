@@ -14,7 +14,7 @@ export const DEFAULTS: SavedOptions = {
   animDuration: 3,
   animFps: 10,
   webpMethod: 5,
-  webpQuality: 90,
+  webpQuality: 85,
 };
 
 // Header layout

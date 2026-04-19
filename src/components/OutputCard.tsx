@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { saveAs } from "file-saver";
 import type { OutputItem, UploadDestination } from "../types";
-import { formatTime, humanSize } from "../utils";
+import { formatElapsed, formatTime, humanSize } from "../utils";
 import UploadLinks from "./UploadLinks";
 
 interface Props {
@@ -40,6 +40,24 @@ export default function OutputCard({
       }
     };
   }, [item.outputBlob, showPreview]);
+
+  // Live tick to refresh the elapsed display while this item is processing.
+  const [, forceUpdate] = useState(0);
+  useEffect(() => {
+    if (item.status !== "processing" || !item.processingStartedAt) return;
+    const id = setInterval(() => forceUpdate((n) => n + 1), 100);
+    return () => clearInterval(id);
+  }, [item.status, item.processingStartedAt]);
+
+  // Compute status text with timing info.
+  let statusText: string;
+  if (item.status === "processing" && item.processingStartedAt) {
+    statusText = `processing - ${formatElapsed(Date.now() - item.processingStartedAt)}`;
+  } else if (item.status === "done" && item.processingDurationMs != null) {
+    statusText = `done in ${formatElapsed(item.processingDurationMs)}`;
+  } else {
+    statusText = item.status;
+  }
 
   const meta = item.metadata;
   const isDone = item.status === "done";
@@ -114,7 +132,7 @@ export default function OutputCard({
             {item.outputSize ? humanSize(item.outputSize) : "—"}
           </p>
           <p>
-            <strong>Status:</strong> {item.status}
+            <strong>Status:</strong> {statusText}
           </p>
           {item.error && <p className="error">{item.error}</p>}
 

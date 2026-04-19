@@ -12,6 +12,7 @@ import type { AnimatedGridOptions } from "../animatedGrid";
 import type { OutputItem, SavedOptions } from "../types";
 import {
   errlog,
+  formatElapsed,
   formatTime,
   hasUsableMetadata,
   log,
@@ -24,6 +25,8 @@ export type ProcessorStatus = {
   currentPct: number;
   batchDone: number;
   batchTotal: number;
+  batchStartTime: number | null;
+  batchDurationMs: number | null;
 };
 
 type Updater = (id: string, patch: Partial<OutputItem>) => void;
@@ -34,6 +37,7 @@ type Updater = (id: string, patch: Partial<OutputItem>) => void;
  */
 const ANIMATED_COMPOSE_PCT = 70;
 const ANIMATED_ENCODE_PCT = 100 - ANIMATED_COMPOSE_PCT;
+
 /**
  * Hook that manages video analysis and grid-generation processing.
  *
@@ -46,6 +50,8 @@ export function useProcessor(updateItem: Updater) {
     currentPct: 0,
     batchDone: 0,
     batchTotal: 0,
+    batchStartTime: null,
+    batchDurationMs: null,
   });
   const cancelRef = useRef(false);
 
@@ -63,12 +69,16 @@ export function useProcessor(updateItem: Updater) {
         currentPct: 0,
         batchDone: 0,
         batchTotal: files.length,
+        batchStartTime: null,
+        batchDurationMs: null,
       });
+
       const items: OutputItem[] = files.map((file) => ({
         id: makeId(),
         file,
         status: "queued",
       }));
+
       for (let i = 0; i < items.length; i++) {
         const item = items[i];
         const progress = ((i + 1) / files.length) * 100;
@@ -77,6 +87,8 @@ export function useProcessor(updateItem: Updater) {
           currentPct: progress,
           batchDone: i + 1,
           batchTotal: files.length,
+          batchStartTime: null,
+          batchDurationMs: null,
         });
         try {
           const meta = await readMetadataMediaInfo(item.file);
@@ -100,11 +112,14 @@ export function useProcessor(updateItem: Updater) {
           warn(`Metadata failed for "${item.file.name}":`, e);
         }
       }
+
       setStatus({
         text: `${files.length} file(s) ready. Press ▶️ Start Processing.`,
         currentPct: 0,
         batchDone: 0,
         batchTotal: 0,
+        batchStartTime: null,
+        batchDurationMs: null,
       });
       return items;
     },
@@ -149,11 +164,15 @@ export function useProcessor(updateItem: Updater) {
       };
 
       let done = 0;
+      const batchStartTime = Date.now();
+
       setStatus({
         text: "Starting…",
         currentPct: 0,
         batchDone: 0,
         batchTotal: items.length,
+        batchStartTime,
+        batchDurationMs: null,
       });
 
       try {
@@ -165,13 +184,21 @@ export function useProcessor(updateItem: Updater) {
             continue;
           }
 
-          updateItem(item.id, { status: "processing", error: undefined });
+          const itemStartTime = Date.now();
+          updateItem(item.id, {
+            status: "processing",
+            error: undefined,
+            processingStartedAt: itemStartTime,
+          });
           setStatus({
             text: `"${item.file.name}" — opening…`,
             currentPct: 0,
             batchDone: done,
             batchTotal: items.length,
+            batchStartTime,
+            batchDurationMs: null,
           });
+
           log(`Starting "${item.file.name}"`);
 
           // For animated mode, non-natively-playable files cannot be processed.
@@ -183,6 +210,7 @@ export function useProcessor(updateItem: Updater) {
                 "This format is not natively decodable — FFmpeg fallback is unavailable for animated output. " +
                 "Disable animated mode to use the FFmpeg fallback for static JPEG generation.",
               warning: undefined,
+              processingDurationMs: Date.now() - itemStartTime,
             });
             done++;
             setStatus((prev) => ({
@@ -219,7 +247,6 @@ export function useProcessor(updateItem: Updater) {
             }
 
             let res;
-
             if (isAnimated) {
               /**
                * Animated WebP progress is split into two phases:
@@ -234,14 +261,16 @@ export function useProcessor(updateItem: Updater) {
                 composedFrame: number,
                 totalFrames: number,
               ) => {
-                setStatus({
+                setStatus((prev) => ({
+                  ...prev,
                   text: `"${item.file.name}" — composing frame ${composedFrame}/${totalFrames}`,
                   currentPct:
                     (composedFrame / totalFrames) * ANIMATED_COMPOSE_PCT,
                   batchDone: done,
                   batchTotal: items.length,
-                });
+                }));
               };
+
               const onEncodeProgress = (ratio: number) => {
                 const pct = ANIMATED_COMPOSE_PCT + ratio * ANIMATED_ENCODE_PCT;
                 const encodePct = Math.round(ratio * 100);
@@ -249,14 +278,16 @@ export function useProcessor(updateItem: Updater) {
                   ratio < 0.5
                     ? `preparing frames (${Math.round((ratio / 0.5) * 100)}%)`
                     : `encoding WebP (${Math.round(((ratio - 0.5) / 0.5) * 100)}%)`;
-                setStatus({
+                setStatus((prev) => ({
+                  ...prev,
                   text: `"${item.file.name}" — ${phaseLabel}`,
                   currentPct: pct,
                   batchDone: done,
                   batchTotal: items.length,
-                });
+                }));
                 void encodePct; // used implicitly via phaseLabel
               };
+
               res = await createAnimatedGridWebP(
                 item.file,
                 meta,
@@ -272,13 +303,15 @@ export function useProcessor(updateItem: Updater) {
                 totalFrames: number,
                 tSec: number,
               ) => {
-                setStatus({
+                setStatus((prev) => ({
+                  ...prev,
                   text: `"${item.file.name}" — frame ${frameIdx}/${totalFrames} @ ${formatTime(tSec)}`,
                   currentPct: (frameIdx / totalFrames) * 100,
                   batchDone: done,
                   batchTotal: items.length,
-                });
+                }));
               };
+
               res = await createGridJpg(
                 item.file,
                 meta,
@@ -295,6 +328,7 @@ export function useProcessor(updateItem: Updater) {
               outputBlob: res.outputBlob,
               status: cancelRef.current ? "cancelled" : "done",
               error: undefined,
+              processingDurationMs: Date.now() - itemStartTime,
             });
             log(`Finished "${item.file.name}"`);
             setStatus((prev) => ({ ...prev, currentPct: 100 }));
@@ -303,6 +337,7 @@ export function useProcessor(updateItem: Updater) {
             updateItem(item.id, {
               status: cancelRef.current ? "cancelled" : "error",
               error: msg,
+              processingDurationMs: Date.now() - itemStartTime,
             });
             errlog(`Failed "${item.file.name}":`, e);
             setStatus((prev) => ({
@@ -310,18 +345,22 @@ export function useProcessor(updateItem: Updater) {
               text: `Error on "${item.file.name}": ${msg}`,
             }));
           }
+
           done++;
           setStatus((prev) => ({ ...prev, batchDone: done }));
         }
       } finally {
+        const batchDurationMs = Date.now() - batchStartTime;
         setIsProcessing(false);
         setStatus((prev) => ({
           ...prev,
           currentPct: 0,
           batchDone: done,
+          batchStartTime: null,
+          batchDurationMs,
           text: cancelRef.current
-            ? `⏹️ Cancelled after ${done} file(s) processed.`
-            : `✅ Done. ${done} file(s) processed.`,
+            ? `⏹️ Cancelled after ${done} file(s) processed in ${formatElapsed(batchDurationMs)}.`
+            : `✅ Done. ${done} file(s) processed in ${formatElapsed(batchDurationMs)}.`,
         }));
       }
     },
@@ -344,6 +383,8 @@ export function useProcessor(updateItem: Updater) {
       currentPct: 0,
       batchDone: 0,
       batchTotal: 0,
+      batchStartTime: null,
+      batchDurationMs: null,
     });
   }, []);
 

@@ -1,8 +1,9 @@
-import React, { useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { DEFAULTS, PRESETS_DEFAULT_VALUE } from "../constants";
 import { deletePreset, loadPresets, savePreset } from "../presets";
 import type { AppSettings, SavedOptions } from "../types";
 import type { ProcessorStatus } from "../hooks/useProcessor";
+import { formatElapsed } from "../utils";
 
 interface Props {
   opts: SavedOptions;
@@ -37,6 +38,14 @@ export default function ControlPanel({
   const presetNameRef = useRef<HTMLInputElement>(null);
   const [nameVisible, setNameVisible] = useState(false);
   const [nameValue, setNameValue] = useState("");
+
+  // Live tick to refresh the batch elapsed display while processing.
+  const [, forceUpdate] = useState(0);
+  useEffect(() => {
+    if (!status.batchStartTime) return;
+    const id = setInterval(() => forceUpdate((n) => n + 1), 100);
+    return () => clearInterval(id);
+  }, [status.batchStartTime]);
 
   // Controlled field helpers
   const numField = (key: "width" | "cols" | "rows" | "spacing") => ({
@@ -91,6 +100,12 @@ export default function ControlPanel({
     status.batchTotal > 0
       ? Math.round((status.batchDone / status.batchTotal) * 100)
       : 0;
+
+  // Live elapsed string shown in the batch progress label while processing.
+  const batchElapsedStr = status.batchStartTime
+    ? ` - ${formatElapsed(Date.now() - status.batchStartTime)}`
+    : "";
+
   const selectedPreset = presets.lastUsed ?? PRESETS_DEFAULT_VALUE;
 
   return (
@@ -359,6 +374,7 @@ export default function ControlPanel({
             <div className="progress-label">
               <span>
                 Batch progress ({status.batchDone}/{status.batchTotal})
+                {batchElapsedStr}
               </span>
               <span>{batchPct}%</span>
             </div>

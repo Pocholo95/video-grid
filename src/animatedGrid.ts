@@ -253,7 +253,8 @@ export const createAnimatedGridWebP = async (
       canvas.height = 0;
 
       onFrameDone(f + 1, totalAnimFrames);
-      await new Promise<void>((r) => requestAnimationFrame(() => r()));
+      // Avoid using requestAnimationFrame. unfocused windows/tab throttle it
+      await new Promise<void>((r) => setTimeout(r, 0));
     }
   } finally {
     videoCleanup();

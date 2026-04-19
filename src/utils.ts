@@ -39,6 +39,29 @@ export const formatTime = (seconds: number): string => {
   return `${pad(h)}:${pad(m)}:${pad(s)}`;
 };
 
+/**
+ * Formats elapsed milliseconds in a human-friendly way.
+ * - Under 1 minute: "32.235s"
+ * - Under 1 hour: "1m 30s"
+ * - 1 hour or more: "2h 3m 4s"
+ *
+ * @param ms - Elapsed time in milliseconds.
+ */
+export const formatElapsed = (ms: number): string => {
+  if (!Number.isFinite(ms) || ms < 0) return "0s";
+  const totalSeconds = ms / 1000;
+  const h = Math.floor(totalSeconds / 3600);
+  const m = Math.floor((totalSeconds % 3600) / 60);
+  const s = totalSeconds % 60;
+  if (h > 0) {
+    return `${h}h ${m}m ${s.toFixed(0)}s`;
+  }
+  if (m > 0) {
+    return `${m}m ${s.toFixed(0)}s`;
+  }
+  return `${s.toFixed(3)}s`;
+};
+
 /** Generates a random UUID string suitable for use as an item ID. */
 export const makeId = (): string => crypto.randomUUID();
 

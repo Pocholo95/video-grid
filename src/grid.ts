@@ -323,7 +323,8 @@ export const createGridJpg = async (
     }
 
     onFrameDone(i + 1, total, tSec);
-    await new Promise<void>((r) => requestAnimationFrame(() => r()));
+    // Avoid using requestAnimationFrame. unfocused windows/tab throttle it
+    await new Promise<void>((r) => setTimeout(r, 0));
   }
 
   videoCleanup();

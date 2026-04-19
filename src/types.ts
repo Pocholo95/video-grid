@@ -15,6 +15,7 @@ export type VideoMetadata = {
 
 // - Upload
 export type UploadStatus = "idle" | "uploading" | "done" | "error";
+
 export type UploadResult = {
   /** URL to the host viewer page */
   pageUrl: string;
@@ -29,6 +30,7 @@ export type UploadResult = {
 };
 
 export type DestinationType = "chevereto";
+
 export type UploadDestination = {
   id: string;
   name: string;
@@ -62,6 +64,8 @@ export type OutputItem = {
   outputSize?: number;
   outputBlob?: Blob;
   metadata?: VideoMetadata;
+  processingStartedAt?: number;
+  processingDurationMs?: number;
   /**
    * Upload state keyed by destination id.
    * Only populated once processing completes and an upload is attempted.
@@ -88,6 +92,7 @@ export type SavedOptions = {
 };
 
 export type Presets = Record<string, SavedOptions>;
+
 export type AppSettings = {
   presets: {
     entries: Presets;
