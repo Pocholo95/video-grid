@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from "react";
-import { saveAs } from "file-saver";
 import type { OutputItem, UploadDestination } from "../types";
 import { formatElapsed, formatTime, humanSize } from "../utils";
 import UploadLinks from "./UploadLinks";
@@ -75,11 +74,6 @@ export default function OutputCard({
     !anyUploading &&
     !allDone;
 
-  const handleDownload = () => {
-    if (!item.outputBlob || !item.outputName) return;
-    saveAs(item.outputBlob, item.outputName);
-  };
-
   return (
     <article
       className={`output-card output-${item.status}${allDone ? " output-uploaded" : ""}`}
@@ -138,9 +132,14 @@ export default function OutputCard({
 
           <div className="action-row">
             {isDone && item.outputBlob && item.outputName ? (
-              <button className="icon-btn button-link" onClick={handleDownload}>
+              <a
+                href={blobUrl || "#"}
+                download={item.outputName}
+                className="icon-btn button-link"
+                style={{ textDecoration: "none", display: "inline-block" }}
+              >
                 ⬇️ Download {item.outputName.endsWith(".webp") ? "WebP" : "JPG"}
-              </button>
+              </a>
             ) : (
               <span className="muted">No download yet</span>
             )}
