@@ -154,18 +154,6 @@ export default function App() {
             no upload required!
           </p>
         </div>
-        <div className="header-actions">
-          <button
-            className="icon-btn dest-manager-btn"
-            title="Manage upload destinations"
-            onClick={() => setShowDestManager(true)}
-          >
-            ☁️ Upload Destinations{" "}
-            {destinations.length > 0
-              ? `(${destinations.filter((d) => d.enabled).length}/${destinations.length})`
-              : ""}
-          </button>
-        </div>
       </header>
 
       <ControlPanel
@@ -186,32 +174,48 @@ export default function App() {
       <section className="panel">
         <div className="outputs-header">
           <h2>Outputs</h2>
-          <div className="outputs-bulk-actions">
-            {enabledDests.length > 0 && doneItems.length > 0 && (
-              <button
-                className="icon-btn primary upload-all-btn"
-                disabled={isUploadingAll || !hasPendingUploads}
-                onClick={() => uploadAll(destinations)}
-                title={`Upload all to ${enabledDests.map((d) => d.name).join(", ")} ${
-                  hasPendingUploads ? "" : "(All uploads complete)"
-                }`}
-              >
-                {isUploadingAll
-                  ? `⏳ Uploading… (${uploadProgress.attempted}/${uploadProgress.total})`
-                  : `☁️ Upload All (${completedUploads}/${totalPossibleUploads})`}
-              </button>
-            )}
-            {doneItems.length > 1 && (
-              <button
-                className="icon-btn primary"
-                disabled={isZipping}
-                onClick={downloadAll}
-              >
-                {isZipping
-                  ? "⏳ Zipping…"
-                  : `⏬ Download All (${doneItems.length})`}
-              </button>
-            )}
+          <div className="outputs-actions-col">
+            <button
+              className="icon-btn dest-manager-btn"
+              title="Manage upload destinations"
+              onClick={() => setShowDestManager(true)}
+            >
+              <span className="dest-manager-icon">☁️</span>
+              <span className="dest-manager-text">
+                Upload Destinations{" "}
+                {destinations.length > 0
+                  ? `(${destinations.filter((d) => d.enabled).length}/${destinations.length})`
+                  : ""}
+              </span>
+            </button>
+
+            <div className="outputs-bulk-actions">
+              {enabledDests.length > 0 && doneItems.length > 0 && (
+                <button
+                  className="icon-btn primary upload-all-btn"
+                  disabled={isUploadingAll || !hasPendingUploads}
+                  onClick={() => uploadAll(destinations)}
+                  title={`Upload all to ${enabledDests.map((d) => d.name).join(", ")} ${
+                    hasPendingUploads ? "" : "(All uploads complete)"
+                  }`}
+                >
+                  {isUploadingAll
+                    ? `⏳ Uploading… (${uploadProgress.attempted}/${uploadProgress.total})`
+                    : `☁️ Upload All (${completedUploads}/${totalPossibleUploads})`}
+                </button>
+              )}
+              {doneItems.length > 1 && (
+                <button
+                  className="icon-btn primary"
+                  disabled={isZipping}
+                  onClick={downloadAll}
+                >
+                  {isZipping
+                    ? "⏳ Zipping…"
+                    : `⏬ Download All (${doneItems.length})`}
+                </button>
+              )}
+            </div>
           </div>
         </div>
 
