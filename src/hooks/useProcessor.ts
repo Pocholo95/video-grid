@@ -53,6 +53,7 @@ export function useProcessor(updateItem: Updater) {
     batchStartTime: null,
     batchDurationMs: null,
   });
+
   const cancelRef = useRef(false);
 
   /**
@@ -90,6 +91,7 @@ export function useProcessor(updateItem: Updater) {
           batchStartTime: null,
           batchDurationMs: null,
         });
+
         try {
           const meta = await readMetadataMediaInfo(item.file);
           item.metadata = meta;
@@ -121,6 +123,7 @@ export function useProcessor(updateItem: Updater) {
         batchStartTime: null,
         batchDurationMs: null,
       });
+
       return items;
     },
     [updateItem],
@@ -147,6 +150,7 @@ export function useProcessor(updateItem: Updater) {
         header: opts.header ?? DEFAULTS.header,
         bgColor: opts.bgColor || DEFAULTS.bgColor,
         textColor: opts.textColor || DEFAULTS.textColor,
+        vrMode: opts.vrMode ?? DEFAULTS.vrMode,
       };
 
       const isAnimated = opts.animated ?? false;
@@ -190,6 +194,7 @@ export function useProcessor(updateItem: Updater) {
             error: undefined,
             processingStartedAt: itemStartTime,
           });
+
           setStatus({
             text: `"${item.file.name}" — opening…`,
             currentPct: 0,
@@ -247,6 +252,7 @@ export function useProcessor(updateItem: Updater) {
             }
 
             let res;
+
             if (isAnimated) {
               /**
                * Animated WebP progress is split into two phases:
@@ -273,7 +279,6 @@ export function useProcessor(updateItem: Updater) {
 
               const onEncodeProgress = (ratio: number) => {
                 const pct = ANIMATED_COMPOSE_PCT + ratio * ANIMATED_ENCODE_PCT;
-                const encodePct = Math.round(ratio * 100);
                 const phaseLabel =
                   ratio < 0.5
                     ? `preparing frames (${Math.round((ratio / 0.5) * 100)}%)`
@@ -285,7 +290,6 @@ export function useProcessor(updateItem: Updater) {
                   batchDone: done,
                   batchTotal: items.length,
                 }));
-                void encodePct; // used implicitly via phaseLabel
               };
 
               res = await createAnimatedGridWebP(
@@ -330,6 +334,7 @@ export function useProcessor(updateItem: Updater) {
               error: undefined,
               processingDurationMs: Date.now() - itemStartTime,
             });
+
             log(`Finished "${item.file.name}"`);
             setStatus((prev) => ({ ...prev, currentPct: 100 }));
           } catch (e) {

@@ -23,10 +23,10 @@ export const DEFAULTS: SavedOptions = {
   animFps: 10,
   webpMethod: 5,
   webpQuality: 85,
+  vrMode: "disabled",
 };
 
 // Header layout
-export const HEADER_HEIGHT = 160;
 export const HEADER_PADDING_LEFT = 12;
 export const HEADER_TEXT_SIZE = 24;
 export const HEADER_LINE_SPACING = 26;

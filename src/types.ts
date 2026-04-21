@@ -13,9 +13,21 @@ export type VideoMetadata = {
   bitrate: number;
 };
 
+// - VR video
+/**
+ * Describes how to crop a stereo VR frame to show only one eye.
+ * "sbs" = Side-by-Side (left/right halves), "tb" = Top-Bottom (top/bottom halves).
+ * "disabled" means no VR processing is applied.
+ */
+export type VrMode =
+  | "disabled"
+  | "sbs-left"
+  | "sbs-right"
+  | "tb-left"
+  | "tb-right";
+
 // - Upload
 export type UploadStatus = "idle" | "uploading" | "done" | "error";
-
 export type UploadResult = {
   /** URL to the host viewer page */
   pageUrl: string;
@@ -28,9 +40,7 @@ export type UploadResult = {
   /** One-click delete URL */
   deleteUrl: string;
 };
-
 export type DestinationType = "chevereto";
-
 export type UploadDestination = {
   id: string;
   name: string;
@@ -89,10 +99,10 @@ export type SavedOptions = {
   animFps: number;
   webpMethod: number;
   webpQuality: number;
+  vrMode: VrMode;
 };
 
 export type Presets = Record<string, SavedOptions>;
-
 export type AppSettings = {
   presets: {
     entries: Presets;

@@ -1,5 +1,4 @@
 import {
-  HEADER_HEIGHT,
   HEADER_LINE_SPACING,
   HEADER_PADDING_LEFT,
   HEADER_TEXT_SIZE,
@@ -11,7 +10,7 @@ import {
   isMemoryError,
   resetFFmpeg,
 } from "./ffmpeg";
-import type { Position, VideoMetadata } from "./types";
+import type { Position, VideoMetadata, VrMode } from "./types";
 import { errlog, formatTime, humanSize, log, warn } from "./utils";
 
 // Types
@@ -25,6 +24,12 @@ export type GridOptions = {
   header: boolean;
   bgColor: string;
   textColor: string;
+  /**
+   * VR stereo crop mode. When set to anything other than "disabled", the
+   * canvas drawImage call is adjusted to extract one eye from the stereo
+   * frame rather than drawing the full frame into the cell.
+   */
+  vrMode: VrMode;
 };
 
 export type GridResult = {
@@ -58,8 +63,56 @@ export const seekVideo = (video: HTMLVideoElement, t: number): Promise<void> =>
   });
 
 /**
+ * Returns the source crop rectangle for a VR stereo frame, isolating one eye.
+ * Works on both HTMLVideoElement dimensions and ImageBitmap dimensions.
+ *
+ * @param frameW  - Full pixel width of the decoded frame.
+ * @param frameH  - Full pixel height of the decoded frame.
+ * @param vrMode  - Active VR crop mode (must not be "disabled").
+ * @returns An object with sx, sy, sw, sh describing the source region for drawImage.
+ */
+const getVrCropRect = (
+  frameW: number,
+  frameH: number,
+  vrMode: Exclude<VrMode, "disabled">,
+): { sx: number; sy: number; sw: number; sh: number } => {
+  if (vrMode === "sbs-left" || vrMode === "sbs-right") {
+    const sw = Math.floor(frameW / 2);
+    return { sx: vrMode === "sbs-right" ? sw : 0, sy: 0, sw, sh: frameH };
+  }
+  // tb-left / tb-right
+  const sh = Math.floor(frameH / 2);
+  return { sx: 0, sy: vrMode === "tb-right" ? sh : 0, sw: frameW, sh };
+};
+
+/**
+ * Returns a human-readable label for the active VR crop mode, used in the header note.
+ *
+ * @param vrMode - Active VR crop mode.
+ */
+const vrModeLabel = (vrMode: VrMode): string => {
+  switch (vrMode) {
+    case "sbs-left":
+      return "SBS - Crop Left Eye";
+    case "sbs-right":
+      return "SBS - Crop Right Eye";
+    case "tb-left":
+      return "TB - Crop Top (Left Eye)";
+    case "tb-right":
+      return "TB - Crop Bottom (Right Eye)";
+    default:
+      return "";
+  }
+};
+
+/**
  * Build a JPEG contact sheet for a single video file.
  * Tries native browser seeking first, falling back to FFmpeg WASM if that fails.
+ *
+ * When `opts.vrMode` is not "disabled", the source rectangle passed to drawImage
+ * is adjusted to crop one eye from the stereo frame. This works on both the
+ * native and FFmpeg fallback paths without any additional processing overhead.
+ * A note is added to the header when it is visible.
  *
  * @param file         - The source video file.
  * @param meta         - Pre-read metadata (dimensions, duration, etc.).
@@ -87,13 +140,31 @@ export const createGridJpg = async (
   const spacing = Math.max(0, opts.spacing);
   const total = cols * rows;
   const duration = Math.max(1, meta.duration || 1);
+  const vrActive = opts.vrMode !== "disabled";
+
+  // Aspect ratio of a single cell. For SBS formats each eye is half the frame
+  // width, so the eye itself has double the raw height/width ratio. For TB the
+  // eye is half the frame height, halving that ratio.
+  let cellAspect =
+    meta.width > 0 && meta.height > 0 ? meta.height / meta.width : 9 / 16;
+  if (vrActive) {
+    if (opts.vrMode.startsWith("sbs")) cellAspect *= 2;
+    else cellAspect /= 2;
+  }
 
   const cellWidth = Math.floor((totalWidth - spacing * (cols - 1)) / cols);
-  const aspect =
-    meta.width > 0 && meta.height > 0 ? meta.height / meta.width : 9 / 16;
-  const cellHeight = Math.max(1, Math.floor(cellWidth * aspect));
+  const cellHeight = Math.max(1, Math.floor(cellWidth * cellAspect));
 
-  const headerHeight = opts.header ? HEADER_HEIGHT : 0;
+  // An extra header line is added when VR cropping is active.
+  const vrHeaderNote = vrActive
+    ? `VR Video: ${vrModeLabel(opts.vrMode)}`
+    : null;
+
+  const headerLineCount = 5 + (vrHeaderNote ? 1 : 0);
+  const headerHeight = opts.header
+    ? HEADER_PADDING_LEFT * 2 + headerLineCount * HEADER_LINE_SPACING
+    : 0;
+
   const canvasWidth = cols * cellWidth + spacing * (cols - 1);
   const canvasHeight = headerHeight + rows * cellHeight + spacing * (rows - 1);
 
@@ -121,6 +192,7 @@ export const createGridJpg = async (
       `Bitrate: ${meta.bitrate ? `${Math.round(meta.bitrate / 1000)} kbps` : "Unknown"}`,
     ];
 
+    if (vrHeaderNote) infoLines.push(vrHeaderNote);
     const maxTextWidth = canvasWidth - HEADER_PADDING_LEFT * 2;
     let yPos = HEADER_PADDING_LEFT;
 
@@ -248,7 +320,18 @@ export const createGridJpg = async (
     if (videoUsable) {
       try {
         await seekVideo(video, tSec);
-        ctx.drawImage(video, x, y, cellWidth, cellHeight);
+        if (vrActive) {
+          const vw = video.videoWidth || meta.width;
+          const vh = video.videoHeight || meta.height;
+          const { sx, sy, sw, sh } = getVrCropRect(
+            vw,
+            vh,
+            opts.vrMode as Exclude<VrMode, "disabled">,
+          );
+          ctx.drawImage(video, sx, sy, sw, sh, x, y, cellWidth, cellHeight);
+        } else {
+          ctx.drawImage(video, x, y, cellWidth, cellHeight);
+        }
         frameDrawn = true;
       } catch (seekErr) {
         const msg =
@@ -267,7 +350,16 @@ export const createGridJpg = async (
         await ensureFFmpegBitmaps();
         const bitmap = ffmpegBitmaps![i];
         if (bitmap) {
-          ctx.drawImage(bitmap, x, y, cellWidth, cellHeight);
+          if (vrActive) {
+            const { sx, sy, sw, sh } = getVrCropRect(
+              bitmap.width,
+              bitmap.height,
+              opts.vrMode as Exclude<VrMode, "disabled">,
+            );
+            ctx.drawImage(bitmap, sx, sy, sw, sh, x, y, cellWidth, cellHeight);
+          } else {
+            ctx.drawImage(bitmap, x, y, cellWidth, cellHeight);
+          }
           bitmap.close();
           ffmpegBitmaps![i] = null;
           frameDrawn = true;

@@ -1,5 +1,4 @@
 import {
-  HEADER_HEIGHT,
   HEADER_LINE_SPACING,
   HEADER_PADDING_LEFT,
   HEADER_TEXT_SIZE,
@@ -8,7 +7,7 @@ import { encodeAnimatedWebP, resetFFmpeg } from "./ffmpeg";
 import type { GridOptions, GridResult } from "./grid";
 import { seekVideo } from "./grid";
 import { canNativelyPlay } from "./mediainfo";
-import type { Position, VideoMetadata } from "./types";
+import type { Position, VideoMetadata, VrMode } from "./types";
 import { errlog, formatTime, humanSize, log } from "./utils";
 
 /** Animated grid options, extending the static grid options with animation parameters. */
@@ -24,10 +23,56 @@ export type AnimatedGridOptions = GridOptions & {
 };
 
 /**
+ * Returns the source crop rectangle for a VR stereo frame, isolating one eye.
+ * Mirrors the equivalent helper in grid.ts, kept local to avoid a cross-module dependency.
+ *
+ * @param frameW  - Full pixel width of the decoded frame.
+ * @param frameH  - Full pixel height of the decoded frame.
+ * @param vrMode  - Active VR crop mode (must not be "disabled").
+ * @returns An object with sx, sy, sw, sh describing the source region for drawImage.
+ */
+const getVrCropRect = (
+  frameW: number,
+  frameH: number,
+  vrMode: Exclude<VrMode, "disabled">,
+): { sx: number; sy: number; sw: number; sh: number } => {
+  if (vrMode === "sbs-left" || vrMode === "sbs-right") {
+    const sw = Math.floor(frameW / 2);
+    return { sx: vrMode === "sbs-right" ? sw : 0, sy: 0, sw, sh: frameH };
+  }
+  // tb-left / tb-right
+  const sh = Math.floor(frameH / 2);
+  return { sx: 0, sy: vrMode === "tb-right" ? sh : 0, sw: frameW, sh };
+};
+
+/**
+ * Returns a human-readable label for the active VR crop mode, used in the header note.
+ *
+ * @param vrMode - Active VR crop mode.
+ */
+const vrModeLabel = (vrMode: VrMode): string => {
+  switch (vrMode) {
+    case "sbs-left":
+      return "SBS - Crop Left Eye";
+    case "sbs-right":
+      return "SBS - Crop Right Eye";
+    case "tb-left":
+      return "TB - Crop Top (Left Eye)";
+    case "tb-right":
+      return "TB - Crop Bottom (Right Eye)";
+    default:
+      return "";
+  }
+};
+
+/**
  * Build an animated WebP contact sheet for a single video file.
  * Each grid cell plays a short clip sampled from its evenly-distributed timestamp.
  * Only files natively supported by the browser are accepted — FFmpeg fallback
  * is not available for frame extraction in animated mode.
+ *
+ * When `opts.vrMode` is not "disabled", the drawImage source rectangle is adjusted
+ * to crop one eye from the stereo frame, identical to the static JPEG path.
  *
  * Progress is split into two phases:
  *   • Frame composition  — `onFrameDone` is called after each canvas frame is
@@ -61,6 +106,7 @@ export const createAnimatedGridWebP = async (
         "This format is not supported — FFmpeg fallback is unavailable in animated mode.",
     );
   }
+  const vrActive = opts.vrMode !== "disabled";
 
   const totalWidth = Math.max(240, opts.width);
   const cols = Math.max(1, opts.cols);
@@ -70,10 +116,27 @@ export const createAnimatedGridWebP = async (
   const duration = Math.max(1, meta.duration || 1);
 
   const cellWidth = Math.floor((totalWidth - spacing * (cols - 1)) / cols);
-  const aspect =
+
+  // Aspect ratio of a single cell, adjusted for VR crop mode.
+  let cellAspect =
     meta.width > 0 && meta.height > 0 ? meta.height / meta.width : 9 / 16;
-  const cellHeight = Math.max(1, Math.floor(cellWidth * aspect));
-  const headerHeight = opts.header ? HEADER_HEIGHT : 0;
+  if (vrActive) {
+    if (opts.vrMode.startsWith("sbs")) cellAspect *= 2;
+    else cellAspect /= 2;
+  }
+
+  const cellHeight = Math.max(1, Math.floor(cellWidth * cellAspect));
+
+  // An extra header line is added when VR cropping is active.
+  const vrHeaderNote = vrActive
+    ? `VR Video: ${vrModeLabel(opts.vrMode)}`
+    : null;
+
+  const headerLineCount = 5 + (vrHeaderNote ? 1 : 0);
+  const headerHeight = opts.header
+    ? HEADER_PADDING_LEFT * 2 + headerLineCount * HEADER_LINE_SPACING
+    : 0;
+
   const canvasWidth = cols * cellWidth + spacing * (cols - 1);
   const canvasHeight = headerHeight + rows * cellHeight + spacing * (rows - 1);
 
@@ -164,6 +227,7 @@ export const createAnimatedGridWebP = async (
           `Duration: ${formatTime(meta.duration)}`,
           `Bitrate: ${meta.bitrate ? `${Math.round(meta.bitrate / 1000)} kbps` : "Unknown"}`,
         ];
+        if (vrHeaderNote) infoLines.push(vrHeaderNote);
         const maxTextWidth = canvasWidth - HEADER_PADDING_LEFT * 2;
         let yPos = HEADER_PADDING_LEFT;
         for (const line of infoLines) {
@@ -200,7 +264,18 @@ export const createAnimatedGridWebP = async (
 
         try {
           await seekVideo(video, tSec);
-          ctx.drawImage(video, x, y, cellWidth, cellHeight);
+          if (vrActive) {
+            const vw = video.videoWidth || meta.width;
+            const vh = video.videoHeight || meta.height;
+            const { sx, sy, sw, sh } = getVrCropRect(
+              vw,
+              vh,
+              opts.vrMode as Exclude<VrMode, "disabled">,
+            );
+            ctx.drawImage(video, sx, sy, sw, sh, x, y, cellWidth, cellHeight);
+          } else {
+            ctx.drawImage(video, x, y, cellWidth, cellHeight);
+          }
         } catch (seekErr) {
           const msg =
             seekErr instanceof Error ? seekErr.message : String(seekErr);
@@ -212,10 +287,10 @@ export const createAnimatedGridWebP = async (
             `Seek failed at animation frame ${f + 1}, cell ${i + 1}: ${msg}`,
           );
           // Draw a placeholder on failure.
-          ctx.fillStyle = "#444";
+          ctx.fillStyle = opts.bgColor;
           ctx.fillRect(x, y, cellWidth, cellHeight);
-          ctx.fillStyle = "#888";
-          ctx.font = "16px system-ui";
+          ctx.fillStyle = "#555";
+          ctx.font = "18px system-ui";
           ctx.textAlign = "center";
           ctx.textBaseline = "middle";
           ctx.fillText("FAILED", x + cellWidth / 2, y + cellHeight / 2);

@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { DEFAULTS, PRESETS_DEFAULT_VALUE } from "../constants";
 import { deletePreset, loadPresets, savePreset } from "../presets";
-import type { AppSettings, SavedOptions } from "../types";
+import type { AppSettings, SavedOptions, VrMode } from "../types";
 import type { ProcessorStatus } from "../hooks/useProcessor";
 import { formatElapsed } from "../utils";
 
@@ -331,6 +331,24 @@ export default function ControlPanel({
             </label>
           </fieldset>
         )}
+
+        {/* VR Video — single select, no sub-options needed */}
+        <label className="field">
+          <span>VR Video</span>
+          <select
+            value={opts.vrMode ?? DEFAULTS.vrMode}
+            onChange={(e) =>
+              setOpts({ ...opts, vrMode: e.target.value as VrMode })
+            }
+          >
+            <option value="disabled">Disabled</option>
+            <option value="sbs-left">SBS - Crop Left Eye</option>
+            <option value="sbs-right">SBS - Crop Right Eye</option>
+            <option value="tb-left">TB - Crop Top (Left Eye)</option>
+            <option value="tb-right">TB - Crop Bottom (Right Eye)</option>
+          </select>
+        </label>
+
         <div className="actions">
           <button
             className="icon-btn primary"
