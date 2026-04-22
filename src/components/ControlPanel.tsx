@@ -20,6 +20,52 @@ interface Props {
   onClear: () => void;
 }
 
+/**
+ * A collapsible fieldset. The legend contains a button that toggles the body.
+ * The body is always wrapped in a `<div className="ctrl-section-body">` so the
+ * grid layout applies regardless of what children are passed in.
+ *
+ * @param label      - Text shown in the legend toggle.
+ * @param expanded   - Whether the body is currently visible.
+ * @param onToggle   - Called when the user clicks the legend toggle.
+ * @param children   - Body content rendered inside the grid wrapper when expanded.
+ * @param bodyClass  - Extra class(es) added to the body wrapper div.
+ */
+function Section({
+  label,
+  expanded,
+  onToggle,
+  children,
+  bodyClass = "",
+}: {
+  label: string;
+  expanded: boolean;
+  onToggle: () => void;
+  children: React.ReactNode;
+  bodyClass?: string;
+}) {
+  return (
+    <fieldset className="ctrl-section">
+      <legend>
+        <button
+          type="button"
+          className="ctrl-section-toggle"
+          onClick={onToggle}
+          aria-expanded={expanded}
+        >
+          <span>{label}</span>
+          <span className={`ctrl-chevron${expanded ? " open" : ""}`}>▲</span>
+        </button>
+      </legend>
+      {expanded && (
+        <div className={`ctrl-section-body${bodyClass ? ` ${bodyClass}` : ""}`}>
+          {children}
+        </div>
+      )}
+    </fieldset>
+  );
+}
+
 export default function ControlPanel({
   opts,
   setOpts,
@@ -38,6 +84,16 @@ export default function ControlPanel({
   const presetNameRef = useRef<HTMLInputElement>(null);
   const [nameVisible, setNameVisible] = useState(false);
   const [nameValue, setNameValue] = useState("");
+
+  // Which sections are expanded - all open by default.
+  const [sections, setSections] = useState({
+    grid: true,
+    style: true,
+    modes: true,
+  });
+
+  const toggleSection = (key: keyof typeof sections) =>
+    setSections((prev) => ({ ...prev, [key]: !prev[key] }));
 
   // Live tick to refresh the batch elapsed display while processing.
   const [, forceUpdate] = useState(0);
@@ -107,6 +163,7 @@ export default function ControlPanel({
     : "";
 
   const selectedPreset = presets.lastUsed ?? PRESETS_DEFAULT_VALUE;
+  const isAnimated = opts.animated ?? false;
 
   return (
     <div className="panel">
@@ -174,8 +231,9 @@ export default function ControlPanel({
             </button>
           </div>
         )}
-        {/* File picker */}
-        <label className="field">
+
+        {/* File picker - always visible, outside any section */}
+        <label className="field ctrl-full">
           <span>Video files</span>
           <input
             ref={fileInputRef}
@@ -188,166 +246,199 @@ export default function ControlPanel({
             }}
           />
         </label>
-        {/* Grid options */}
-        <label className="field">
-          <span>Output width (px)</span>
-          <input type="number" min={240} step={1} {...numField("width")} />
-        </label>
-        <label className="field">
-          <span>Grid columns</span>
-          <input type="number" min={1} step={1} {...numField("cols")} />
-        </label>
-        <label className="field">
-          <span>Grid rows</span>
-          <input type="number" min={1} step={1} {...numField("rows")} />
-        </label>
-        <label className="field">
-          <span>Frame spacing (px)</span>
-          <input type="number" min={0} step={1} {...numField("spacing")} />
-        </label>
-        <label className="field">
-          <span>Timecode position</span>
-          <select
-            value={opts.position}
-            onChange={(e) =>
-              setOpts({
-                ...opts,
-                position: e.target.value as SavedOptions["position"],
-              })
-            }
-          >
-            <option value="disabled">Disabled</option>
-            <option value="top-left">Top-Left</option>
-            <option value="top-right">Top-Right</option>
-            <option value="bottom-left">Bottom-Left</option>
-            <option value="bottom-right">Bottom-Right</option>
-          </select>
-        </label>
-        <label className="field color-field">
-          <span>Background color</span>
-          <div className="color-input-row">
-            <input
-              type="color"
-              value={opts.bgColor}
-              onChange={(e) => setOpts({ ...opts, bgColor: e.target.value })}
-            />
-            <span className="color-hex">{opts.bgColor}</span>
-          </div>
-        </label>
-        <label className="field color-field">
-          <span>Text color</span>
-          <div className="color-input-row">
-            <input
-              type="color"
-              value={opts.textColor}
-              onChange={(e) => setOpts({ ...opts, textColor: e.target.value })}
-            />
-            <span className="color-hex">{opts.textColor}</span>
-          </div>
-        </label>
-        <label className="check">
-          <input type="checkbox" {...checkField("header")} />
-          <span>Show header metadata</span>
-        </label>
-        <label className="check">
-          <input type="checkbox" {...checkField("preview")} />
-          <span>Show preview</span>
-        </label>
-        <label className="check">
-          <input type="checkbox" {...checkField("animated")} />
-          <span>Animated output (WebP)</span>
-        </label>
-        {/* Animation sub-options — shown only when animated is enabled */}
-        {(opts.animated ?? false) && (
-          <fieldset className="animated-options">
-            <legend>Animation settings</legend>
-            <label className="field">
-              <span>Duration (s)</span>
-              <input
-                type="number"
-                min={1}
-                step={1}
-                value={String(opts.animDuration ?? DEFAULTS.animDuration)}
-                onChange={(e) =>
-                  setOpts({
-                    ...opts,
-                    animDuration: Math.max(1, Number(e.target.value) || 1),
-                  })
-                }
-              />
-            </label>
-            <label className="field">
-              <span>FPS</span>
-              <input
-                type="number"
-                min={1}
-                step={1}
-                value={String(opts.animFps ?? DEFAULTS.animFps)}
-                onChange={(e) =>
-                  setOpts({
-                    ...opts,
-                    animFps: Math.max(1, Number(e.target.value) || 1),
-                  })
-                }
-              />
-            </label>
-            <label className="field">
-              <span>WebP method (0-6)</span>
-              <input
-                type="number"
-                min={0}
-                max={6}
-                step={1}
-                value={String(opts.webpMethod ?? DEFAULTS.webpMethod)}
-                onChange={(e) =>
-                  setOpts({
-                    ...opts,
-                    webpMethod: Math.min(
-                      6,
-                      Math.max(0, Number(e.target.value) || 0),
-                    ),
-                  })
-                }
-              />
-            </label>
-            <label className="field">
-              <span>WebP quality (5-100)</span>
-              <input
-                type="number"
-                min={5}
-                max={100}
-                step={1}
-                value={String(opts.webpQuality ?? DEFAULTS.webpQuality)}
-                onChange={(e) =>
-                  setOpts({
-                    ...opts,
-                    webpQuality: Math.min(
-                      100,
-                      Math.max(5, Number(e.target.value) || 5),
-                    ),
-                  })
-                }
-              />
-            </label>
-          </fieldset>
-        )}
 
-        {/* VR Video — single select, no sub-options needed */}
-        <label className="field">
-          <span>VR Video</span>
-          <select
-            value={opts.vrMode ?? DEFAULTS.vrMode}
-            onChange={(e) =>
-              setOpts({ ...opts, vrMode: e.target.value as VrMode })
-            }
-          >
-            <option value="disabled">Disabled</option>
-            <option value="sbs-left">SBS - Crop Left Eye</option>
-            <option value="sbs-right">SBS - Crop Right Eye</option>
-            <option value="tb-left">TB - Crop Top (Left Eye)</option>
-            <option value="tb-right">TB - Crop Bottom (Right Eye)</option>
-          </select>
-        </label>
+        {/* Section: Grid */}
+        <Section
+          label="Grid"
+          expanded={sections.grid}
+          onToggle={() => toggleSection("grid")}
+        >
+          <label className="field">
+            <span>Output width (px)</span>
+            <input type="number" min={240} step={1} {...numField("width")} />
+          </label>
+          <label className="field">
+            <span>Frame spacing (px)</span>
+            <input type="number" min={0} step={1} {...numField("spacing")} />
+          </label>
+          <label className="field">
+            <span>Grid columns</span>
+            <input type="number" min={1} step={1} {...numField("cols")} />
+          </label>
+          <label className="field">
+            <span>Grid rows</span>
+            <input type="number" min={1} step={1} {...numField("rows")} />
+          </label>
+        </Section>
+
+        {/* Section: Style */}
+        <Section
+          label="Style"
+          expanded={sections.style}
+          onToggle={() => toggleSection("style")}
+        >
+          <label className="field">
+            <span>Timecode position</span>
+            <select
+              value={opts.position}
+              onChange={(e) =>
+                setOpts({
+                  ...opts,
+                  position: e.target.value as SavedOptions["position"],
+                })
+              }
+            >
+              <option value="disabled">Disabled</option>
+              <option value="top-left">Top-Left</option>
+              <option value="top-right">Top-Right</option>
+              <option value="bottom-left">Bottom-Left</option>
+              <option value="bottom-right">Bottom-Right</option>
+            </select>
+          </label>
+          {/* Empty div keeps the colour pickers on their own row */}
+          <div />
+          <label className="field color-field">
+            <span>Background color</span>
+            <div className="color-input-row">
+              <input
+                type="color"
+                value={opts.bgColor}
+                onChange={(e) => setOpts({ ...opts, bgColor: e.target.value })}
+              />
+              <span className="color-hex">{opts.bgColor}</span>
+            </div>
+          </label>
+          <label className="field color-field">
+            <span>Text color</span>
+            <div className="color-input-row">
+              <input
+                type="color"
+                value={opts.textColor}
+                onChange={(e) =>
+                  setOpts({ ...opts, textColor: e.target.value })
+                }
+              />
+              <span className="color-hex">{opts.textColor}</span>
+            </div>
+          </label>
+          <label className="check">
+            <input type="checkbox" {...checkField("header")} />
+            <span>Show header metadata</span>
+          </label>
+          <label className="check">
+            <input type="checkbox" {...checkField("preview")} />
+            <span>Show preview</span>
+          </label>
+        </Section>
+
+        {/* Section: Output Modes - body uses a 2-column layout where each column
+            is independent, so expanding Animated never shifts the VR control. */}
+        <Section
+          label="Output Modes"
+          expanded={sections.modes}
+          onToggle={() => toggleSection("modes")}
+          bodyClass="output-modes-body"
+        >
+          {/* Left column: Animated WebP */}
+          <div className="output-mode-col">
+            <label className="check">
+              <input type="checkbox" {...checkField("animated")} />
+              <span>Animated output (WebP)</span>
+            </label>
+            {isAnimated && (
+              <fieldset className="mode-sub-opts">
+                <legend>Animation settings</legend>
+                <label className="field">
+                  <span>Duration (s)</span>
+                  <input
+                    type="number"
+                    min={1}
+                    step={1}
+                    value={String(opts.animDuration ?? DEFAULTS.animDuration)}
+                    onChange={(e) =>
+                      setOpts({
+                        ...opts,
+                        animDuration: Math.max(1, Number(e.target.value) || 1),
+                      })
+                    }
+                  />
+                </label>
+                <label className="field">
+                  <span>FPS</span>
+                  <input
+                    type="number"
+                    min={1}
+                    step={1}
+                    value={String(opts.animFps ?? DEFAULTS.animFps)}
+                    onChange={(e) =>
+                      setOpts({
+                        ...opts,
+                        animFps: Math.max(1, Number(e.target.value) || 1),
+                      })
+                    }
+                  />
+                </label>
+                <label className="field">
+                  <span>WebP method (0-6)</span>
+                  <input
+                    type="number"
+                    min={0}
+                    max={6}
+                    step={1}
+                    value={String(opts.webpMethod ?? DEFAULTS.webpMethod)}
+                    onChange={(e) =>
+                      setOpts({
+                        ...opts,
+                        webpMethod: Math.min(
+                          6,
+                          Math.max(0, Number(e.target.value) || 0),
+                        ),
+                      })
+                    }
+                  />
+                </label>
+                <label className="field">
+                  <span>WebP quality (5-100)</span>
+                  <input
+                    type="number"
+                    min={5}
+                    max={100}
+                    step={1}
+                    value={String(opts.webpQuality ?? DEFAULTS.webpQuality)}
+                    onChange={(e) =>
+                      setOpts({
+                        ...opts,
+                        webpQuality: Math.min(
+                          100,
+                          Math.max(5, Number(e.target.value) || 5),
+                        ),
+                      })
+                    }
+                  />
+                </label>
+              </fieldset>
+            )}
+          </div>
+
+          {/* Right column: VR Video */}
+          <div className="output-mode-col">
+            <label className="field">
+              <span>VR Video</span>
+              <select
+                value={opts.vrMode ?? DEFAULTS.vrMode}
+                onChange={(e) =>
+                  setOpts({ ...opts, vrMode: e.target.value as VrMode })
+                }
+              >
+                <option value="disabled">Disabled</option>
+                <option value="sbs-left">SBS - Crop Left Eye</option>
+                <option value="sbs-right">SBS - Crop Right Eye</option>
+                <option value="tb-left">TB - Crop Top (Left Eye)</option>
+                <option value="tb-right">TB - Crop Bottom (Right Eye)</option>
+              </select>
+            </label>
+          </div>
+        </Section>
 
         <div className="actions">
           <button

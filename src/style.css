@@ -232,23 +232,127 @@ h3 {
 }
 
 
-/* Animated output sub-options */
-.animated-options {
+/* Full-width utility - spans both columns of the parent .controls grid */
+.ctrl-full {
+  grid-column: 1 / -1;
+}
+
+/* Collapsible fieldset - spans the full controls grid width */
+.ctrl-section {
   grid-column: 1 / -1;
   border: 1px solid var(--panel-border);
   border-radius: 14px;
-  padding: 14px 16px;
+  padding: 16px;
   margin: 0;
   background: rgba(8, 17, 31, 0.4);
+}
+
+.ctrl-section > legend {
+  padding: 0;
+  margin-left: 0;
+  /* Stretch the legend so the toggle button fills it edge-to-edge */
+  width: 100%;
+  /* Font reset - browsers can inherit h1/h2 sizes otherwise */
+  font-size: inherit;
+  font-weight: inherit;
+  line-height: inherit;
+}
+
+/* Toggle button fills the full legend width so the entire bar is clickable */
+.ctrl-section-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 8px 16px;
+  border: none;
+  border-radius: 0;
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  cursor: pointer;
+  text-align: left;
+  transition: color 0.15s;
+}
+
+.ctrl-section-toggle:hover:not(:disabled) {
+  color: var(--accent);
+  opacity: 1;
+}
+
+/* Chevron: collapsed = pointing down (▲ rotated 180°), open = pointing up */
+.ctrl-chevron {
+  font-size: 0.6rem;
+  flex-shrink: 0;
+  transition: transform 0.2s ease;
+  transform: rotate(180deg);
+}
+
+.ctrl-chevron.open {
+  transform: rotate(0deg);
+}
+
+/*
+ * Section body - the explicit grid container inside every Section component.
+ * All field/check children flow into this 2-column grid, matching the rhythm
+ * of the main .controls grid above.
+ */
+.ctrl-section-body {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 14px;
 }
 
-.animated-options legend {
+/*
+ * Output Modes body override: two equal columns side-by-side, each
+ * independently laid out so expanding Animated never shifts the VR column.
+ * A hairline divider is drawn between the columns via a centered gradient.
+ */
+.ctrl-section-body.output-modes-body {
+  grid-template-columns: 1fr 1fr;
+  align-items: start;
+  background-image: linear-gradient(var(--panel-border), var(--panel-border));
+  background-size: 1px 100%;
+  background-position: center top;
+  background-repeat: no-repeat;
+}
+
+/* Each mode column stacks its controls vertically */
+.output-mode-col {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
+/*
+ * Nested sub-options fieldset (e.g. Animation settings).
+ * Matches the visual language of the outer sections but more compact,
+ * and uses a vertical flex layout since there's only one column of space.
+ */
+.mode-sub-opts {
+  border: 1px solid var(--panel-border);
+  border-radius: 10px;
+  padding: 0 12px 12px;
+  margin: 0;
+  background: rgba(8, 17, 31, 0.35);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.mode-sub-opts > legend {
+  /* Same reset as .ctrl-section > legend */
+  font-size: inherit;
+  font-weight: inherit;
+  line-height: inherit;
+  padding: 0 6px;
   color: var(--muted);
   font-size: 0.85rem;
-  padding: 0 6px;
   letter-spacing: 0.04em;
 }
 
@@ -1066,8 +1170,20 @@ progress::-webkit-progress-value {
   .controls {
     grid-template-columns: 1fr;
   }
-  .animated-options {
+  .ctrl-section-body {
     grid-template-columns: 1fr;
+  }
+
+  .ctrl-section-body.output-modes-body {
+    grid-template-columns: 1fr;
+    /* Rotate the divider to a horizontal rule between the stacked columns */
+    background-image: linear-gradient(
+      to right,
+      var(--panel-border),
+      var(--panel-border)
+    );
+    background-size: 100% 1px;
+    background-position: top center;
   }
 }
 
