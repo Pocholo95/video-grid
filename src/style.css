@@ -69,10 +69,9 @@ body {
 }
 
 .brand-mark {
-  width: 56px;
-  height: 56px;
+  width: 64px;
+  height: 64px;
   border-radius: 10px;
-  background: linear-gradient(180deg, var(--grid), rgba(15, 23, 42, 0.95));
   border: 1px solid rgba(130, 213, 253, 0.18);
   flex-shrink: 0;
   overflow: hidden;
