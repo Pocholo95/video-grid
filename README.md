@@ -42,6 +42,9 @@ trigger an upload.
 - **Animated WebP output** — generate an animated thumbnail grid where each
   cell plays a short clip from its sampled timestamp. See
   [Animated Thumbnail Grids](#animated-thumbnail-grids).
+- **VR Video support** — crop one eye from Side-by-Side or Top-Bottom stereo
+  VR video so thumbnails show a single, undoubled image. See
+  [VR Video](#vr-video).
 - **Batch processing** — queue multiple files and process them one after
   another with combined progress tracking.
 - **Batch download** — completed outputs can be downloaded together as a
@@ -65,18 +68,33 @@ trigger an upload.
 
 ## Options
 
-| Option                   | Description                                                            | Default   |
-| ------------------------ | ---------------------------------------------------------------------- | --------- |
-| **Output width**         | Total pixel width of the generated image                               | 1920 px   |
-| **Grid columns**         | Number of columns in the grid                                          | 3         |
-| **Grid rows**            | Number of rows in the grid                                             | 4         |
-| **Frame spacing**        | Gap in pixels between cells                                            | 0         |
-| **Timecode position**    | Corner where the timestamp overlay appears, or **Disabled** to omit it | Top-left  |
-| **Background color**     | Canvas and header background                                           | `#000000` |
-| **Text color**           | Header text and timecode label colour                                  | `#ffffff` |
-| **Show header metadata** | Toggle the filename/info header row                                    | On        |
-| **Show preview**         | Show thumbnail previews in the output list                             | On        |
-| **Animated output**      | Generate an animated WebP instead of a static JPEG                     | Off       |
+The controls are grouped into three fieldsets: **Grid**, **Style**, and **Output Modes**.
+
+### Grid
+
+| Option            | Description                               | Default |
+| ----------------- | ----------------------------------------- | ------- |
+| **Output width**  | Total pixel width of the generated image. | 1920 px |
+| **Frame spacing** | Gap in pixels between cells.              | 0       |
+| **Grid columns**  | Number of columns in the grid.            | 3       |
+| **Grid rows**     | Number of rows in the grid.               | 4       |
+
+### Style
+
+| Option                   | Description                                                             | Default   |
+| ------------------------ | ----------------------------------------------------------------------- | --------- |
+| **Timecode position**    | Corner where the timestamp overlay appears, or **Disabled** to omit it. | Top-left  |
+| **Background color**     | Canvas and header background.                                           | `#000000` |
+| **Text color**           | Header text and timecode label colour.                                  | `#ffffff` |
+| **Show header metadata** | Toggle the filename/info header row.                                    | On        |
+| **Show preview**         | Show thumbnail previews in the output list.                             | On        |
+
+### Output Modes
+
+| Option              | Description                                                                                                             | Default  |
+| ------------------- | ----------------------------------------------------------------------------------------------------------------------- | -------- |
+| **Animated output** | Generate an animated WebP instead of a static JPEG. Reveals more options, see [Animation settings](#animation-settings) | Off      |
+| **VR Video**        | Crop one part of a stereo VR frame (SBS or TB layout), see [VR Video options](#vr-video-options)                        | Disabled |
 
 ---
 
@@ -87,7 +105,7 @@ WebP instead of a static JPEG. Each grid cell shows a short looping video clip
 sampled from its evenly-distributed timestamp, giving a quick visual overview
 of the entire video in motion.
 
-### How it works
+### How animated grids works
 
 1. **Frame composition** — for each animation frame the app seeks the source
    video to the appropriate timestamp for every cell, draws it onto a canvas,
@@ -101,6 +119,8 @@ of the entire video in motion.
 
 The **Animation settings** panel is shown below the main options whenever
 animated mode is enabled.
+
+These appear only when **Animated output** is enabled.
 
 | Setting          | Description                                                                                         | Default |
 | ---------------- | --------------------------------------------------------------------------------------------------- | ------- |
@@ -127,6 +147,61 @@ animated mode is enabled.
 
 ---
 
+## VR Video
+
+The **VR Video** dropdown lets you generate thumbnails from stereoscopic VR
+video without the distracting double-image that appears when the full frame is
+captured. Instead of showing both eyes side by side (or stacked), VidGrid-HTML
+crops a single eye from each decoded frame before drawing it onto the canvas.
+
+When any VR mode other than **Disabled** is selected, a note is added to the
+header row (when visible) explaining that the screenshots were modified.
+
+### Stereo layouts
+
+VR video is recorded in one of two stereo layouts:
+
+- **SBS (Side-by-Side)** — the left and right eye views are placed next to each
+  other horizontally. Each eye occupies half the frame width. Common in VR 180°
+  content.
+- **TB (Top-Bottom)** — the left and right eye views are stacked vertically.
+  Each eye occupies half the frame height. Common in VR 360° content.
+
+### VR Video options
+
+| Option                           | Description                                              |
+| -------------------------------- | -------------------------------------------------------- |
+| **Disabled**                     | No VR processing. The full frame is used as-is (default) |
+| **SBS - Crop Left Eye**          | Crops the left half of a Side-by-Side frame              |
+| **SBS - Crop Right Eye**         | Crops the right half of a Side-by-Side frame             |
+| **TB - Crop Top (Left Eye)**     | Crops the top half of a Top-Bottom frame                 |
+| **TB - Crop Bottom (Right Eye)** | Crops the bottom half of a Top-Bottom frame              |
+
+### How cropping works
+
+The crop is applied directly inside the canvas `drawImage` call using the
+9-argument form `drawImage(source, sx, sy, sw, sh, dx, dy, dw, dh)`, which
+selects a source rectangle from the decoded frame without any additional
+processing step. This means:
+
+- There is no performance overhead compared to non-VR processing.
+- It works on both the native browser decoder path and the FFmpeg WASM fallback
+  path, so all formats are supported.
+- Cell aspect ratio is automatically corrected — an SBS frame that is 16:9
+  overall produces cells that are 8:9 (portrait), as expected for a single eye.
+
+### Limitations
+
+- **Crop only, no projection correction.** The tool isolates one eye from the
+  stereo pair but does not reproject the image (e.g. equirectangular to flat
+  perspective). Thumbnails from 180° or 360° content will retain the
+  characteristic barrel distortion of those formats.
+- **Manual format selection.** VidGrid-HTML does not attempt to auto-detect
+  whether a file is VR or which stereo layout it uses. Select the correct mode
+  for your content.
+
+---
+
 ## Presets
 
 The 🗂️ dropdown at the top of the options panel lets you manage named presets:
@@ -141,7 +216,7 @@ The 🗂️ dropdown at the top of the options panel lets you manage named prese
   `<Default Preset>` is selected.
   Presets are stored in the browser's `localStorage` and persist between sessions.
   The last selected preset will also be restored when you return. All animation
-  settings are included in saved presets.
+  and VR settings are included in saved presets.
 
 ---
 
