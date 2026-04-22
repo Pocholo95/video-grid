@@ -1,14 +1,16 @@
-import {
-  HEADER_LINE_SPACING,
-  HEADER_PADDING_LEFT,
-  HEADER_TEXT_SIZE,
-} from "./constants";
 import { encodeAnimatedWebP, resetFFmpeg } from "./ffmpeg";
 import type { GridOptions, GridResult } from "./grid";
 import { seekVideo } from "./grid";
 import { canNativelyPlay } from "./mediainfo";
-import type { Position, VideoMetadata, VrMode } from "./types";
-import { errlog, formatTime, humanSize, log } from "./utils";
+import type { VideoMetadata, VrMode } from "./types";
+import {
+  calculateSampleTimes,
+  createHeaderCanvas,
+  drawErrorPlaceholder,
+  drawTimecodeOverlay,
+  getVrCropRect,
+} from "./gridUtils";
+import { errlog, log } from "./utils";
 
 /** Animated grid options, extending the static grid options with animation parameters. */
 export type AnimatedGridOptions = GridOptions & {
@@ -20,49 +22,6 @@ export type AnimatedGridOptions = GridOptions & {
   webpMethod: number;
   /** WebP output quality (5-100). */
   webpQuality: number;
-};
-
-/**
- * Returns the source crop rectangle for a VR stereo frame, isolating one eye.
- * Mirrors the equivalent helper in grid.ts, kept local to avoid a cross-module dependency.
- *
- * @param frameW  - Full pixel width of the decoded frame.
- * @param frameH  - Full pixel height of the decoded frame.
- * @param vrMode  - Active VR crop mode (must not be "disabled").
- * @returns An object with sx, sy, sw, sh describing the source region for drawImage.
- */
-const getVrCropRect = (
-  frameW: number,
-  frameH: number,
-  vrMode: Exclude<VrMode, "disabled">,
-): { sx: number; sy: number; sw: number; sh: number } => {
-  if (vrMode === "sbs-left" || vrMode === "sbs-right") {
-    const sw = Math.floor(frameW / 2);
-    return { sx: vrMode === "sbs-right" ? sw : 0, sy: 0, sw, sh: frameH };
-  }
-  // tb-left / tb-right
-  const sh = Math.floor(frameH / 2);
-  return { sx: 0, sy: vrMode === "tb-right" ? sh : 0, sw: frameW, sh };
-};
-
-/**
- * Returns a human-readable label for the active VR crop mode, used in the header note.
- *
- * @param vrMode - Active VR crop mode.
- */
-const vrModeLabel = (vrMode: VrMode): string => {
-  switch (vrMode) {
-    case "sbs-left":
-      return "SBS - Crop Left Eye";
-    case "sbs-right":
-      return "SBS - Crop Right Eye";
-    case "tb-left":
-      return "TB - Crop Top (Left Eye)";
-    case "tb-right":
-      return "TB - Crop Bottom (Right Eye)";
-    default:
-      return "";
-  }
 };
 
 /**
@@ -102,11 +61,11 @@ export const createAnimatedGridWebP = async (
 ): Promise<GridResult> => {
   if (!canNativelyPlay(file)) {
     throw new Error(
-      "Animated WebP output requires native browser video decoding. " +
-        "This format is not supported — FFmpeg fallback is unavailable in animated mode.",
+      "Animated WebP output requires native browser video decoding. FFmpeg fallback is unavailable in animated mode.",
     );
   }
-  const vrActive = opts.vrMode !== "disabled";
+  const canvas = document.createElement("canvas");
+  const ctx = canvas.getContext("2d")!;
 
   const totalWidth = Math.max(240, opts.width);
   const cols = Math.max(1, opts.cols);
@@ -114,6 +73,7 @@ export const createAnimatedGridWebP = async (
   const spacing = Math.max(0, opts.spacing);
   const totalCells = cols * rows;
   const duration = Math.max(1, meta.duration || 1);
+  const vrActive = opts.vrMode !== "disabled";
 
   const cellWidth = Math.floor((totalWidth - spacing * (cols - 1)) / cols);
 
@@ -126,18 +86,20 @@ export const createAnimatedGridWebP = async (
   }
 
   const cellHeight = Math.max(1, Math.floor(cellWidth * cellAspect));
-
-  // An extra header line is added when VR cropping is active.
-  const vrHeaderNote = vrActive
-    ? `VR Video: ${vrModeLabel(opts.vrMode)}`
-    : null;
-
-  const headerLineCount = 5 + (vrHeaderNote ? 1 : 0);
-  const headerHeight = opts.header
-    ? HEADER_PADDING_LEFT * 2 + headerLineCount * HEADER_LINE_SPACING
-    : 0;
-
   const canvasWidth = cols * cellWidth + spacing * (cols - 1);
+  let headerCanvas: HTMLCanvasElement | undefined;
+  let headerHeight = 0;
+  if (opts.header) {
+    headerCanvas = createHeaderCanvas(
+      file,
+      meta,
+      opts.vrMode,
+      canvasWidth,
+      opts.bgColor,
+      opts.textColor,
+    );
+    headerHeight = headerCanvas.height;
+  }
   const canvasHeight = headerHeight + rows * cellHeight + spacing * (rows - 1);
 
   const totalAnimFrames = Math.max(
@@ -145,25 +107,7 @@ export const createAnimatedGridWebP = async (
     Math.ceil(opts.animDuration * opts.animFps),
   );
   const frameDuration = 1 / opts.animFps;
-
-  // Base timestamp per cell, distributed evenly with a small margin at each end.
-  const margin = Math.max(0.5, duration * 0.02);
-  const usable = Math.max(duration - 2 * margin, 0.1);
-  const baseTimes = Array.from({ length: totalCells }, (_, i) =>
-    Math.min(Math.max(0, margin + usable * ((i + 0.5) / totalCells)), duration),
-  );
-
-  // Timecode position lookup.
-  const posMap: Record<
-    Exclude<Position, "disabled">,
-    { x: "left" | "right"; y: "top" | "bottom" }
-  > = {
-    "top-left": { x: "left", y: "top" },
-    "top-right": { x: "right", y: "top" },
-    "bottom-left": { x: "left", y: "bottom" },
-    "bottom-right": { x: "right", y: "bottom" },
-  };
-
+  const baseTimes = calculateSampleTimes(totalCells, duration);
   // Open a <video> element for native seeking.
   const videoUrl = URL.createObjectURL(file);
   const video = document.createElement("video");
@@ -207,47 +151,15 @@ export const createAnimatedGridWebP = async (
     for (let f = 0; f < totalAnimFrames; f++) {
       if (isCancelled()) break;
 
-      const canvas = document.createElement("canvas");
+      // Clear the canvas
       canvas.width = canvasWidth;
       canvas.height = canvasHeight;
-      const ctx = canvas.getContext("2d")!;
-
       ctx.fillStyle = opts.bgColor;
       ctx.fillRect(0, 0, canvasWidth, canvasHeight);
-
-      // Draw the header with static file info on every animation frame.
-      if (opts.header) {
-        ctx.fillStyle = opts.textColor;
-        ctx.font = `${HEADER_TEXT_SIZE}px system-ui, Arial, sans-serif`;
-        ctx.textBaseline = "top";
-        const infoLines = [
-          `Filename: ${file.name}`,
-          `Size: ${humanSize(file.size)}`,
-          `Resolution: ${meta.width > 0 ? `${meta.width}x${meta.height}` : "Unknown"}`,
-          `Duration: ${formatTime(meta.duration)}`,
-          `Bitrate: ${meta.bitrate ? `${Math.round(meta.bitrate / 1000)} kbps` : "Unknown"}`,
-        ];
-        if (vrHeaderNote) infoLines.push(vrHeaderNote);
-        const maxTextWidth = canvasWidth - HEADER_PADDING_LEFT * 2;
-        let yPos = HEADER_PADDING_LEFT;
-        for (const line of infoLines) {
-          let displayLine = line;
-          if (ctx.measureText(displayLine).width > maxTextWidth) {
-            while (
-              displayLine.length > 0 &&
-              ctx.measureText(displayLine + "…").width > maxTextWidth
-            ) {
-              displayLine = displayLine.slice(0, -1);
-            }
-            displayLine += "…";
-          }
-          ctx.fillText(displayLine, HEADER_PADDING_LEFT, yPos);
-          yPos += HEADER_LINE_SPACING;
-        }
-        ctx.textBaseline = "alphabetic";
+      if (headerCanvas) {
+        ctx.drawImage(headerCanvas, 0, 0);
       }
 
-      // Draw each cell at its timestamp offset for this animation frame.
       for (let i = 0; i < totalCells; i++) {
         const tSec = Math.min(
           baseTimes[i] + f * frameDuration,
@@ -286,40 +198,24 @@ export const createAnimatedGridWebP = async (
           onWarning(
             `Seek failed at animation frame ${f + 1}, cell ${i + 1}: ${msg}`,
           );
-          // Draw a placeholder on failure.
-          ctx.fillStyle = opts.bgColor;
-          ctx.fillRect(x, y, cellWidth, cellHeight);
-          ctx.fillStyle = "#555";
-          ctx.font = "18px system-ui";
-          ctx.textAlign = "center";
-          ctx.textBaseline = "middle";
-          ctx.fillText("FAILED", x + cellWidth / 2, y + cellHeight / 2);
-          ctx.textAlign = "left";
-          ctx.textBaseline = "alphabetic";
+          drawErrorPlaceholder(ctx, x, y, cellWidth, cellHeight, opts.bgColor);
         }
 
-        // Timecode overlay showing the current seek position.
-        if (opts.position !== "disabled") {
-          const pos = posMap[opts.position];
-          const label = formatTime(tSec);
-          const tcFontSz = Math.max(11, Math.round(totalWidth * 0.012));
-          ctx.font = `${tcFontSz}px system-ui, Arial, sans-serif`;
-          ctx.textBaseline = "top";
-          const textW = ctx.measureText(label).width;
-          const pad = 6;
-          const bgW = textW + pad * 2;
-          const bgH = tcFontSz + pad * 2;
-          const bgX = pos.x === "left" ? x + pad : x + cellWidth - bgW - pad;
-          const bgY = pos.y === "top" ? y + pad : y + cellHeight - bgH - pad;
-          ctx.fillStyle = "rgba(0,0,0,0.6)";
-          ctx.fillRect(bgX, bgY, bgW, bgH);
-          ctx.fillStyle = "#ffffff";
-          ctx.fillText(label, bgX + pad, bgY + pad);
-          ctx.textBaseline = "alphabetic";
-        }
+        // Timecode overlay
+        drawTimecodeOverlay(
+          ctx,
+          tSec,
+          x,
+          y,
+          cellWidth,
+          cellHeight,
+          totalWidth,
+          opts.position,
+          opts.bgColor,
+          opts.textColor,
+        );
       }
 
-      // Export the composed frame as PNG and release the canvas immediately.
       const frameBlob = await new Promise<Blob>((resolve) => {
         canvas.toBlob((b) => resolve(b ?? new Blob()), "image/png");
       });

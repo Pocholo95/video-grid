@@ -75,3 +75,33 @@ export const hasUsableMetadata = (
   meta: VideoMetadata | undefined,
 ): meta is VideoMetadata =>
   meta != null && meta.duration > 0 && meta.width > 0 && meta.height > 0;
+
+/**
+ * Converts a RGB Hex code (with or without # prefix) to an RGBA string.
+ * Supports shorthand (#rgb) and full (#rrggbb) formats.
+ *
+ * @param hex RGB Hex code string (e.g., '#ff0000' or '#f00')
+ * @param alpha Alpha value (0-1, defaults to 1)
+ * @returns RGBA string
+ * @throws Error for invalid hex
+ */
+export const hexToRgba = (hex: string, alpha: number = 1): string => {
+  if (alpha < 0 || alpha > 1) {
+    throw new Error("Alpha must be between 0 and 1");
+  }
+  const cleaned = hex.replace(/[^#a-fA-F0-9]/g, "").replace(/^#?/, "");
+  if (!/^([a-f0-9]{3}){1,2}$/i.test(cleaned)) {
+    throw new Error(`Invalid hex color: ${hex}`);
+  }
+  let fullHex = cleaned;
+  if (fullHex.length === 3) {
+    fullHex = fullHex
+      .split("")
+      .map((c) => c + c)
+      .join("");
+  }
+  const r = parseInt(fullHex.slice(0, 2), 16);
+  const g = parseInt(fullHex.slice(2, 4), 16);
+  const b = parseInt(fullHex.slice(4, 6), 16);
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+};

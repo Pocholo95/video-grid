@@ -1,9 +1,4 @@
-import {
-  HEADER_LINE_SPACING,
-  HEADER_PADDING_LEFT,
-  HEADER_TEXT_SIZE,
-  SEEK_TIMEOUT_MS,
-} from "./constants";
+import { SEEK_TIMEOUT_MS } from "./constants";
 import {
   cleanupFFmpeg,
   extractFramesFFmpegBatch,
@@ -11,9 +6,14 @@ import {
   resetFFmpeg,
 } from "./ffmpeg";
 import type { Position, VideoMetadata, VrMode } from "./types";
-import { errlog, formatTime, humanSize, log, warn } from "./utils";
-
-// Types
+import { errlog, formatTime, log, warn } from "./utils";
+import {
+  calculateSampleTimes,
+  createHeaderCanvas,
+  drawErrorPlaceholder,
+  drawTimecodeOverlay,
+  getVrCropRect,
+} from "./gridUtils";
 
 export type GridOptions = {
   width: number;
@@ -63,49 +63,6 @@ export const seekVideo = (video: HTMLVideoElement, t: number): Promise<void> =>
   });
 
 /**
- * Returns the source crop rectangle for a VR stereo frame, isolating one eye.
- * Works on both HTMLVideoElement dimensions and ImageBitmap dimensions.
- *
- * @param frameW  - Full pixel width of the decoded frame.
- * @param frameH  - Full pixel height of the decoded frame.
- * @param vrMode  - Active VR crop mode (must not be "disabled").
- * @returns An object with sx, sy, sw, sh describing the source region for drawImage.
- */
-const getVrCropRect = (
-  frameW: number,
-  frameH: number,
-  vrMode: Exclude<VrMode, "disabled">,
-): { sx: number; sy: number; sw: number; sh: number } => {
-  if (vrMode === "sbs-left" || vrMode === "sbs-right") {
-    const sw = Math.floor(frameW / 2);
-    return { sx: vrMode === "sbs-right" ? sw : 0, sy: 0, sw, sh: frameH };
-  }
-  // tb-left / tb-right
-  const sh = Math.floor(frameH / 2);
-  return { sx: 0, sy: vrMode === "tb-right" ? sh : 0, sw: frameW, sh };
-};
-
-/**
- * Returns a human-readable label for the active VR crop mode, used in the header note.
- *
- * @param vrMode - Active VR crop mode.
- */
-const vrModeLabel = (vrMode: VrMode): string => {
-  switch (vrMode) {
-    case "sbs-left":
-      return "SBS - Crop Left Eye";
-    case "sbs-right":
-      return "SBS - Crop Right Eye";
-    case "tb-left":
-      return "TB - Crop Top (Left Eye)";
-    case "tb-right":
-      return "TB - Crop Bottom (Right Eye)";
-    default:
-      return "";
-  }
-};
-
-/**
  * Build a JPEG contact sheet for a single video file.
  * Tries native browser seeking first, falling back to FFmpeg WASM if that fails.
  *
@@ -152,86 +109,37 @@ export const createGridJpg = async (
     else cellAspect /= 2;
   }
 
+  const canvas = document.createElement("canvas");
+  const ctx = canvas.getContext("2d")!;
+
   const cellWidth = Math.floor((totalWidth - spacing * (cols - 1)) / cols);
   const cellHeight = Math.max(1, Math.floor(cellWidth * cellAspect));
-
-  // An extra header line is added when VR cropping is active.
-  const vrHeaderNote = vrActive
-    ? `VR Video: ${vrModeLabel(opts.vrMode)}`
-    : null;
-
-  const headerLineCount = 5 + (vrHeaderNote ? 1 : 0);
-  const headerHeight = opts.header
-    ? HEADER_PADDING_LEFT * 2 + headerLineCount * HEADER_LINE_SPACING
-    : 0;
-
   const canvasWidth = cols * cellWidth + spacing * (cols - 1);
+  let headerCanvas: HTMLCanvasElement | undefined;
+  let headerHeight = 0;
+  if (opts.header) {
+    headerCanvas = createHeaderCanvas(
+      file,
+      meta,
+      opts.vrMode,
+      canvasWidth,
+      opts.bgColor,
+      opts.textColor,
+    );
+    headerHeight = headerCanvas.height;
+  }
   const canvasHeight = headerHeight + rows * cellHeight + spacing * (rows - 1);
 
-  const canvas = document.createElement("canvas");
   canvas.width = canvasWidth;
   canvas.height = canvasHeight;
-  const ctx = canvas.getContext("2d")!;
 
   ctx.fillStyle = opts.bgColor;
   ctx.fillRect(0, 0, canvasWidth, canvasHeight);
 
-  // Header
-  if (opts.header) {
-    ctx.fillStyle = opts.bgColor;
-    ctx.fillRect(0, 0, canvasWidth, headerHeight);
-    ctx.fillStyle = opts.textColor;
-    ctx.font = `${HEADER_TEXT_SIZE}px system-ui, Arial, sans-serif`;
-    ctx.textBaseline = "top";
-
-    const infoLines = [
-      `Filename: ${file.name}`,
-      `Size: ${humanSize(file.size)}`,
-      `Resolution: ${meta.width > 0 ? `${meta.width}x${meta.height}` : "Unknown"}`,
-      `Duration: ${formatTime(meta.duration)}`,
-      `Bitrate: ${meta.bitrate ? `${Math.round(meta.bitrate / 1000)} kbps` : "Unknown"}`,
-    ];
-
-    if (vrHeaderNote) infoLines.push(vrHeaderNote);
-    const maxTextWidth = canvasWidth - HEADER_PADDING_LEFT * 2;
-    let yPos = HEADER_PADDING_LEFT;
-
-    for (const line of infoLines) {
-      let displayLine = line;
-      if (ctx.measureText(displayLine).width > maxTextWidth) {
-        while (
-          displayLine.length > 0 &&
-          ctx.measureText(displayLine + "…").width > maxTextWidth
-        ) {
-          displayLine = displayLine.slice(0, -1);
-        }
-        displayLine += "…";
-      }
-      ctx.fillText(displayLine, HEADER_PADDING_LEFT, yPos);
-      yPos += HEADER_LINE_SPACING;
-    }
-    ctx.textBaseline = "alphabetic";
+  if (headerCanvas) {
+    ctx.drawImage(headerCanvas, 0, 0);
   }
-
-  // Sample timestamps - distributed evenly with a small margin at each end.
-  const margin = Math.max(0.5, duration * 0.02);
-  const usable = Math.max(duration - 2 * margin, 0.1);
-  const times = Array.from({ length: total }, (_, i) =>
-    Math.min(Math.max(0, margin + usable * ((i + 0.5) / total)), duration),
-  );
-
-  // Timecode position map
-  const posMap: Record<
-    Exclude<Position, "disabled">,
-    { x: "left" | "right"; y: "top" | "bottom" }
-  > = {
-    "top-left": { x: "left", y: "top" },
-    "top-right": { x: "right", y: "top" },
-    "bottom-left": { x: "left", y: "bottom" },
-    "bottom-right": { x: "right", y: "bottom" },
-  };
-
-  // Open a <video> element for native seeking.
+  const times = calculateSampleTimes(total, duration);
   const videoUrl = URL.createObjectURL(file);
   const video = document.createElement("video");
   video.muted = true;
@@ -382,37 +290,22 @@ export const createGridJpg = async (
 
     // Error placeholder when both paths failed
     if (!frameDrawn) {
-      ctx.fillStyle = opts.bgColor;
-      ctx.fillRect(x, y, cellWidth, cellHeight);
-      ctx.fillStyle = "#555";
-      ctx.font = "18px system-ui";
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      ctx.fillText("FAILED", x + cellWidth / 2, y + cellHeight / 2);
-      ctx.textAlign = "left";
-      ctx.textBaseline = "alphabetic";
+      drawErrorPlaceholder(ctx, x, y, cellWidth, cellHeight, opts.bgColor);
     }
 
     // Timecode overlay
-    if (opts.position !== "disabled") {
-      const pos = posMap[opts.position];
-      const label = formatTime(tSec);
-      const tcFontSz = Math.max(11, Math.round(totalWidth * 0.012));
-      ctx.font = `${tcFontSz}px system-ui, Arial, sans-serif`;
-      ctx.textBaseline = "top";
-      const textW = ctx.measureText(label).width;
-      const pad = 6;
-      const bgW = textW + pad * 2;
-      const bgH = tcFontSz + pad * 2;
-      const bgX = pos.x === "left" ? x + pad : x + cellWidth - bgW - pad;
-      const bgY = pos.y === "top" ? y + pad : y + cellHeight - bgH - pad;
-
-      ctx.fillStyle = "rgba(0,0,0,0.6)";
-      ctx.fillRect(bgX, bgY, bgW, bgH);
-      ctx.fillStyle = "#ffffff";
-      ctx.fillText(label, bgX + pad, bgY + pad);
-      ctx.textBaseline = "alphabetic";
-    }
+    drawTimecodeOverlay(
+      ctx,
+      tSec,
+      x,
+      y,
+      cellWidth,
+      cellHeight,
+      totalWidth,
+      opts.position,
+      opts.bgColor,
+      opts.textColor,
+    );
 
     onFrameDone(i + 1, total, tSec);
     // Avoid using requestAnimationFrame. unfocused windows/tab throttle it
