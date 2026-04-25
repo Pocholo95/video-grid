@@ -230,7 +230,6 @@ h3 {
   height: 18px;
 }
 
-
 /* Full-width utility - spans both columns of the parent .controls grid */
 .ctrl-full {
   grid-column: 1 / -1;
@@ -353,6 +352,418 @@ h3 {
   color: var(--muted);
   font-size: 0.85rem;
   letter-spacing: 0.04em;
+}
+
+/* OutputCard timestamp row */
+.ts-card-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 12px;
+  background: rgba(8, 17, 31, 0.45);
+  border: 1px solid rgba(130, 213, 253, 0.1);
+  border-radius: 10px;
+  flex-wrap: wrap;
+}
+
+.ts-card-label {
+  font-size: 0.82rem;
+  color: var(--muted);
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ts-card-label--custom {
+  color: var(--accent);
+}
+
+.ts-card-edit-btn {
+  font-size: 0.8rem;
+  padding: 5px 12px !important;
+  border-radius: 8px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.ts-card-edit-btn--active {
+  background: rgba(56, 189, 248, 0.15) !important;
+  border-color: rgba(130, 213, 253, 0.4) !important;
+  color: var(--accent) !important;
+}
+
+/* Modal sizing overrides for the editor */
+.ts-editor-backdrop {
+  z-index: 9999;
+}
+
+.ts-editor-box {
+  width: min(900px, 96vw) !important;
+  max-height: 92vh !important;
+  display: flex !important;
+  flex-direction: column;
+  gap: 0 !important;
+  padding: 0 !important;
+}
+
+.ts-editor-box .modal-header {
+  padding: 20px 24px 16px;
+  border-bottom: 1px solid rgba(130, 213, 253, 0.1);
+  flex-shrink: 0;
+}
+
+.ts-editor-box .modal-header h2 {
+  margin: 0;
+  font-size: 1.1rem;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex-flow: wrap;
+}
+
+.ts-editor-title-icon {
+  flex-shrink: 0;
+}
+
+.ts-editor-filename {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--accent);
+  font-size: 0.95rem;
+}
+
+/* Editor body: two-column layout */
+.ts-editor-body {
+  display: grid;
+  grid-template-columns: 1fr 260px;
+  gap: 0;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.ts-editor-left {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 20px 20px 16px;
+  min-width: 0;
+  overflow-y: auto;
+  border-right: 1px solid rgba(130, 213, 253, 0.1);
+}
+
+.ts-editor-right {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  min-height: 0;
+}
+
+/* Video */
+.ts-video {
+  width: 100%;
+  max-height: 340px;
+  background: #000;
+  border-radius: 10px;
+  display: block;
+  object-fit: contain;
+}
+
+.ts-video-error {
+  background: rgba(248, 113, 113, 0.1);
+  border: 1px solid rgba(248, 113, 113, 0.3);
+  border-radius: 10px;
+  padding: 16px;
+  font-size: 0.88rem;
+  color: var(--danger);
+  line-height: 1.5;
+}
+
+/* Seekbar */
+.ts-seekbar {
+  position: relative;
+  height: 36px;
+  background: rgba(8, 17, 31, 0.7);
+  border: 1px solid rgba(130, 213, 253, 0.18);
+  border-radius: 8px;
+  cursor: pointer;
+  overflow: visible;
+  user-select: none;
+  flex-shrink: 0;
+}
+
+.ts-seekbar-fill {
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 100%;
+  background: rgba(56, 189, 248, 0.2);
+  border-radius: 8px;
+  pointer-events: none;
+  transition: width 0.05s linear;
+}
+
+.ts-playhead {
+  position: absolute;
+  top: -3px;
+  bottom: -3px;
+  width: 2px;
+  background: var(--accent-strong);
+  border-radius: 2px;
+  transform: translateX(-50%);
+  pointer-events: none;
+  z-index: 3;
+}
+
+/* Marker pins on the seekbar */
+.ts-marker-pin {
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 2px solid #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 4;
+  transition: transform 0.1s;
+}
+
+.ts-marker-pin:hover {
+  transform: translate(-50%, -50%) scale(1.25);
+}
+
+.ts-marker-pin--used {
+  background: var(--accent-strong);
+}
+
+.ts-marker-pin--overflow {
+  background: var(--muted);
+  opacity: 0.55;
+}
+
+.ts-marker-pin--selected {
+  outline: 2px solid #fff;
+  outline-offset: 2px;
+  transform: translate(-50%, -50%) scale(1.2);
+}
+
+.ts-marker-pin-label {
+  font-size: 8px;
+  font-weight: 700;
+  color: #fff;
+  line-height: 1;
+  pointer-events: none;
+}
+
+/* Transport */
+.ts-transport {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.ts-play-btn {
+  font-size: 1.1rem;
+  width: 38px;
+  height: 38px;
+  flex-shrink: 0;
+}
+
+.ts-timecode {
+  font-family: "SF Mono", "Cascadia Code", "Fira Mono", monospace;
+  font-size: 0.9rem;
+  color: var(--text);
+  flex: 1;
+}
+
+.ts-timecode-sep {
+  color: var(--muted);
+}
+
+.ts-add-btn {
+  font-size: 0.85rem;
+  padding: 8px 14px !important;
+  background: rgba(56, 189, 248, 0.12) !important;
+  border-color: rgba(130, 213, 253, 0.3) !important;
+  color: var(--accent) !important;
+  white-space: nowrap;
+}
+
+.ts-add-btn:hover:not(:disabled) {
+  background: rgba(56, 189, 248, 0.22) !important;
+}
+
+/* Summary line */
+.ts-summary {
+  font-size: 0.82rem;
+  line-height: 1.5;
+  flex-shrink: 0;
+}
+
+.ts-summary-used {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.ts-summary-auto {
+  color: var(--muted);
+}
+
+.ts-summary-overflow {
+  color: var(--warning-bg);
+}
+
+/* Marker list (right panel) */
+.ts-marker-list-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 14px 14px 10px;
+  border-bottom: 1px solid rgba(130, 213, 253, 0.08);
+  flex-shrink: 0;
+}
+
+.ts-marker-list-title {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+}
+
+.ts-clear-btn {
+  font-size: 0.75rem;
+  padding: 4px 8px !important;
+}
+
+.ts-marker-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 6px 0;
+}
+
+.ts-marker-empty {
+  padding: 20px 14px;
+  font-size: 0.83rem;
+  color: var(--muted);
+  line-height: 1.6;
+  margin: 0;
+}
+
+.ts-marker-empty kbd {
+  display: inline-block;
+  font-family: "SF Mono", "Cascadia Code", monospace;
+  font-size: 0.75em;
+  background: rgba(130, 213, 253, 0.1);
+  border: 1px solid rgba(130, 213, 253, 0.2);
+  border-radius: 4px;
+  padding: 1px 5px;
+  color: var(--accent);
+}
+
+.ts-marker-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 14px;
+  cursor: pointer;
+  transition: background 0.1s;
+  border-left: 2px solid transparent;
+}
+
+.ts-marker-row:hover {
+  background: rgba(130, 213, 253, 0.06);
+}
+
+.ts-marker-row--selected {
+  background: rgba(56, 189, 248, 0.1);
+  border-left-color: var(--accent-strong);
+}
+
+.ts-marker-row--overflow {
+  opacity: 0.45;
+}
+
+.ts-marker-num {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--muted);
+  min-width: 24px;
+  flex-shrink: 0;
+}
+
+.ts-marker-time {
+  font-family: "SF Mono", "Cascadia Code", "Fira Mono", monospace;
+  font-size: 0.82rem;
+  color: var(--text);
+  flex: 1;
+}
+
+.ts-marker-overflow-badge {
+  font-size: 0.68rem;
+  color: var(--warning-bg);
+  border: 1px solid currentColor;
+  border-radius: 4px;
+  padding: 1px 4px;
+  white-space: nowrap;
+}
+
+.ts-marker-delete {
+  font-size: 0.7rem;
+  padding: 3px 6px !important;
+  opacity: 0;
+  transition: opacity 0.15s;
+  flex-shrink: 0;
+}
+
+.ts-marker-row:hover .ts-marker-delete,
+.ts-marker-row--selected .ts-marker-delete {
+  opacity: 1;
+}
+
+/* Footer */
+.ts-editor-box .modal-footer {
+  padding: 14px 20px;
+  border-top: 1px solid rgba(130, 213, 253, 0.1);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  flex-shrink: 0;
+}
+
+.ts-editor-hint {
+  font-size: 0.78rem;
+  color: var(--muted);
+  margin: 0;
+}
+
+.ts-editor-hint kbd {
+  display: inline-block;
+  font-family: "SF Mono", "Cascadia Code", monospace;
+  font-size: 0.8em;
+  background: rgba(130, 213, 253, 0.08);
+  border: 1px solid rgba(130, 213, 253, 0.18);
+  border-radius: 4px;
+  padding: 1px 5px;
+  color: var(--accent);
+}
+
+.ts-editor-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
 }
 
 /* Presets */
@@ -1260,6 +1671,31 @@ progress::-webkit-progress-value {
   .copy-btn {
     width: 100%;
   }
+  .ts-editor-body {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto 1fr;
+    overflow-y: auto;
+  }
+
+  .ts-editor-left {
+    border-right: none;
+    border-bottom: 1px solid rgba(130, 213, 253, 0.1);
+    overflow-y: visible;
+  }
+
+  .ts-editor-right {
+    min-height: 180px;
+  }
+
+  .ts-editor-box .modal-footer {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .ts-editor-actions {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
 }
 
 /* Footer */
@@ -1273,7 +1709,9 @@ progress::-webkit-progress-value {
 
 .app-footer a {
   color: var(--muted);
-  transition: color 0.15s, opacity 0.15s;
+  transition:
+    color 0.15s,
+    opacity 0.15s;
 }
 
 .app-footer a:hover {

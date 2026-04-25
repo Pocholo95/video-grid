@@ -32,7 +32,7 @@ export type ProcessorStatus = {
 type Updater = (id: string, patch: Partial<OutputItem>) => void;
 
 /**
- * Fraction of per-file progress (0–100) allocated to the frame-composition
+ * Fraction of per-file progress (0-100) allocated to the frame-composition
  * phase of animated WebP generation. The remaining share goes to FFmpeg encoding.
  */
 const ANIMATED_COMPOSE_PCT = 70;
@@ -141,7 +141,7 @@ export function useProcessor(updateItem: Updater) {
       setIsProcessing(true);
       cancelRef.current = false;
 
-      const gridOpts = {
+      const baseGridOpts = {
         width: Math.max(240, opts.width || DEFAULTS.width),
         cols: Math.max(1, opts.cols || DEFAULTS.cols),
         rows: Math.max(1, opts.rows || DEFAULTS.rows),
@@ -154,18 +154,6 @@ export function useProcessor(updateItem: Updater) {
       };
 
       const isAnimated = opts.animated ?? false;
-
-      // Animated options — safe to build once; only used when isAnimated is true.
-      const animGridOpts: AnimatedGridOptions = {
-        ...gridOpts,
-        animDuration: Math.max(1, opts.animDuration ?? DEFAULTS.animDuration),
-        animFps: Math.max(1, opts.animFps ?? DEFAULTS.animFps),
-        webpMethod: opts.webpMethod ?? DEFAULTS.webpMethod,
-        webpQuality: Math.min(
-          100,
-          Math.max(5, opts.webpQuality ?? DEFAULTS.webpQuality),
-        ),
-      };
 
       let done = 0;
       const batchStartTime = Date.now();
@@ -251,17 +239,44 @@ export function useProcessor(updateItem: Updater) {
               );
             }
 
-            let res;
+            // Attach per-item custom timestamps to the grid options for this file.
+            const itemCustomTimestamps =
+              item.timestampMode === "custom" &&
+              item.customTimestamps &&
+              item.customTimestamps.length > 0
+                ? item.customTimestamps
+                : undefined;
 
+            const gridOpts = {
+              ...baseGridOpts,
+              customTimestamps: itemCustomTimestamps,
+            };
+
+            // Animated options — built per-item so customTimestamps is correctly scoped.
+            const animGridOpts: AnimatedGridOptions = {
+              ...gridOpts,
+              animDuration: Math.max(
+                1,
+                opts.animDuration ?? DEFAULTS.animDuration,
+              ),
+              animFps: Math.max(1, opts.animFps ?? DEFAULTS.animFps),
+              webpMethod: opts.webpMethod ?? DEFAULTS.webpMethod,
+              webpQuality: Math.min(
+                100,
+                Math.max(5, opts.webpQuality ?? DEFAULTS.webpQuality),
+              ),
+            };
+
+            let res;
             if (isAnimated) {
               /**
                * Animated WebP progress is split into two phases:
-               *   1. Frame composition (seeks + canvas draw):  0 – ANIMATED_COMPOSE_PCT %
-               *   2. FFmpeg WebP encoding:  ANIMATED_COMPOSE_PCT – 100 %
+               *   1. Frame composition (seeks + canvas draw):  0 - ANIMATED_COMPOSE_PCT %
+               *   2. FFmpeg WebP encoding:  ANIMATED_COMPOSE_PCT - 100 %
                *
-               * The encode callback receives a 0–1 ratio where:
-               *   0.0–0.5 = PNG frames being written to FFmpeg's virtual FS
-               *   0.5–1.0 = libwebp encoding in progress (driven by FFmpeg progress events)
+               * The encode callback receives a 0-1 ratio where:
+               *   0.0-0.5 = PNG frames being written to FFmpeg's virtual FS
+               *   0.5-1.0 = libwebp encoding in progress (driven by FFmpeg progress events)
                */
               const onAnimFrameDone = (
                 composedFrame: number,

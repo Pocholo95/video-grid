@@ -26,8 +26,16 @@ export type VrMode =
   | "tb-left"
   | "tb-right";
 
+/**
+ * Controls how sample timestamps are chosen for a specific queued file.
+ * "auto" = evenly-distributed across the video duration.
+ * "custom" = user-specified markers stored in `customTimestamps`.
+ */
+export type ItemTimestampMode = "auto" | "custom";
+
 // - Upload
 export type UploadStatus = "idle" | "uploading" | "done" | "error";
+
 export type UploadResult = {
   /** URL to the host viewer page */
   pageUrl: string;
@@ -40,7 +48,9 @@ export type UploadResult = {
   /** One-click delete URL */
   deleteUrl: string;
 };
+
 export type DestinationType = "chevereto";
+
 export type UploadDestination = {
   id: string;
   name: string;
@@ -81,6 +91,17 @@ export type OutputItem = {
    * Only populated once processing completes and an upload is attempted.
    */
   uploads?: Record<string, DestinationUploadState>;
+  /**
+   * Per-file timestamp mode. Defaults to "auto" when undefined.
+   * Reset to "auto" whenever the grid dimensions (cols/rows) change.
+   */
+  timestampMode?: ItemTimestampMode;
+  /**
+   * User-specified marker times in seconds, sorted ascending.
+   * Only used when timestampMode is "custom".
+   * Cells beyond the length of this array fall back to auto-calculated times.
+   */
+  customTimestamps?: number[];
 };
 
 // - Settings / Options
@@ -103,6 +124,7 @@ export type SavedOptions = {
 };
 
 export type Presets = Record<string, SavedOptions>;
+
 export type AppSettings = {
   presets: {
     entries: Presets;

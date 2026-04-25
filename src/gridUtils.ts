@@ -216,7 +216,7 @@ export const drawErrorPlaceholder = (
 /**
  * Calculates evenly distributed sample timestamps across video duration with margins.
  *
- * @param totalCells - Number of thumbnail cells/thumbnials to generate
+ * @param totalCells - Number of thumbnail cells to generate
  * @param duration - Total video duration in seconds
  * @returns Array of timestamp positions in seconds
  */
@@ -229,4 +229,35 @@ export const calculateSampleTimes = (
   return Array.from({ length: totalCells }, (_, i) =>
     Math.min(Math.max(0, margin + usable * ((i + 0.5) / totalCells)), duration),
   );
+};
+
+/**
+ * Resolves the final list of cell timestamps, merging custom markers and auto times.
+ *
+ * When custom timestamps are provided:
+ * - If there are enough for all cells, the first `totalCells` entries are used.
+ * - If there are fewer, custom entries fill the leading cells and auto-calculated
+ *   times fill the remainder, so the grid is always fully populated.
+ * All timestamps are clamped to [0, duration - 0.001].
+ *
+ * @param custom - User-supplied marker timestamps in seconds (sorted ascending).
+ * @param totalCells - Number of cells in the grid (cols * rows).
+ * @param duration - Video duration in seconds.
+ * @returns Array of exactly `totalCells` timestamps in seconds.
+ */
+export const resolveTimestamps = (
+  custom: number[],
+  totalCells: number,
+  duration: number,
+): number[] => {
+  const maxT = Math.max(0, duration - 0.001);
+  const clamped = custom.map((t) => Math.min(Math.max(0, t), maxT));
+
+  if (clamped.length >= totalCells) {
+    return clamped.slice(0, totalCells);
+  }
+
+  // Pad the remainder with evenly-spaced auto times.
+  const auto = calculateSampleTimes(totalCells, duration);
+  return [...clamped, ...auto.slice(clamped.length)];
 };

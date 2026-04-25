@@ -13,6 +13,7 @@ import {
   drawErrorPlaceholder,
   drawTimecodeOverlay,
   getVrCropRect,
+  resolveTimestamps,
 } from "./gridUtils";
 
 export type GridOptions = {
@@ -30,6 +31,12 @@ export type GridOptions = {
    * frame rather than drawing the full frame into the cell.
    */
   vrMode: VrMode;
+  /**
+   * Optional per-file custom marker timestamps in seconds (sorted ascending).
+   * When provided, replaces evenly-distributed auto sampling. Cells beyond
+   * the end of the array still receive auto-calculated fallback times.
+   */
+  customTimestamps?: number[];
 };
 
 export type GridResult = {
@@ -39,7 +46,6 @@ export type GridResult = {
 };
 
 // Seek helper
-
 /**
  * Seeks a video element to the given time and resolves when the seek completes.
  * Rejects with a timeout error if the seek takes longer than SEEK_TIMEOUT_MS.
@@ -53,7 +59,6 @@ export const seekVideo = (video: HTMLVideoElement, t: number): Promise<void> =>
       video.removeEventListener("seeked", onSeeked);
       reject(new Error(`Seek timeout at ${t.toFixed(3)}s`));
     }, SEEK_TIMEOUT_MS);
-
     const onSeeked = () => {
       clearTimeout(tid);
       resolve();
@@ -70,6 +75,10 @@ export const seekVideo = (video: HTMLVideoElement, t: number): Promise<void> =>
  * is adjusted to crop one eye from the stereo frame. This works on both the
  * native and FFmpeg fallback paths without any additional processing overhead.
  * A note is added to the header when it is visible.
+ *
+ * When `opts.customTimestamps` is provided, those timestamps are used instead
+ * of evenly-distributed automatic sampling. Cells beyond the list fall back to
+ * auto-calculated times so the grid is always fully populated.
  *
  * @param file         - The source video file.
  * @param meta         - Pre-read metadata (dimensions, duration, etc.).
@@ -111,10 +120,10 @@ export const createGridJpg = async (
 
   const canvas = document.createElement("canvas");
   const ctx = canvas.getContext("2d")!;
-
   const cellWidth = Math.floor((totalWidth - spacing * (cols - 1)) / cols);
   const cellHeight = Math.max(1, Math.floor(cellWidth * cellAspect));
   const canvasWidth = cols * cellWidth + spacing * (cols - 1);
+
   let headerCanvas: HTMLCanvasElement | undefined;
   let headerHeight = 0;
   if (opts.header) {
@@ -128,25 +137,28 @@ export const createGridJpg = async (
     );
     headerHeight = headerCanvas.height;
   }
-  const canvasHeight = headerHeight + rows * cellHeight + spacing * (rows - 1);
 
+  const canvasHeight = headerHeight + rows * cellHeight + spacing * (rows - 1);
   canvas.width = canvasWidth;
   canvas.height = canvasHeight;
-
   ctx.fillStyle = opts.bgColor;
   ctx.fillRect(0, 0, canvasWidth, canvasHeight);
-
   if (headerCanvas) {
     ctx.drawImage(headerCanvas, 0, 0);
   }
-  const times = calculateSampleTimes(total, duration);
+
+  // Choose sample times: per-file custom markers or evenly-distributed auto times.
+  const times =
+    opts.customTimestamps && opts.customTimestamps.length > 0
+      ? resolveTimestamps(opts.customTimestamps, total, duration)
+      : calculateSampleTimes(total, duration);
+
   const videoUrl = URL.createObjectURL(file);
   const video = document.createElement("video");
   video.muted = true;
   video.playsInline = true;
   video.preload = "metadata";
   video.src = videoUrl;
-
   const videoCleanup = () => {
     video.removeAttribute("src");
     video.load();
@@ -187,7 +199,6 @@ export const createGridJpg = async (
   // FFmpeg batch results - lazily populated on first need.
   let ffmpegBitmaps: (ImageBitmap | null)[] | null = null;
   let ffmpegFailedFrames = 0;
-
   const ensureFFmpegBitmaps = async (): Promise<void> => {
     if (ffmpegBitmaps !== null) return;
     log(`  Switching to FFmpeg batch extraction for all ${total} frames…`);
@@ -211,7 +222,6 @@ export const createGridJpg = async (
   // Frame loop
   for (let i = 0; i < times.length; i++) {
     if (isCancelled()) break;
-
     const tSec = times[i];
     const col = i % cols;
     const row = Math.floor(i / cols);
@@ -320,9 +330,7 @@ export const createGridJpg = async (
   const jpgBlob = await new Promise<Blob>((resolve) => {
     canvas.toBlob((b) => resolve(b ?? new Blob()), "image/jpeg", 0.95);
   });
-
   canvas.width = 0;
   canvas.height = 0;
-
   return { outputName, outputSize: jpgBlob.size, outputBlob: jpgBlob };
 };

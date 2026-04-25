@@ -9,6 +9,7 @@ import {
   drawErrorPlaceholder,
   drawTimecodeOverlay,
   getVrCropRect,
+  resolveTimestamps,
 } from "./gridUtils";
 import { errlog, log } from "./utils";
 
@@ -33,12 +34,16 @@ export type AnimatedGridOptions = GridOptions & {
  * When `opts.vrMode` is not "disabled", the drawImage source rectangle is adjusted
  * to crop one eye from the stereo frame, identical to the static JPEG path.
  *
+ * When `opts.customTimestamps` is provided, those per-file markers are used as
+ * the base seek positions for each cell's animation clip instead of evenly-
+ * distributed times. Cells beyond the marker list fall back to auto times.
+ *
  * Progress is split into two phases:
- *   • Frame composition  — `onFrameDone` is called after each canvas frame is
+ *   - Frame composition  — `onFrameDone` is called after each canvas frame is
  *     composed and exported as PNG, representing the bulk of the seek+draw work.
- *   • WebP encoding      — `onEncodeProgress` receives a 0–1 ratio as FFmpeg
- *     writes the PNG frames to its virtual FS (0–0.5) and then encodes the
- *     animated WebP (0.5–1.0).
+ *   - WebP encoding      — `onEncodeProgress` receives a 0-1 ratio as FFmpeg
+ *     writes the PNG frames to its virtual FS (0-0.5) and then encodes the
+ *     animated WebP (0.5-1.0).
  *
  * @param file              - The source video file.
  * @param meta              - Pre-read metadata (dimensions, duration, etc.).
@@ -46,7 +51,7 @@ export type AnimatedGridOptions = GridOptions & {
  * @param isCancelled       - Polled before each animation frame; return true to abort.
  * @param onFrameDone       - Called after each composed animation frame with
  *                            (composedFrame, totalFrames).
- * @param onEncodeProgress  - Called with a 0–1 ratio during the FFmpeg encode phase.
+ * @param onEncodeProgress  - Called with a 0-1 ratio during the FFmpeg encode phase.
  * @param onWarning         - Called for non-fatal issues to surface to the user.
  * @returns The output filename, byte size, and animated WebP blob.
  */
@@ -64,6 +69,7 @@ export const createAnimatedGridWebP = async (
       "Animated WebP output requires native browser video decoding. FFmpeg fallback is unavailable in animated mode.",
     );
   }
+
   const canvas = document.createElement("canvas");
   const ctx = canvas.getContext("2d")!;
 
@@ -87,6 +93,7 @@ export const createAnimatedGridWebP = async (
 
   const cellHeight = Math.max(1, Math.floor(cellWidth * cellAspect));
   const canvasWidth = cols * cellWidth + spacing * (cols - 1);
+
   let headerCanvas: HTMLCanvasElement | undefined;
   let headerHeight = 0;
   if (opts.header) {
@@ -100,6 +107,7 @@ export const createAnimatedGridWebP = async (
     );
     headerHeight = headerCanvas.height;
   }
+
   const canvasHeight = headerHeight + rows * cellHeight + spacing * (rows - 1);
 
   const totalAnimFrames = Math.max(
@@ -107,7 +115,13 @@ export const createAnimatedGridWebP = async (
     Math.ceil(opts.animDuration * opts.animFps),
   );
   const frameDuration = 1 / opts.animFps;
-  const baseTimes = calculateSampleTimes(totalCells, duration);
+
+  // Choose base seek time per cell: custom markers or even distribution.
+  const baseTimes =
+    opts.customTimestamps && opts.customTimestamps.length > 0
+      ? resolveTimestamps(opts.customTimestamps, totalCells, duration)
+      : calculateSampleTimes(totalCells, duration);
+
   // Open a <video> element for native seeking.
   const videoUrl = URL.createObjectURL(file);
   const video = document.createElement("video");
@@ -240,8 +254,10 @@ export const createAnimatedGridWebP = async (
   log(
     `  [AnimWebP] Compositing done (${composedFrames.length} frames). Starting FFmpeg WebP encode…`,
   );
+
   // Signal that the encode phase is starting (ratio = 0).
   onEncodeProgress(0);
+
   // Encode via FFmpeg, forwarding real-time progress, then release WASM.
   const webpBlob = await encodeAnimatedWebP(
     composedFrames,

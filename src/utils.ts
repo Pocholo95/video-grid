@@ -40,6 +40,21 @@ export const formatTime = (seconds: number): string => {
 };
 
 /**
+ * Formats a duration in seconds as `HH:MM:SS.f` (one decimal for tenths).
+ * Useful for marker labels where sub-second precision matters.
+ *
+ * @param seconds - Duration in seconds.
+ */
+export const formatTimeExact = (seconds: number): string => {
+  if (!Number.isFinite(seconds) || seconds < 0) return "00:00:00.0";
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = seconds % 60;
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${pad(h)}:${pad(m)}:${s.toFixed(1).padStart(4, "0")}`;
+};
+
+/**
  * Formats elapsed milliseconds in a human-friendly way.
  * - Under 1 minute: "32.235s"
  * - Under 1 hour: "1m 30s"
@@ -80,8 +95,8 @@ export const hasUsableMetadata = (
  * Converts a RGB Hex code (with or without # prefix) to an RGBA string.
  * Supports shorthand (#rgb) and full (#rrggbb) formats.
  *
- * @param hex RGB Hex code string (e.g., '#ff0000' or '#f00')
- * @param alpha Alpha value (0-1, defaults to 1)
+ * @param hex - RGB Hex code string (e.g., '#ff0000' or '#f00')
+ * @param alpha - Alpha value (0-1, defaults to 1)
  * @returns RGBA string
  * @throws Error for invalid hex
  */

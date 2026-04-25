@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { saveAs } from "file-saver";
 import JSZip from "jszip";
 
@@ -44,8 +44,6 @@ export default function App() {
     persistAppSettings(s);
   }, []);
 
-  const setOpts = useCallback((o: SavedOptions) => setOptsState(o), []);
-
   // - Destinations
   const destinations = appSettings.destinations;
   const [showDestManager, setShowDestManager] = useState(false);
@@ -67,6 +65,70 @@ export default function App() {
       prev.map((it) => (it.id === id ? { ...it, ...patch } : it)),
     );
   }, []);
+
+  // Update per-item timestamps from the TimestampEditor.
+  const handleUpdateTimestamps = useCallback(
+    (id: string, mode: "auto" | "custom", markers: number[]) => {
+      setItems((prev) =>
+        prev.map((it) =>
+          it.id === id
+            ? { ...it, timestampMode: mode, customTimestamps: markers }
+            : it,
+        ),
+      );
+    },
+    [],
+  );
+
+  // When cols or rows changes, warn user about custom timestamp reset
+  const prevGridRef = useRef({ cols: opts.cols, rows: opts.rows });
+  const setOpts = useCallback(
+    (o: SavedOptions) => {
+      const prev = prevGridRef.current;
+      const gridChanged = o.cols !== prev.cols || o.rows !== prev.rows;
+
+      if (gridChanged) {
+        // Check if any items have custom timestamps
+        const hasCustomTimestamps = items.some(
+          (item) =>
+            item.timestampMode === "custom" &&
+            item.customTimestamps !== undefined &&
+            item.customTimestamps.length > 0,
+        );
+
+        if (hasCustomTimestamps) {
+          const confirmed = confirm(
+            "Changing grid size will reset all the custom timestamps below.\n\n" +
+              "Do you want to continue?",
+          );
+
+          if (!confirmed) {
+            // Revert to previous grid values and don't apply other changes
+            const revertedOpts = { ...o, cols: prev.cols, rows: prev.rows };
+            setOptsState(revertedOpts);
+            prevGridRef.current = { cols: prev.cols, rows: prev.rows };
+            return;
+          }
+        }
+      }
+
+      // Safe to apply - update state and track previous grid
+      setOptsState(o);
+      prevGridRef.current = { cols: o.cols, rows: o.rows };
+
+      // Reset custom timestamps AFTER confirmation (only if grid actually changed)
+      if (gridChanged) {
+        setItems((prevItems) =>
+          prevItems.map((item) =>
+            item.timestampMode === "custom"
+              ? { ...item, timestampMode: "auto", customTimestamps: [] }
+              : item,
+          ),
+        );
+      }
+    },
+    [items],
+  ); // Add items as dependency
 
   // - Processing
   const {
@@ -133,6 +195,8 @@ export default function App() {
   );
   const allMetaReady =
     items.length > 0 && items.every((i) => i.metadata !== undefined);
+
+  const totalCells = Math.max(1, opts.cols) * Math.max(1, opts.rows);
 
   const totalPossibleUploads = doneItems.length * enabledDests.length;
   const completedUploads =
@@ -229,10 +293,12 @@ export default function App() {
               <OutputCard
                 key={item.id}
                 item={item}
+                totalCells={totalCells}
                 showPreview={opts.preview}
                 destinations={destinations}
                 onPreview={setPreviewUrl}
                 onUpload={(id) => uploadItem(id, destinations)}
+                onUpdateTimestamps={handleUpdateTimestamps}
               />
             ))
           )}

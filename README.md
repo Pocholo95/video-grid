@@ -9,11 +9,11 @@ each video. No upload, no server processing, no account required.
 ## What it does
 
 VidGrid-HTML analyses each video, samples frames at evenly-spaced timestamps
-across the duration, and assembles them into a configurable grid. Each cell can
-be annotated with a timecode overlay. An optional header row shows the filename,
-resolution, duration, bitrate, and file size. The result is saved as a
-high-quality JPEG or animated WebP you can preview, download, and/or upload to
-an image host.
+or custom timestamps per file across the duration, and assembles them into
+a configurable grid. Each cell can be annotated with a timecode overlay. An
+optional header row shows the filename, resolution, duration, bitrate, and file
+size. The result is saved as a high-quality JPEG or animated WebP you can
+preview, download, and/or upload to an image host.
 
 ---
 
@@ -45,6 +45,9 @@ trigger an upload.
 - **VR Video support** — crop one eye from Side-by-Side or Top-Bottom stereo
   VR video so thumbnails show a single, undoubled image. See
   [VR Video](#vr-video).
+- **Custom timestamps per file** — click **Edit Timestamps** on any output item
+  to set exact frame positions using a built-in video player with marker pins. See
+  [Custom Timestamps](#custom-timestamps).
 - **Batch processing** — queue multiple files and process them one after
   another with combined progress tracking.
 - **Batch download** — completed outputs can be downloaded together as a
@@ -98,11 +101,37 @@ The controls are grouped into three fieldsets: **Grid**, **Style**, and **Output
 
 ---
 
+## Custom Timestamps
+
+Each output card shows its timestamp mode (**Auto** or **Custom**) with an
+**Edit Timestamps** button. Click to open a full-featured editor modal for that
+specific video.
+
+### Editor features
+
+- **Video player** with seekbar, play/pause (⏸️/▶️), and current time display
+- **Visual marker pins** on the seekbar — green (used in grid), orange (extra)
+- **Keyboard shortcuts**: `Space` (play/pause), `M` (add marker), `Esc` (close)
+- **Live marker list** — click to seek, ✕ to delete individual markers
+- **Smart counting** — shows how many markers fit your grid (cols×rows), extras ignored, shortages use auto fallback
+- **Reset to Auto** — restore evenly-spaced timestamps
+- **Save Markers** — apply custom timestamps (persists until grid resize)
+
+### Smart behaviors
+
+- **Auto seeding** — opens with evenly-spaced timestamps as starting point
+- **Zero markers = auto** — saving empty list reverts to automatic mode
+- **Works with animation** — custom timestamps apply to both static JPEG and animated WebP modes
+- **Per-file** — each video keeps its own custom markers independently
+- **Grid protection** — changing columns/rows warns and resets custom timestamps
+
+---
+
 ## Animated Thumbnail Grids
 
 When **Animated output (WebP)** is enabled, VidGrid-HTML generates an animated
 WebP instead of a static JPEG. Each grid cell shows a short looping video clip
-sampled from its evenly-distributed timestamp, giving a quick visual overview
+sampled from its timestamp (auto or custom), giving a quick visual overview
 of the entire video in motion.
 
 ### How animated grids works
@@ -214,9 +243,11 @@ The 🗂️ dropdown at the top of the options panel lets you manage named prese
   confirm to create a new preset or overwrite an existing one with the same name.
 - **🗑️ Delete preset** — removes the currently selected preset. Disabled when
   `<Default Preset>` is selected.
-  Presets are stored in the browser's `localStorage` and persist between sessions.
-  The last selected preset will also be restored when you return. All animation
-  and VR settings are included in saved presets.
+
+Presets are stored in the browser's `localStorage` and persist between sessions.
+The last selected preset will also be restored when you return. All animation
+and VR settings are included in saved presets. Custom timestamps are per-file
+and are not stored int presets.
 
 ---
 
