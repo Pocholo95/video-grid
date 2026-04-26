@@ -45,17 +45,17 @@ trigger an upload.
 - **VR Video support** — crop one eye from Side-by-Side or Top-Bottom stereo
   VR video so thumbnails show a single, undoubled image. See
   [VR Video](#vr-video).
-- **Custom timestamps per file** — click **Edit Timestamps** on any output item
+- **Custom timestamps per file** — click **Edit Timestamps** on any task item
   to set exact frame positions using a built-in video player with marker pins. See
   [Custom Timestamps](#custom-timestamps).
 - **Batch processing** — queue multiple files and process them one after
   another with combined progress tracking.
-- **Batch download** — completed outputs can be downloaded together as a
+- **Batch download** — completed tasks can be downloaded together as a
   ZIP archive.
 - **Upload to image hosts** — upload generated grids to one or more configured
   Chevereto-compatible image hosts (e.g. ImgBB). See [Upload Destinations](#upload-destinations).
-- **Copy links** — after uploading, copy links in multiple formats per output
-  or for all outputs at once. See [Copying Links](#copying-links).
+- **Copy links** — after uploading, copy links in multiple formats per task
+  or for all tasks at once. See [Copying Links](#copying-links).
 - **Configurable grid** — choose columns, rows, output width, frame spacing,
   and timecode position (or disable the overlay entirely).
 - **Custom colours** — set the background and text colour for the header and
@@ -90,7 +90,7 @@ The controls are grouped into three fieldsets: **Grid**, **Style**, and **Output
 | **Background color**     | Canvas and header background.                                           | `#000000` |
 | **Text color**           | Header text and timecode label colour.                                  | `#ffffff` |
 | **Show header metadata** | Toggle the filename/info header row.                                    | On        |
-| **Show preview**         | Show thumbnail previews in the output list.                             | On        |
+| **Show preview**         | Show thumbnail previews in the tasks list.                              | On        |
 
 ### Output Modes
 
@@ -103,7 +103,7 @@ The controls are grouped into three fieldsets: **Grid**, **Style**, and **Output
 
 ## Custom Timestamps
 
-Each output card shows its timestamp mode (**Auto** or **Custom**) with an
+Each task item shows its timestamp mode (**Auto** or **Custom**) with an
 **Edit Timestamps** button. Click to open a full-featured editor modal for that
 specific video.
 
@@ -115,7 +115,7 @@ specific video.
 - **Live marker list** — click to seek, ✕ to delete individual markers
 - **Smart counting** — shows how many markers fit your grid (cols×rows), extras ignored, shortages use auto fallback
 - **Reset to Auto** — restore evenly-spaced timestamps
-- **Save Markers** — apply custom timestamps (persists until grid resize)
+- **Save Markers** — apply custom timestamps
 
 ### Smart behaviors
 
@@ -123,7 +123,6 @@ specific video.
 - **Zero markers = auto** — saving empty list reverts to automatic mode
 - **Works with animation** — custom timestamps apply to both static JPEG and animated WebP modes
 - **Per-file** — each video keeps its own custom markers independently
-- **Grid protection** — changing columns/rows warns and resets custom timestamps
 
 ---
 
@@ -166,7 +165,8 @@ These appear only when **Animated output** is enabled.
   mode and regenerate as a static JPEG if you need to cover those formats.
 - **Large output files.** Animated WebPs are significantly larger than static
   JPEGs. A 3×4 grid at 3 s / 10 fps will composite 30 PNG frames before
-  encoding. Reduce FPS, duration, or quality to keep file sizes manageable.
+  encoding. Reduce FPS, duration, or quality and increase the WebP method to
+  keep file sizes manageable.
 - **Encoding time.** libwebp encoding through FFmpeg WASM is single-threaded.
   High method values (5–6) combined with large frame counts can take many
   seconds or minutes.
@@ -277,19 +277,19 @@ manager. From there you can:
 
 Once one or more destinations are enabled and processing is complete:
 
-- Each output card shows a **☁️ Upload** button. Clicking it uploads that grid
+- Each task card shows a **☁️ Upload** button. Clicking it uploads that grid
   to all enabled destinations.
-- The **☁️ Upload All** button in the outputs header uploads every completed
+- The **☁️ Upload All** button in the tasks header uploads every completed
   grid to all enabled destinations in sequence, with a short delay between
   requests to respect rate limits.
-  Upload progress is shown per-destination on each output card. Once complete,
+  Upload progress is shown per-destination on each task card. Once complete,
   the card expands a link panel for each destination (see below).
 
 ---
 
 ## Copying Links
 
-After a successful upload, each output card shows a collapsible link panel
+After a successful upload, each task item shows a collapsible link panel
 (one per destination). Expand it with the destination name button to access the
 following link formats:
 
@@ -310,12 +310,12 @@ host's delete URL in a new tab.
 
 ### Copy All
 
-When at least one output has been uploaded, a **Copy all links** bar appears
-above the output list. Use the dropdown to select a format and click **Copy All**
+When at least one task output has been uploaded, a **Copy all links** bar appears
+above the tasks list. Use the dropdown to select a format and click **Copy All**
 to copy links for all uploaded outputs at once, one per line.
 The **Post Template** format produces a BBCode block per output: a bold title
 line (`[b]filename resolution[/b]`) followed by thumbnail links from every
-destination on the same line, ready to paste into a forum post
+destination on the same line, ready to paste into a forum post.
 
 ---
 

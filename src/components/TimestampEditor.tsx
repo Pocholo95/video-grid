@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { OutputItem } from "../types";
+import type { TaskItem } from "../types";
 import { calculateSampleTimes } from "../gridUtils";
 import { formatTimeExact } from "../utils";
 
 interface Props {
-  item: OutputItem;
+  item: TaskItem;
   totalCells: number;
   onSave: (markers: number[]) => void;
   onClose: () => void;
@@ -28,7 +28,7 @@ export default function TimestampEditor({
   const duration = item.metadata?.duration ?? 0;
   const videoRef = useRef<HTMLVideoElement>(null);
   const seekbarRef = useRef<HTMLDivElement>(null);
-  const blobUrlRef = useRef<string | null>(null);
+  const [blobUrl, setBlobUrl] = useState<string | null>(null);
 
   // Local copy of markers — sorted ascending at all times.
   const [markers, setMarkers] = useState<number[]>(() => {
@@ -50,13 +50,27 @@ export default function TimestampEditor({
   const [videoError, setVideoError] = useState(false);
   const [selectedMarker, setSelectedMarker] = useState<number | null>(null);
 
+  // Seek to first marker (or 0) when video becomes ready
+  useEffect(() => {
+    const v = videoRef.current;
+    if (!v || !videoReady) return;
+
+    const initialTime =
+      markers.length > 0 && Number.isFinite(markers[0]) ? markers[0] : 0;
+
+    v.pause();
+    v.currentTime = initialTime;
+    setCurrentTime(initialTime);
+
+    setSelectedMarker(markers.length > 0 ? 0 : null);
+  }, [videoReady]);
+
   // Create object URL for the video file.
   useEffect(() => {
     const url = URL.createObjectURL(item.file);
-    blobUrlRef.current = url;
+    setBlobUrl(url);
     return () => {
       URL.revokeObjectURL(url);
-      blobUrlRef.current = null;
     };
   }, [item.file]);
 
@@ -82,35 +96,6 @@ export default function TimestampEditor({
       video.removeEventListener("error", onErr);
     };
   }, []);
-
-  // Keyboard shortcuts: Space = play/pause, Escape = close, M = add marker.
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      const tag = (e.target as HTMLElement).tagName;
-      if (tag === "INPUT" || tag === "TEXTAREA") return;
-      if (e.key === "Escape") {
-        onClose();
-        return;
-      }
-      if (e.key === " ") {
-        e.preventDefault();
-        const v = videoRef.current;
-        if (!v) return;
-        if (v.paused) {
-          v.play();
-        } else {
-          v.pause();
-        }
-      }
-      if (e.key === "m" || e.key === "M") {
-        e.preventDefault();
-        addMarkerAtCurrentTime();
-      }
-    };
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
-  });
-
   const addMarkerAtCurrentTime = useCallback(() => {
     const t = videoRef.current?.currentTime ?? currentTime;
     setMarkers((prev) => {
@@ -136,6 +121,56 @@ export default function TimestampEditor({
     setCurrentTime(t);
     setSelectedMarker(idx);
   }, []);
+
+  const seekBy = useCallback(
+    (delta: number) => {
+      const v = videoRef.current;
+      if (!v || duration <= 0) return;
+
+      const nextTime = Math.min(duration, Math.max(0, v.currentTime + delta));
+      v.currentTime = nextTime;
+      setCurrentTime(nextTime);
+
+      if (v.paused) {
+        // keep it paused; just update position
+        return;
+      }
+    },
+    [duration],
+  );
+
+  // Keyboard shortcuts: Space = play/pause, Escape = close, M = add marker.
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement).tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA") return;
+      if (e.key === "Escape") {
+        onClose();
+        return;
+      }
+      if (e.key === " ") {
+        e.preventDefault();
+        const v = videoRef.current;
+        if (!v) return;
+        if (v.paused) v.play();
+        else v.pause();
+        return;
+      }
+      if (e.key === "m" || e.key === "M") {
+        e.preventDefault();
+        addMarkerAtCurrentTime();
+        return;
+      }
+      if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
+        e.preventDefault();
+        const step = e.shiftKey ? 5 : 1;
+        seekBy(e.key === "ArrowLeft" ? -step : step);
+      }
+    };
+
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [onClose, addMarkerAtCurrentTime, seekBy]);
 
   // Seekbar click / drag
   const seekFromPointer = useCallback(
@@ -215,7 +250,7 @@ export default function TimestampEditor({
               <video
                 ref={videoRef}
                 className="ts-video"
-                src={blobUrlRef.current ?? undefined}
+                src={blobUrl ?? undefined}
                 muted
                 playsInline
                 preload="metadata"

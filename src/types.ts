@@ -65,7 +65,7 @@ export type UploadDestination = {
   enabled: boolean;
 };
 
-// - Per-destination upload state on an OutputItem
+// - Per-destination upload state on an TaskItem
 export type DestinationUploadState = {
   status: UploadStatus;
   progress: number;
@@ -73,8 +73,8 @@ export type DestinationUploadState = {
   result?: UploadResult;
 };
 
-// - Queue items
-export type OutputItem = {
+// - Task items
+export type TaskItem = {
   id: string;
   file: File;
   status: "queued" | "processing" | "done" | "error" | "cancelled";
@@ -105,6 +105,14 @@ export type OutputItem = {
 };
 
 // - Settings / Options
+
+/** Persisted expanded/collapsed state of the three Control Panel fieldsets. */
+export type SectionStates = {
+  grid: boolean;
+  style: boolean;
+  modes: boolean;
+};
+
 export type SavedOptions = {
   width: number;
   cols: number;
@@ -121,6 +129,7 @@ export type SavedOptions = {
   webpMethod: number;
   webpQuality: number;
   vrMode: VrMode;
+  sectionStates?: SectionStates;
 };
 
 export type Presets = Record<string, SavedOptions>;

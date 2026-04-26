@@ -1,14 +1,10 @@
 import { useState } from "react";
-import type {
-  DestinationUploadState,
-  OutputItem,
-  UploadResult,
-} from "../types";
+import type { DestinationUploadState, TaskItem, UploadResult } from "../types";
 import { resolutionLabel, buildFormats } from "./UploadLinks";
 
 interface Props {
   /** Only done items with at least one successful upload should be passed. */
-  items: OutputItem[];
+  items: TaskItem[];
 }
 
 type FormatKey =
@@ -35,10 +31,10 @@ const FORMAT_LABELS: Record<FormatKey, string> = {
 /**
  * Pick the first successful upload result for an item, across all destinations.
  *
- * @param item - The OutputItem to inspect.
+ * @param item - The TaskItem to inspect.
  * @returns The first completed upload result, or null if none exists.
  */
-function firstResult(item: OutputItem) {
+function firstResult(item: TaskItem) {
   if (!item.uploads) return null;
   for (const state of Object.values(item.uploads)) {
     if (state.status === "done" && state.result) return state.result;
@@ -52,10 +48,10 @@ function firstResult(item: OutputItem) {
  * `[url=page][img]thumb[/img][/url]` per destination on the second line,
  * followed by two blank lines to separate entries.
  *
- * @param item - The OutputItem to build a block for.
+ * @param item - The TaskItem to build a block for.
  * @returns The formatted BBCode string, or null if the item has no uploads.
  */
-function buildPostBlock(item: OutputItem): string | null {
+function buildPostBlock(item: TaskItem): string | null {
   if (!item.uploads) return null;
 
   const results = Object.values(item.uploads)
@@ -84,11 +80,11 @@ function buildPostBlock(item: OutputItem): string | null {
  * Build the copyable text for a given format key, one line per item.
  * For "postTemplate", items are separated by blank lines instead.
  *
- * @param items - The OutputItems to include (should each have at least one upload).
+ * @param items - The TaskItems to include (should each have at least one upload).
  * @param format - The FormatKey identifying which named link format to emit.
  * @returns The combined copyable text for the selected format.
  */
-function buildCopyText(items: OutputItem[], format: FormatKey): string {
+function buildCopyText(items: TaskItem[], format: FormatKey): string {
   if (format === "postTemplate") {
     return items
       .map((item) => buildPostBlock(item))

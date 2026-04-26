@@ -310,7 +310,7 @@ h3 {
  * independently laid out so expanding Animated never shifts the VR column.
  * A hairline divider is drawn between the columns via a centered gradient.
  */
-.ctrl-section-body.output-modes-body {
+.ctrl-section-body.task-modes-body {
   grid-template-columns: 1fr 1fr;
   align-items: start;
   background-image: linear-gradient(var(--panel-border), var(--panel-border));
@@ -320,7 +320,7 @@ h3 {
 }
 
 /* Each mode column stacks its controls vertically */
-.output-mode-col {
+.task-mode-col {
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -354,7 +354,7 @@ h3 {
   letter-spacing: 0.04em;
 }
 
-/* OutputCard timestamp row */
+/* TaskCard timestamp row */
 .ts-card-row {
   display: flex;
   align-items: center;
@@ -944,8 +944,8 @@ progress::-webkit-progress-value {
   white-space: normal;
 }
 
-/* Outputs */
-.outputs-header {
+/* Tasks */
+.tasks-header {
   display: flex;
   align-items: normal;
   justify-content: space-between;
@@ -954,25 +954,25 @@ progress::-webkit-progress-value {
   flex-wrap: wrap;
 }
 
-.outputs-header h2 {
+.tasks-header h2 {
   margin: 0;
 }
 
-.outputs-actions-col,
-.outputs-bulk-actions {
+.tasks-actions-col,
+.tasks-bulk-actions {
   display: flex;
   align-items: flex-end;
   gap: 8px;
   padding: 0;
   margin: 0;
 }
-.outputs-actions-col {
+.tasks-actions-col {
   flex-direction: column;
 }
-.outputs-bulk-actions {
+.tasks-bulk-actions {
   flex-direction: row;
 }
-.outputs {
+.tasks {
   display: grid;
   gap: 16px;
 }
@@ -982,8 +982,8 @@ progress::-webkit-progress-value {
   padding: 24px 0;
 }
 
-/* Output card */
-.output-card {
+/* Task card */
+.task-card {
   background: rgba(8, 17, 31, 0.56);
   border: 1px solid rgba(130, 213, 253, 0.16);
   border-radius: 20px;
@@ -995,17 +995,17 @@ progress::-webkit-progress-value {
   transition: border-color 0.2s;
 }
 
-.output-error {
+.task-error {
   border-color: rgba(248, 113, 113, 0.35);
 }
-.output-done {
+.task-done {
   border-color: rgba(130, 213, 253, 0.22);
 }
-.output-uploaded {
+.task-uploaded {
   border-color: rgba(74, 222, 128, 0.3);
 }
 
-.output-top {
+.task-top {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
@@ -1013,13 +1013,13 @@ progress::-webkit-progress-value {
   min-width: 0;
 }
 
-.output-top-text {
+.task-top-text {
   flex: 1 1 0;
   min-width: 0;
   overflow: hidden;
 }
 
-.output-top h3 {
+.task-top h3 {
   font-size: 1.05rem;
   white-space: nowrap;
   overflow: hidden;
@@ -1047,10 +1047,29 @@ progress::-webkit-progress-value {
   white-space: nowrap;
 }
 
-.output-card:has(.warning) .badge {
+.task-card:has(.warning) .badge {
   color: #000;
   background: var(--warning-bg);
   border-color: var(--warning-bg);
+}
+
+.task-top-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.task-remove-btn {
+  font-size: 0.72rem;
+  padding: 4px 8px !important;
+  opacity: 0.45;
+}
+
+.task-remove-btn:hover:not(:disabled) {
+  opacity: 1;
+  color: var(--danger) !important;
+  border-color: rgba(248, 113, 113, 0.4) !important;
 }
 
 .warning {
@@ -1064,15 +1083,15 @@ progress::-webkit-progress-value {
   overflow-wrap: break-word;
 }
 
-/* Output grid - preview + info */
-.output-grid {
+/* Task grid - preview + info */
+.task-grid {
   display: grid;
   grid-template-columns: 320px minmax(0, 1fr);
   gap: 18px;
   min-width: 0;
 }
 
-.output-preview {
+.task-preview {
   min-height: 180px;
   background: rgba(15, 23, 42, 0.7);
   overflow: hidden;
@@ -1080,7 +1099,7 @@ progress::-webkit-progress-value {
   place-items: center;
 }
 
-.output-preview img {
+.task-preview img {
   display: block;
   max-width: 100%;
   max-height: 240px;
@@ -1096,12 +1115,12 @@ progress::-webkit-progress-value {
   font-size: 0.9rem;
 }
 
-.output-info {
+.task-info {
   min-width: 0;
   overflow: hidden;
 }
 
-.output-info p {
+.task-info p {
   margin: 0 0 10px;
   color: var(--text);
   line-height: 1.5;
@@ -1584,7 +1603,7 @@ progress::-webkit-progress-value {
     grid-template-columns: 1fr;
   }
 
-  .ctrl-section-body.output-modes-body {
+  .ctrl-section-body.task-modes-body {
     grid-template-columns: 1fr;
     /* Rotate the divider to a horizontal rule between the stacked columns */
     background-image: linear-gradient(
@@ -1608,14 +1627,14 @@ progress::-webkit-progress-value {
     flex-wrap: wrap;
     padding: 18px;
   }
-  /* Outputs header */
-  .outputs-header {
+  /* Tasks header */
+  .tasks-header {
     flex-direction: row;
     align-items: flex-start;
     gap: 12px;
     margin-bottom: 16px;
   }
-  .outputs-actions-col {
+  .tasks-actions-col {
     margin-left: auto;
     flex-shrink: 0;
     display: flex;
@@ -1623,7 +1642,7 @@ progress::-webkit-progress-value {
     align-items: flex-end;
     gap: 8px;
   }
-  .outputs-bulk-actions {
+  .tasks-bulk-actions {
     width: auto;
     flex-direction: column;
     align-items: flex-end;
@@ -1633,11 +1652,11 @@ progress::-webkit-progress-value {
     padding: 10px 12px;
     flex-shrink: 0;
   }
-  /* Outputs */
-  .output-grid {
+  /* Tasks */
+  .task-grid {
     grid-template-columns: 1fr;
   }
-  .output-preview {
+  .task-preview {
     min-height: unset;
   }
   .preset-name-area {

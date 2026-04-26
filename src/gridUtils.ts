@@ -232,18 +232,16 @@ export const calculateSampleTimes = (
 };
 
 /**
- * Resolves the final list of cell timestamps, merging custom markers and auto times.
+ * Resolves the final list of cell timestamps, prioritizing custom markers.
  *
- * When custom timestamps are provided:
- * - If there are enough for all cells, the first `totalCells` entries are used.
- * - If there are fewer, custom entries fill the leading cells and auto-calculated
- *   times fill the remainder, so the grid is always fully populated.
- * All timestamps are clamped to [0, duration - 0.001].
+ * Custom markers are always used first (up to totalCells). Remaining cells are
+ * filled with auto timestamps not already in custom markers, then the result
+ * is sorted chronologically. All timestamps clamped to [0, duration - 0.001].
  *
- * @param custom - User-supplied marker timestamps in seconds (sorted ascending).
+ * @param custom - User-supplied marker timestamps in seconds.
  * @param totalCells - Number of cells in the grid (cols * rows).
  * @param duration - Video duration in seconds.
- * @returns Array of exactly `totalCells` timestamps in seconds.
+ * @returns Array of exactly `totalCells` timestamps in seconds, sorted ascending.
  */
 export const resolveTimestamps = (
   custom: number[],
@@ -251,13 +249,24 @@ export const resolveTimestamps = (
   duration: number,
 ): number[] => {
   const maxT = Math.max(0, duration - 0.001);
-  const clamped = custom.map((t) => Math.min(Math.max(0, t), maxT));
+  const clamped = custom
+    .map((t) => Math.min(Math.max(0, t), maxT))
+    .sort((a, b) => a - b);
 
   if (clamped.length >= totalCells) {
     return clamped.slice(0, totalCells);
   }
 
-  // Pad the remainder with evenly-spaced auto times.
   const auto = calculateSampleTimes(totalCells, duration);
-  return [...clamped, ...auto.slice(clamped.length)];
+  const used = new Set(clamped.map((t) => Number(t.toFixed(6))));
+  const result: number[] = [...clamped];
+
+  for (const t of auto) {
+    if (result.length >= totalCells) break;
+    if (!used.has(Number(t.toFixed(6)))) {
+      result.push(t);
+    }
+  }
+
+  return result.sort((a, b) => a - b);
 };

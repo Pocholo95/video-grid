@@ -9,7 +9,7 @@ import {
 import { resetFFmpeg } from "../ffmpeg";
 import { createAnimatedGridWebP } from "../animatedGrid";
 import type { AnimatedGridOptions } from "../animatedGrid";
-import type { OutputItem, SavedOptions } from "../types";
+import type { TaskItem, SavedOptions } from "../types";
 import {
   errlog,
   formatElapsed,
@@ -29,7 +29,7 @@ export type ProcessorStatus = {
   batchDurationMs: number | null;
 };
 
-type Updater = (id: string, patch: Partial<OutputItem>) => void;
+type Updater = (id: string, patch: Partial<TaskItem>) => void;
 
 /**
  * Fraction of per-file progress (0-100) allocated to the frame-composition
@@ -41,7 +41,7 @@ const ANIMATED_ENCODE_PCT = 100 - ANIMATED_COMPOSE_PCT;
 /**
  * Hook that manages video analysis and grid-generation processing.
  *
- * @param updateItem - Callback to patch a single OutputItem by id.
+ * @param updateItem - Callback to patch a single TaskItem by id.
  */
 export function useProcessor(updateItem: Updater) {
   const [isProcessing, setIsProcessing] = useState(false);
@@ -61,10 +61,10 @@ export function useProcessor(updateItem: Updater) {
    * Updates each item in-place and calls updateItem after each file.
    *
    * @param files - The File objects selected by the user.
-   * @returns A fully-populated OutputItem array ready for processing.
+   * @returns A fully-populated TaskItem array ready for processing.
    */
   const analyseFiles = useCallback(
-    async (files: File[]): Promise<OutputItem[]> => {
+    async (files: File[]): Promise<TaskItem[]> => {
       setStatus({
         text: `Analysing ${files.length} file(s)…`,
         currentPct: 0,
@@ -74,7 +74,7 @@ export function useProcessor(updateItem: Updater) {
         batchDurationMs: null,
       });
 
-      const items: OutputItem[] = files.map((file) => ({
+      const items: TaskItem[] = files.map((file) => ({
         id: makeId(),
         file,
         status: "queued",
@@ -116,7 +116,7 @@ export function useProcessor(updateItem: Updater) {
       }
 
       setStatus({
-        text: `${files.length} file(s) ready. Press ▶️ Start Processing.`,
+        text: `${files.length} new file(s) analyzed. Set your options/preset and Press ▶️ Start Processing.`,
         currentPct: 0,
         batchDone: 0,
         batchTotal: 0,
@@ -132,11 +132,11 @@ export function useProcessor(updateItem: Updater) {
   /**
    * Process all queued items, generating a JPEG grid or animated WebP for each one.
    *
-   * @param items - The OutputItem list to process.
+   * @param items - The TaskItem list to process.
    * @param opts  - Current SavedOptions controlling grid layout and appearance.
    */
   const processAll = useCallback(
-    async (items: OutputItem[], opts: SavedOptions) => {
+    async (items: TaskItem[], opts: SavedOptions) => {
       if (isProcessing || !items.length) return;
       setIsProcessing(true);
       cancelRef.current = false;

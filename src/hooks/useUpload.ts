@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { uploadBlob } from "../upload";
 import type {
   DestinationUploadState,
-  OutputItem,
+  TaskItem,
   UploadDestination,
   UploadResult,
 } from "../types";
@@ -14,18 +14,18 @@ const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 /**
  * Merges a partial DestinationUploadState into item.uploads[destId].
  *
- * @param prev   - Previous OutputItem array.
+ * @param prev   - Previous TaskItem array.
  * @param id     - ID of the item to update.
  * @param destId - Destination ID whose upload state should be patched.
  * @param patch  - Partial state to merge.
  * @returns Updated array with the target item replaced.
  */
 function patchUpload(
-  prev: OutputItem[],
+  prev: TaskItem[],
   id: string,
   destId: string,
   patch: Partial<DestinationUploadState>,
-): OutputItem[] {
+): TaskItem[] {
   return prev.map((item) => {
     if (item.id !== id) return item;
     const current: DestinationUploadState = item.uploads?.[destId] ?? {
@@ -45,12 +45,12 @@ function patchUpload(
 /**
  * Hook providing upload logic for one or multiple destinations.
  *
- * @param items    - Current output item list (used read-only for lookups).
- * @param setItems - Setter for the output item list.
+ * @param items    - Current task item list (used read-only for lookups).
+ * @param setItems - Setter for the task item list.
  */
 export function useUpload(
-  items: OutputItem[],
-  setItems: React.Dispatch<React.SetStateAction<OutputItem[]>>,
+  items: TaskItem[],
+  setItems: React.Dispatch<React.SetStateAction<TaskItem[]>>,
 ) {
   const [isUploadingAll, setIsUploadingAll] = useState(false);
   const [uploadProgress, setUploadProgress] = useState({
@@ -68,9 +68,9 @@ export function useUpload(
   // Remove the complex counting useEffect entirely;
 
   /**
-   * Upload a single output item to a single destination.
+   * Upload a single task item to a single destination.
    *
-   * @param itemId - ID of the OutputItem to upload.
+   * @param itemId - ID of the TaskItem to upload.
    * @param dest   - The destination to upload to.
    */
   const uploadItemToDest = useCallback(
@@ -117,10 +117,10 @@ export function useUpload(
   );
 
   /**
-   * Upload a single output item to all enabled destinations that haven't
+   * Upload a single task item to all enabled destinations that haven't
    * already received it.
    *
-   * @param itemId       - ID of the OutputItem to upload.
+   * @param itemId       - ID of the TaskItem to upload.
    * @param destinations - Full list of configured destinations.
    */
   const uploadItem = useCallback(

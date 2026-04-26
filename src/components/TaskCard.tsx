@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState } from "react";
-import type { OutputItem, UploadDestination } from "../types";
+import type { TaskItem, UploadDestination } from "../types";
 import { formatElapsed, formatTime, humanSize } from "../utils";
 import UploadLinks from "./UploadLinks";
 import TimestampEditor from "./TimestampEditor";
 
 interface Props {
-  item: OutputItem;
+  item: TaskItem;
   totalCells: number;
   showPreview: boolean;
   destinations: UploadDestination[];
@@ -16,9 +16,11 @@ interface Props {
     mode: "auto" | "custom",
     markers: number[],
   ) => void;
+  onRemove: (id: string) => void;
+  onRequeue: (id: string) => void;
 }
 
-export default function OutputCard({
+export default function TaskCard({
   item,
   totalCells,
   showPreview,
@@ -26,6 +28,8 @@ export default function OutputCard({
   onPreview,
   onUpload,
   onUpdateTimestamps,
+  onRemove,
+  onRequeue,
 }: Props) {
   const urlRef = useRef<string | null>(null);
   const [blobUrl, setBlobUrl] = useState<string | null>(null);
@@ -71,6 +75,7 @@ export default function OutputCard({
   const meta = item.metadata;
   const isDone = item.status === "done";
   const enabledDests = destinations.filter((d) => d.enabled);
+
   const anyUploading = enabledDests.some(
     (d) => item.uploads?.[d.id]?.status === "uploading",
   );
@@ -102,25 +107,39 @@ export default function OutputCard({
   }
 
   const handleSaveMarkers = (markers: number[]) => {
-    // If the user saves with zero markers, treat as auto.
+    const isDoneItem = item.status === "done";
+    const shouldRequeue =
+      isDoneItem &&
+      window.confirm(
+        "This task is already done. Requeue it with the new timestamps for processing?",
+      );
+
     if (markers.length === 0) {
       onUpdateTimestamps(item.id, "auto", []);
     } else {
       onUpdateTimestamps(item.id, "custom", markers);
     }
+
+    if (shouldRequeue) onRequeue(item.id);
     setShowEditor(false);
   };
 
   // Disabled while processing - can't open editor mid-batch.
   const canEditTimestamps = item.status !== "processing" && !!item.metadata;
 
+  // Tasks that have finished (one way or another) can be re-queued.
+  const canRequeue =
+    item.status === "done" ||
+    item.status === "error" ||
+    item.status === "cancelled";
+
   return (
     <>
       <article
-        className={`output-card output-${item.status}${allDone ? " output-uploaded" : ""}`}
+        className={`task-card task-${item.status}${allDone ? " task-uploaded" : ""}`}
       >
-        <div className="output-top">
-          <div className="output-top-text">
+        <div className="task-top">
+          <div className="task-top-text">
             <h3 title={item.file.name}>{item.file.name}</h3>
             {item.warning && <p className="warning">{item.warning}</p>}
             {meta && (
@@ -135,9 +154,18 @@ export default function OutputCard({
               </p>
             )}
           </div>
-          <div className="badge">{item.status}</div>
+          <div className="task-top-actions">
+            <div className="badge">{item.status}</div>
+            <button
+              className="icon-btn task-remove-btn"
+              onClick={() => onRemove(item.id)}
+              disabled={item.status === "processing"}
+              title="Remove this task"
+            >
+              ✕
+            </button>
+          </div>
         </div>
-
         {/* Timestamp row */}
         <div className="ts-card-row">
           <span
@@ -158,9 +186,8 @@ export default function OutputCard({
             Edit Timestamps
           </button>
         </div>
-
-        <div className="output-grid">
-          <div className="output-preview">
+        <div className="task-grid">
+          <div className="task-preview">
             {blobUrl ? (
               <img
                 src={blobUrl}
@@ -178,10 +205,9 @@ export default function OutputCard({
               </div>
             )}
           </div>
-
-          <div className="output-info">
+          <div className="task-info">
             <p>
-              <strong>Output:</strong> {item.outputName ?? "—"}
+              <strong>Task:</strong> {item.outputName ?? "—"}
             </p>
             <p>
               <strong>Size:</strong>{" "}
@@ -191,7 +217,6 @@ export default function OutputCard({
               <strong>Status:</strong> {statusText}
             </p>
             {item.error && <p className="error">{item.error}</p>}
-
             <div className="action-row">
               {isDone && item.outputBlob && item.outputName ? (
                 <a
@@ -204,9 +229,8 @@ export default function OutputCard({
                   {item.outputName.endsWith(".webp") ? "WebP" : "JPG"}
                 </a>
               ) : (
-                <span className="muted">No download yet</span>
+                <span className="muted">No task yet</span>
               )}
-
               {isDone && enabledDests.length > 0 && !allDone && (
                 <button
                   className="icon-btn button-link upload-btn"
@@ -220,8 +244,16 @@ export default function OutputCard({
                     : ` (${enabledDests.length} destinations)`}
                 </button>
               )}
+              {canRequeue && (
+                <button
+                  className="icon-btn"
+                  onClick={() => onRequeue(item.id)}
+                  title="Requeue this task to process it again"
+                >
+                  ↺ Requeue
+                </button>
+              )}
             </div>
-
             {/* Per-destination upload progress */}
             {enabledDests.map((dest) => {
               const state = item.uploads?.[dest.id];
@@ -247,7 +279,6 @@ export default function OutputCard({
             })}
           </div>
         </div>
-
         {/* Per-destination upload results */}
         {enabledDests.some((d) => item.uploads?.[d.id]?.status === "done") && (
           <div className="upload-results">
@@ -267,7 +298,6 @@ export default function OutputCard({
           </div>
         )}
       </article>
-
       {showEditor && item.metadata && (
         <TimestampEditor
           item={item}

@@ -1,7 +1,12 @@
 import React, { useEffect, useRef, useState } from "react";
 import { DEFAULTS, PRESETS_DEFAULT_VALUE } from "../constants";
 import { deletePreset, loadPresets, savePreset } from "../presets";
-import type { AppSettings, SavedOptions, VrMode } from "../types";
+import type {
+  AppSettings,
+  SavedOptions,
+  SectionStates,
+  VrMode,
+} from "../types";
 import type { ProcessorStatus } from "../hooks/useProcessor";
 import { formatElapsed } from "../utils";
 
@@ -85,15 +90,20 @@ export default function ControlPanel({
   const [nameVisible, setNameVisible] = useState(false);
   const [nameValue, setNameValue] = useState("");
 
-  // Which sections are expanded - all open by default.
-  const [sections, setSections] = useState({
+  // Section states are derived from opts so they are saved/restored with presets.
+  // Falls back to all expanded when the key is absent (e.g. older stored presets).
+  const sections: SectionStates = opts.sectionStates ?? {
     grid: true,
     style: true,
     modes: true,
-  });
+  };
 
-  const toggleSection = (key: keyof typeof sections) =>
-    setSections((prev) => ({ ...prev, [key]: !prev[key] }));
+  const toggleSection = (key: keyof SectionStates) => {
+    setOpts({
+      ...opts,
+      sectionStates: { ...sections, [key]: !sections[key] },
+    });
+  };
 
   // Live tick to refresh the batch elapsed display while processing.
   const [, forceUpdate] = useState(0);
@@ -231,10 +241,9 @@ export default function ControlPanel({
             </button>
           </div>
         )}
-
         {/* File picker - always visible, outside any section */}
         <label className="field ctrl-full">
-          <span>Video files</span>
+          <span>Add video files</span>
           <input
             ref={fileInputRef}
             type="file"
@@ -242,11 +251,14 @@ export default function ControlPanel({
             multiple
             onChange={(e) => {
               const files = Array.from(e.target.files ?? []);
-              if (files.length) onFilesChange(files);
+              if (files.length) {
+                onFilesChange(files);
+                // Reset so the same file(s) can be picked again.
+                e.target.value = "";
+              }
             }}
           />
         </label>
-
         {/* Section: Grid */}
         <Section
           label="Grid"
@@ -270,7 +282,6 @@ export default function ControlPanel({
             <input type="number" min={1} step={1} {...numField("rows")} />
           </label>
         </Section>
-
         {/* Section: Style */}
         <Section
           label="Style"
@@ -330,17 +341,16 @@ export default function ControlPanel({
             <span>Show preview</span>
           </label>
         </Section>
-
         {/* Section: Output Modes - body uses a 2-column layout where each column
             is independent, so expanding Animated never shifts the VR control. */}
         <Section
           label="Output Modes"
           expanded={sections.modes}
           onToggle={() => toggleSection("modes")}
-          bodyClass="output-modes-body"
+          bodyClass="task-modes-body"
         >
           {/* Left column: Animated WebP */}
-          <div className="output-mode-col">
+          <div className="task-mode-col">
             <label className="check">
               <input type="checkbox" {...checkField("animated")} />
               <span>Animated output (WebP)</span>
@@ -419,9 +429,8 @@ export default function ControlPanel({
               </fieldset>
             )}
           </div>
-
           {/* Right column: VR Video */}
-          <div className="output-mode-col">
+          <div className="task-mode-col">
             <label className="field">
               <span>VR Video</span>
               <select
@@ -439,7 +448,6 @@ export default function ControlPanel({
             </label>
           </div>
         </Section>
-
         <div className="actions">
           <button
             className="icon-btn primary"
@@ -461,11 +469,11 @@ export default function ControlPanel({
             onClick={() => {
               onClear();
               if (fileInputRef.current) {
-                fileInputRef.current.value = ""; // Reset file input
+                fileInputRef.current.value = "";
               }
             }}
           >
-            🗑️ Clear Files
+            🗑️ Clear All
           </button>
         </div>
       </div>

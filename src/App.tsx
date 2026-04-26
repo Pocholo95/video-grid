@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useState } from "react";
 import { saveAs } from "file-saver";
 import JSZip from "jszip";
 
@@ -13,13 +13,13 @@ import { useUpload } from "./hooks/useUpload";
 
 import type {
   AppSettings,
-  OutputItem,
+  TaskItem,
   SavedOptions,
   UploadDestination,
 } from "./types";
 
 import ControlPanel from "./components/ControlPanel";
-import OutputCard from "./components/OutputCard";
+import TaskCard from "./components/TaskCard";
 import DestinationManager from "./components/DestinationManager";
 import PreviewModal from "./components/PreviewModal";
 import CopyAllPanel from "./components/CopyAllPanel";
@@ -57,10 +57,10 @@ export default function App() {
   );
   const enabledDests = destinations.filter((d) => d.enabled);
 
-  // - Output items
-  const [items, setItems] = useState<OutputItem[]>([]);
+  // - Task items
+  const [items, setItems] = useState<TaskItem[]>([]);
 
-  const updateItem = useCallback((id: string, patch: Partial<OutputItem>) => {
+  const updateItem = useCallback((id: string, patch: Partial<TaskItem>) => {
     setItems((prev) =>
       prev.map((it) => (it.id === id ? { ...it, ...patch } : it)),
     );
@@ -80,55 +80,33 @@ export default function App() {
     [],
   );
 
-  // When cols or rows changes, warn user about custom timestamp reset
-  const prevGridRef = useRef({ cols: opts.cols, rows: opts.rows });
-  const setOpts = useCallback(
-    (o: SavedOptions) => {
-      const prev = prevGridRef.current;
-      const gridChanged = o.cols !== prev.cols || o.rows !== prev.rows;
+  // Remove a single task from the list.
+  const handleRemoveItem = useCallback((id: string) => {
+    setItems((prev) => prev.filter((it) => it.id !== id));
+  }, []);
 
-      if (gridChanged) {
-        // Check if any items have custom timestamps
-        const hasCustomTimestamps = items.some(
-          (item) =>
-            item.timestampMode === "custom" &&
-            item.customTimestamps !== undefined &&
-            item.customTimestamps.length > 0,
-        );
+  // Reset a completed/failed/cancelled task back to queued so it can be reprocessed.
+  const handleRequeueItem = useCallback((id: string) => {
+    setItems((prev) =>
+      prev.map((it) =>
+        it.id === id
+          ? {
+              ...it,
+              status: "queued" as const,
+              error: undefined,
+              outputBlob: undefined,
+              outputName: undefined,
+              outputSize: undefined,
+              processingStartedAt: undefined,
+              processingDurationMs: undefined,
+              uploads: undefined,
+            }
+          : it,
+      ),
+    );
+  }, []);
 
-        if (hasCustomTimestamps) {
-          const confirmed = confirm(
-            "Changing grid size will reset all the custom timestamps below.\n\n" +
-              "Do you want to continue?",
-          );
-
-          if (!confirmed) {
-            // Revert to previous grid values and don't apply other changes
-            const revertedOpts = { ...o, cols: prev.cols, rows: prev.rows };
-            setOptsState(revertedOpts);
-            prevGridRef.current = { cols: prev.cols, rows: prev.rows };
-            return;
-          }
-        }
-      }
-
-      // Safe to apply - update state and track previous grid
-      setOptsState(o);
-      prevGridRef.current = { cols: o.cols, rows: o.rows };
-
-      // Reset custom timestamps AFTER confirmation (only if grid actually changed)
-      if (gridChanged) {
-        setItems((prevItems) =>
-          prevItems.map((item) =>
-            item.timestampMode === "custom"
-              ? { ...item, timestampMode: "auto", customTimestamps: [] }
-              : item,
-          ),
-        );
-      }
-    },
-    [items],
-  ); // Add items as dependency
+  const setOpts = useCallback((o: SavedOptions) => setOptsState(o), []);
 
   // - Processing
   const {
@@ -140,19 +118,25 @@ export default function App() {
     resetState,
   } = useProcessor(updateItem);
 
+  // Add new files as tasks - existing tasks are preserved.
   const handleFilesChange = useCallback(
     async (files: File[]) => {
-      setItems([]);
       const newItems = await analyseFiles(files);
-      setItems(newItems);
+      setItems((prev) => [...prev, ...newItems]);
     },
     [analyseFiles],
   );
 
+  // Only process tasks that are currently queued.
   const handleStart = useCallback(
-    () => processAll(items, opts),
+    () =>
+      processAll(
+        items.filter((it) => it.status === "queued"),
+        opts,
+      ),
     [items, opts, processAll],
   );
+
   const handleClear = useCallback(() => {
     setItems([]);
     resetState();
@@ -186,18 +170,21 @@ export default function App() {
   // - Preview modal
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
-  // - Derived from Outputs
+  // - Derived values
   const doneItems = items.filter(
     (i) =>
       (i.status === "done" || i.status === "processing") &&
       i.outputBlob &&
       i.outputName,
   );
+
+  // "Start Processing" is only meaningful when there are queued tasks with metadata ready.
+  const queuedItems = items.filter((i) => i.status === "queued");
+  const hasQueuedFiles = queuedItems.length > 0;
   const allMetaReady =
-    items.length > 0 && items.every((i) => i.metadata !== undefined);
+    hasQueuedFiles && queuedItems.every((i) => i.metadata !== undefined);
 
   const totalCells = Math.max(1, opts.cols) * Math.max(1, opts.rows);
-
   const totalPossibleUploads = doneItems.length * enabledDests.length;
   const completedUploads =
     items.filter((item) =>
@@ -219,7 +206,6 @@ export default function App() {
           </p>
         </div>
       </header>
-
       <ControlPanel
         opts={opts}
         setOpts={setOpts}
@@ -227,18 +213,17 @@ export default function App() {
         setPresets={(p) => setAppSettings({ ...appSettings, presets: p })}
         status={status}
         isProcessing={isProcessing}
-        hasFiles={items.length > 0}
+        hasFiles={hasQueuedFiles}
         allMetadataReady={allMetaReady}
         onFilesChange={handleFilesChange}
         onStart={handleStart}
         onCancel={requestCancel}
         onClear={handleClear}
       />
-
       <section className="panel">
-        <div className="outputs-header">
-          <h2>Outputs</h2>
-          <div className="outputs-actions-col">
+        <div className="tasks-header">
+          <h2>Tasks ({items.length})</h2>
+          <div className="tasks-actions-col">
             <button
               className="icon-btn dest-manager-btn"
               title="Manage upload destinations"
@@ -252,8 +237,7 @@ export default function App() {
                   : ""}
               </span>
             </button>
-
-            <div className="outputs-bulk-actions">
+            <div className="tasks-bulk-actions">
               {enabledDests.length > 0 && doneItems.length > 0 && (
                 <button
                   className="icon-btn primary upload-all-btn"
@@ -282,15 +266,15 @@ export default function App() {
             </div>
           </div>
         </div>
-
         {doneItems.length > 0 && <CopyAllPanel items={doneItems} />}
-
-        <div className="outputs">
+        <div className="tasks">
           {items.length === 0 ? (
-            <div className="empty">No outputs yet.</div>
+            <div className="empty">
+              No tasks yet. Add video files to get started.
+            </div>
           ) : (
             items.map((item) => (
-              <OutputCard
+              <TaskCard
                 key={item.id}
                 item={item}
                 totalCells={totalCells}
@@ -299,14 +283,14 @@ export default function App() {
                 onPreview={setPreviewUrl}
                 onUpload={(id) => uploadItem(id, destinations)}
                 onUpdateTimestamps={handleUpdateTimestamps}
+                onRemove={handleRemoveItem}
+                onRequeue={handleRequeueItem}
               />
             ))
           )}
         </div>
       </section>
-
       <PreviewModal url={previewUrl} onClose={() => setPreviewUrl(null)} />
-
       {showDestManager && (
         <DestinationManager
           destinations={destinations}
