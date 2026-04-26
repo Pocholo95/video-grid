@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { TaskItem } from "../types";
 import { calculateSampleTimes } from "../gridUtils";
 import { formatTimeExact } from "../utils";
+import { useLongPress } from "../hooks/useLongPress";
 
 interface Props {
   item: TaskItem;
@@ -19,6 +20,74 @@ interface Props {
 const fmtT = (t: number) =>
   Number.isFinite(t) && t >= 0 ? formatTimeExact(t) : "00:00:00.0";
 
+interface MarkerPinProps {
+  t: number;
+  idx: number;
+  totalCells: number;
+  selected: number | null;
+  duration: number;
+  isTouch: boolean;
+  onSeek: (t: number, idx: number) => void;
+  onDelete: (idx: number) => void;
+}
+
+function MarkerPin({
+  t,
+  idx,
+  totalCells,
+  selected,
+  duration,
+  isTouch,
+  onSeek,
+  onDelete,
+}: MarkerPinProps) {
+  // Long-press suppression is owned by TimestampEditor via the guarded
+  // onSeek / onDelete callbacks, so no local ref is needed here.
+  const longPress = useLongPress(() => onDelete(idx), { thresholdMs: 500 });
+
+  return (
+    <div
+      className={`ts-marker-pin${idx < totalCells ? " ts-marker-pin--used" : " ts-marker-pin--overflow"}${selected === idx ? " ts-marker-pin--selected" : ""}`}
+      style={{ left: `${duration > 0 ? (t / duration) * 100 : 0}%` }}
+      onPointerDown={(e) => {
+        e.stopPropagation();
+        if (isTouch) longPress.onPointerDown(e);
+      }}
+      onPointerUp={(e) => {
+        e.stopPropagation();
+        if (isTouch) longPress.onPointerUp();
+      }}
+      onPointerLeave={(e) => {
+        e.stopPropagation();
+        if (isTouch) longPress.onPointerLeave();
+      }}
+      onPointerCancel={(e) => {
+        e.stopPropagation();
+        if (isTouch) longPress.onPointerCancel();
+      }}
+      onClick={(e) => {
+        e.stopPropagation();
+        // onSeek is guarded by seekToMarkerGuarded in the parent, so calling
+        // it unconditionally is safe — phantom clicks after a long press are
+        // suppressed at the TimestampEditor level regardless of which marker
+        // element they land on.
+        onSeek(t, idx);
+      }}
+      onContextMenu={(e) => {
+        e.stopPropagation();
+        e.preventDefault();
+        // On touch devices deletion is handled exclusively by the long-press
+        // timer. Skipping contextmenu here prevents the browser's native
+        // contextmenu event (also synthesized on long-press release) from
+        // landing on the marker underneath and triggering a phantom deletion.
+        if (!isTouch) onDelete(idx);
+      }}
+    >
+      <span className="ts-marker-pin-label">{idx + 1}</span>
+    </div>
+  );
+}
+
 export default function TimestampEditor({
   item,
   totalCells,
@@ -28,15 +97,43 @@ export default function TimestampEditor({
   const duration = item.metadata?.duration ?? 0;
   const videoRef = useRef<HTMLVideoElement>(null);
   const seekbarRef = useRef<HTMLDivElement>(null);
+  const clickTimerRef = useRef<number | null>(null);
+  const [isTouch, setIsTouch] = useState(false);
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia(
+      "(hover: hover) and (any-pointer: fine)",
+    );
+    const coarseQuery = window.matchMedia("(any-pointer: coarse)");
+
+    const updateIsTouch = () => {
+      if (mediaQuery.matches) {
+        // Device has mouse/trackpad with hover
+        setIsTouch(false);
+      } else if (coarseQuery.matches) {
+        // Has any coarse pointer; assume touch-centric
+        setIsTouch(true);
+      } else {
+        // Default catches very rare cases; still screen-adaptable
+        setIsTouch(true);
+      }
+    };
+
+    updateIsTouch();
+    mediaQuery.addEventListener("change", updateIsTouch);
+    coarseQuery.addEventListener("change", updateIsTouch);
+
+    return () => {
+      mediaQuery.removeEventListener("change", updateIsTouch);
+      coarseQuery.removeEventListener("change", updateIsTouch);
+    };
+  }, []);
+
   const [blobUrl, setBlobUrl] = useState<string | null>(null);
 
   // Local copy of markers — sorted ascending at all times.
   const [markers, setMarkers] = useState<number[]>(() => {
-    if (
-      item.timestampMode === "custom" &&
-      item.customTimestamps &&
-      item.customTimestamps.length > 0
-    ) {
+    if (item.timestampMode === "custom" && item.customTimestamps?.length) {
       return [...item.customTimestamps];
     }
     // Seed with auto-calculated times so the user has a ready starting point.
@@ -71,6 +168,7 @@ export default function TimestampEditor({
     setBlobUrl(url);
     return () => {
       URL.revokeObjectURL(url);
+      if (clickTimerRef.current) window.clearTimeout(clickTimerRef.current);
     };
   }, [item.file]);
 
@@ -96,12 +194,43 @@ export default function TimestampEditor({
       video.removeEventListener("error", onErr);
     };
   }, []);
+
+  const addMarker = useCallback(
+    (clientX: number) => {
+      const bar = seekbarRef.current;
+      if (!bar || duration <= 0) return;
+      const rect = bar.getBoundingClientRect();
+      const ratio = Math.min(
+        1,
+        Math.max(0, (clientX - rect.left) / rect.width),
+      );
+      const t = ratio * duration;
+      if (videoRef.current) videoRef.current.currentTime = t;
+      setCurrentTime(t);
+      setMarkers((prev) => [...prev, t].sort((a, b) => a - b));
+    },
+    [duration],
+  );
+
+  const seekbarHandler = useCallback(
+    (clientX: number) => {
+      const bar = seekbarRef.current;
+      if (!bar || duration <= 0) return;
+      const rect = bar.getBoundingClientRect();
+      const ratio = Math.min(
+        1,
+        Math.max(0, (clientX - rect.left) / rect.width),
+      );
+      const t = ratio * duration;
+      if (videoRef.current) videoRef.current.currentTime = t;
+      setCurrentTime(t);
+    },
+    [duration],
+  );
+
   const addMarkerAtCurrentTime = useCallback(() => {
     const t = videoRef.current?.currentTime ?? currentTime;
-    setMarkers((prev) => {
-      const next = [...prev, t].sort((a, b) => a - b);
-      return next;
-    });
+    setMarkers((prev) => [...prev, t].sort((a, b) => a - b));
     setSelectedMarker(null);
   }, [currentTime]);
 
@@ -121,6 +250,35 @@ export default function TimestampEditor({
     setCurrentTime(t);
     setSelectedMarker(idx);
   }, []);
+
+  // When a long press fires, the browser removes the marker element from the
+  // DOM mid-gesture. Pointer capture is released at that point, so subsequent
+  // pointer/click/contextmenu events are dispatched to whatever element is now
+  // at those coordinates - possibly another marker underneath. This flag
+  // suppresses any phantom interaction during the release window.
+  const longPressSuppressRef = useRef(false);
+
+  const deleteMarkerFromLongPress = useCallback(
+    (idx: number) => {
+      // Already suppressed — a phantom call arrived during the release window.
+      if (longPressSuppressRef.current) return;
+      longPressSuppressRef.current = true;
+      deleteMarker(idx);
+      // 300 ms covers all synthesized pointer/click/contextmenu events.
+      setTimeout(() => {
+        longPressSuppressRef.current = false;
+      }, 300);
+    },
+    [deleteMarker],
+  );
+
+  const seekToMarkerGuarded = useCallback(
+    (t: number, idx: number) => {
+      if (longPressSuppressRef.current) return;
+      seekToMarker(t, idx);
+    },
+    [seekToMarker],
+  );
 
   const seekBy = useCallback(
     (delta: number) => {
@@ -144,64 +302,42 @@ export default function TimestampEditor({
     const handler = (e: KeyboardEvent) => {
       const tag = (e.target as HTMLElement).tagName;
       if (tag === "INPUT" || tag === "TEXTAREA") return;
-      if (e.key === "Escape") {
-        onClose();
-        return;
-      }
-      if (e.key === " ") {
+      if (e.key === "Escape") onClose();
+      else if (e.key === " ") {
         e.preventDefault();
-        const v = videoRef.current;
-        if (!v) return;
-        if (v.paused) v.play();
-        else v.pause();
-        return;
-      }
-      if (e.key === "m" || e.key === "M") {
+        togglePlay();
+      } else if (e.key === "m" || e.key === "M") {
         e.preventDefault();
         addMarkerAtCurrentTime();
-        return;
-      }
-      if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
+      } else if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
         e.preventDefault();
-        const step = e.shiftKey ? 5 : 1;
-        seekBy(e.key === "ArrowLeft" ? -step : step);
+        seekBy(
+          e.key === "ArrowLeft" ? -(e.shiftKey ? 5 : 1) : e.shiftKey ? 5 : 1,
+        );
       }
     };
-
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
   }, [onClose, addMarkerAtCurrentTime, seekBy]);
 
-  // Seekbar click / drag
-  const seekFromPointer = useCallback(
-    (clientX: number) => {
-      const bar = seekbarRef.current;
-      if (!bar || duration <= 0) return;
-      const rect = bar.getBoundingClientRect();
-      const ratio = Math.min(
-        1,
-        Math.max(0, (clientX - rect.left) / rect.width),
-      );
-      const t = ratio * duration;
-      if (videoRef.current) videoRef.current.currentTime = t;
-      setCurrentTime(t);
-    },
-    [duration],
-  );
-
-  const handleSeekbarDown = (e: React.PointerEvent<HTMLDivElement>) => {
+  const handleSeekbarPointerDown = (e: React.PointerEvent) => {
+    if ((e.target as HTMLElement).closest(".ts-marker-pin")) return;
     e.currentTarget.setPointerCapture(e.pointerId);
     setIsDragging(true);
-    seekFromPointer(e.clientX);
+    seekbarHandler(e.clientX);
   };
-  const handleSeekbarMove = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (!isDragging) return;
-    seekFromPointer(e.clientX);
-  };
-  const handleSeekbarUp = (e: React.PointerEvent<HTMLDivElement>) => {
-    setIsDragging(false);
-    seekFromPointer(e.clientX);
-    e.currentTarget.releasePointerCapture(e.pointerId);
+
+  const handleSeekbarClick = (e: React.MouseEvent) => {
+    if ((e.target as HTMLElement).closest(".ts-marker-pin")) return;
+    if (clickTimerRef.current) {
+      window.clearTimeout(clickTimerRef.current);
+      clickTimerRef.current = null;
+      addMarker(e.clientX);
+    } else {
+      clickTimerRef.current = window.setTimeout(() => {
+        clickTimerRef.current = null;
+      }, 250);
+    }
   };
 
   const togglePlay = () => {
@@ -261,10 +397,13 @@ export default function TimestampEditor({
             <div
               ref={seekbarRef}
               className="ts-seekbar"
-              onPointerDown={handleSeekbarDown}
-              onPointerMove={handleSeekbarMove}
-              onPointerUp={handleSeekbarUp}
-              title="Click or drag to seek"
+              onPointerDown={handleSeekbarPointerDown}
+              onPointerMove={(e) => isDragging && seekbarHandler(e.clientX)}
+              onPointerUp={(e) => {
+                setIsDragging(false);
+                e.currentTarget.releasePointerCapture(e.pointerId);
+              }}
+              onClick={handleSeekbarClick}
             >
               {/* Track fill */}
               <div
@@ -272,26 +411,19 @@ export default function TimestampEditor({
                 style={{ width: `${progressPct}%` }}
               />
 
-              {/* Marker pins on the seekbar */}
-              {markers.map((t, idx) => {
-                const pct = duration > 0 ? (t / duration) * 100 : 0;
-                const isUsed = idx < totalCells;
-                const isSelected = selectedMarker === idx;
-                return (
-                  <div
-                    key={idx}
-                    className={`ts-marker-pin${isUsed ? " ts-marker-pin--used" : " ts-marker-pin--overflow"}${isSelected ? " ts-marker-pin--selected" : ""}`}
-                    style={{ left: `${pct}%` }}
-                    title={`#${idx + 1} — ${fmtT(t)}${!isUsed ? " (beyond grid capacity)" : ""}`}
-                    onPointerDown={(e) => {
-                      e.stopPropagation();
-                      seekToMarker(t, idx);
-                    }}
-                  >
-                    <span className="ts-marker-pin-label">{idx + 1}</span>
-                  </div>
-                );
-              })}
+              {markers.map((t, idx) => (
+                <MarkerPin
+                  key={idx}
+                  t={t}
+                  idx={idx}
+                  totalCells={totalCells}
+                  selected={selectedMarker}
+                  duration={duration}
+                  isTouch={isTouch}
+                  onSeek={seekToMarkerGuarded}
+                  onDelete={deleteMarkerFromLongPress}
+                />
+              ))}
 
               {/* Playhead */}
               <div
@@ -311,8 +443,7 @@ export default function TimestampEditor({
                 {isPlaying ? "⏸" : "▶️"}
               </button>
               <span className="ts-timecode">
-                {fmtT(currentTime)}
-                <span className="ts-timecode-sep"> / </span>
+                {fmtT(currentTime)} <span className="ts-timecode-sep">/</span>{" "}
                 {fmtT(duration)}
               </span>
               <button
@@ -416,8 +547,18 @@ export default function TimestampEditor({
 
         <div className="modal-footer">
           <p className="ts-editor-hint">
-            <kbd>Space</kbd> play/pause &nbsp;·&nbsp; <kbd>M</kbd> add marker
-            &nbsp;·&nbsp; <kbd>Esc</kbd> close
+            {isTouch ? (
+              <>
+                Tap seekbar to seek &nbsp;·&nbsp; Double-tap seekbar to add
+                marker &nbsp;·&nbsp; Long-press marker to remove
+              </>
+            ) : (
+              <>
+                <kbd>Space</kbd> Play/Pause &nbsp;·&nbsp; <kbd>M</kbd> Add
+                Marker &nbsp;·&nbsp; Double-click seekbar to add marker
+                &nbsp;·&nbsp; Right-click marker to remove
+              </>
+            )}
           </p>
           <div className="ts-editor-actions">
             <button
