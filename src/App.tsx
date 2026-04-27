@@ -107,6 +107,29 @@ export default function App() {
     );
   }, []);
 
+  // Requeue all completed/failed/cancelled tasks back to queued.
+  const handleRequeueAll = useCallback(() => {
+    setItems((prev) =>
+      prev.map((it) =>
+        it.status === "done" ||
+        it.status === "error" ||
+        it.status === "cancelled"
+          ? {
+              ...it,
+              status: "queued" as const,
+              error: undefined,
+              outputBlob: undefined,
+              outputName: undefined,
+              outputSize: undefined,
+              processingStartedAt: undefined,
+              processingDurationMs: undefined,
+              uploads: undefined,
+            }
+          : it,
+      ),
+    );
+  }, []);
+
   const setOpts = useCallback((o: SavedOptions) => setOptsState(o), []);
 
   // - Processing
@@ -199,6 +222,12 @@ export default function App() {
     ).length * enabledDests.length;
   const hasPendingUploads = completedUploads < totalPossibleUploads;
 
+  const requeuableItems = items.filter(
+    (i) =>
+      i.status === "done" || i.status === "error" || i.status === "cancelled",
+  );
+  const hasRequeuableItems = requeuableItems.length > 0;
+
   return (
     <>
       <header className="app-header">
@@ -226,9 +255,11 @@ export default function App() {
         isProcessing={isProcessing}
         hasFiles={hasQueuedFiles}
         allMetadataReady={allMetaReady}
+        hasRequeuableItems={hasRequeuableItems}
         onStart={handleStart}
         onCancel={requestCancel}
         onClear={handleClear}
+        onRequeueAll={handleRequeueAll}
       />
       <section className="panel">
         <div className="tasks-header">
