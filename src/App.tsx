@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { saveAs } from "file-saver";
 import JSZip from "jszip";
 
@@ -19,6 +19,7 @@ import type {
 } from "./types";
 
 import ControlPanel from "./components/ControlPanel";
+import ProcessingPanel from "./components/ProcessingPanel";
 import TaskCard from "./components/TaskCard";
 import DestinationManager from "./components/DestinationManager";
 import PreviewModal from "./components/PreviewModal";
@@ -118,6 +119,9 @@ export default function App() {
     resetState,
   } = useProcessor(updateItem);
 
+  // File input ref - lifted here so Clear All can reset it.
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   // Add new files as tasks - existing tasks are preserved.
   const handleFilesChange = useCallback(
     async (files: File[]) => {
@@ -140,6 +144,9 @@ export default function App() {
   const handleClear = useCallback(() => {
     setItems([]);
     resetState();
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
   }, [resetState]);
 
   // - Upload
@@ -211,11 +218,14 @@ export default function App() {
         setOpts={setOpts}
         presets={appSettings.presets}
         setPresets={(p) => setAppSettings({ ...appSettings, presets: p })}
+        fileInputRef={fileInputRef}
+        onFilesChange={handleFilesChange}
+      />
+      <ProcessingPanel
         status={status}
         isProcessing={isProcessing}
         hasFiles={hasQueuedFiles}
         allMetadataReady={allMetaReady}
-        onFilesChange={handleFilesChange}
         onStart={handleStart}
         onCancel={requestCancel}
         onClear={handleClear}

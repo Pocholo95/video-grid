@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useRef, useState } from "react";
 import { DEFAULTS, PRESETS_DEFAULT_VALUE } from "../constants";
 import { deletePreset, loadPresets, savePreset } from "../presets";
 import type {
@@ -7,22 +7,14 @@ import type {
   SectionStates,
   VrMode,
 } from "../types";
-import type { ProcessorStatus } from "../hooks/useProcessor";
-import { formatElapsed } from "../utils";
 
 interface Props {
   opts: SavedOptions;
   setOpts: (o: SavedOptions) => void;
   presets: AppSettings["presets"];
   setPresets: (p: AppSettings["presets"]) => void;
-  status: ProcessorStatus;
-  isProcessing: boolean;
-  hasFiles: boolean;
-  allMetadataReady: boolean;
+  fileInputRef: React.RefObject<HTMLInputElement | null>;
   onFilesChange: (files: File[]) => void;
-  onStart: () => void;
-  onCancel: () => void;
-  onClear: () => void;
 }
 
 /**
@@ -76,16 +68,9 @@ export default function ControlPanel({
   setOpts,
   presets,
   setPresets,
-  status,
-  isProcessing,
-  hasFiles,
-  allMetadataReady,
+  fileInputRef,
   onFilesChange,
-  onStart,
-  onCancel,
-  onClear,
 }: Props) {
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const presetNameRef = useRef<HTMLInputElement>(null);
   const [nameVisible, setNameVisible] = useState(false);
   const [nameValue, setNameValue] = useState("");
@@ -104,14 +89,6 @@ export default function ControlPanel({
       sectionStates: { ...sections, [key]: !sections[key] },
     });
   };
-
-  // Live tick to refresh the batch elapsed display while processing.
-  const [, forceUpdate] = useState(0);
-  useEffect(() => {
-    if (!status.batchStartTime) return;
-    const id = setInterval(() => forceUpdate((n) => n + 1), 100);
-    return () => clearInterval(id);
-  }, [status.batchStartTime]);
 
   // Controlled field helpers
   const numField = (key: "width" | "cols" | "rows" | "spacing") => ({
@@ -161,16 +138,6 @@ export default function ControlPanel({
     setPresets({ entries, lastUsed: null });
     setOpts(DEFAULTS);
   };
-
-  const batchPct =
-    status.batchTotal > 0
-      ? Math.round((status.batchDone / status.batchTotal) * 100)
-      : 0;
-
-  // Live elapsed string shown in the batch progress label while processing.
-  const batchElapsedStr = status.batchStartTime
-    ? ` - ${formatElapsed(Date.now() - status.batchStartTime)}`
-    : "";
 
   const selectedPreset = presets.lastUsed ?? PRESETS_DEFAULT_VALUE;
   const isAnimated = opts.animated ?? false;
@@ -448,57 +415,6 @@ export default function ControlPanel({
             </label>
           </div>
         </Section>
-        <div className="actions">
-          <button
-            className="icon-btn primary"
-            disabled={!hasFiles || !allMetadataReady || isProcessing}
-            onClick={onStart}
-          >
-            ▶️ Start Processing
-          </button>
-          <button
-            className="icon-btn"
-            disabled={!isProcessing}
-            onClick={onCancel}
-          >
-            ⏹️ Cancel
-          </button>
-          <button
-            className="icon-btn"
-            disabled={isProcessing}
-            onClick={() => {
-              onClear();
-              if (fileInputRef.current) {
-                fileInputRef.current.value = "";
-              }
-            }}
-          >
-            🗑️ Clear All
-          </button>
-        </div>
-      </div>
-      {/* Progress */}
-      <div className="progress-area">
-        <div className="progress-block">
-          <div className="progress-label">
-            <span>Current file</span>
-            <span>{Math.round(status.currentPct)}%</span>
-          </div>
-          <progress value={status.currentPct} max={100} />
-        </div>
-        {status.batchTotal > 0 && (
-          <div className="progress-block">
-            <div className="progress-label">
-              <span>
-                Batch progress ({status.batchDone}/{status.batchTotal})
-                {batchElapsedStr}
-              </span>
-              <span>{batchPct}%</span>
-            </div>
-            <progress value={batchPct} max={100} />
-          </div>
-        )}
-        <div className="status">{status.text}</div>
       </div>
     </div>
   );
