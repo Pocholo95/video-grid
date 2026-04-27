@@ -3,6 +3,7 @@ import type { TaskItem } from "../types";
 import { calculateSampleTimes } from "../gridUtils";
 import { formatTimeExact } from "../utils";
 import { useLongPress } from "../hooks/useLongPress";
+import { useScrollLock } from "../hooks/useScrollLock";
 
 interface Props {
   item: TaskItem;
@@ -94,6 +95,8 @@ export default function TimestampEditor({
   onSave,
   onClose,
 }: Props) {
+  useScrollLock();
+
   const duration = item.metadata?.duration ?? 0;
   const videoRef = useRef<HTMLVideoElement>(null);
   const seekbarRef = useRef<HTMLDivElement>(null);

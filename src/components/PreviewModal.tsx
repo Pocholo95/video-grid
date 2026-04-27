@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { useScrollLock } from "../hooks/useScrollLock";
 
 interface Props {
   url: string | null;
@@ -6,6 +7,8 @@ interface Props {
 }
 
 export default function PreviewModal({ url, onClose }: Props) {
+  useScrollLock(!!url);
+
   useEffect(() => {
     if (!url) return;
     const handler = (e: KeyboardEvent) => {

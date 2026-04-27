@@ -487,10 +487,11 @@ h3 {
 /* Seekbar */
 .ts-seekbar {
   position: relative;
-  height: 36px;
+  height: 25px;
   background: rgba(8, 17, 31, 0.7);
-  border: 1px solid rgba(130, 213, 253, 0.18);
+  border: 1px solid var(--accent);
   border-radius: 8px;
+  margin: 8px 0 0 0;
   cursor: pointer;
   overflow: visible;
   user-select: none;
@@ -523,10 +524,10 @@ h3 {
 /* Marker pins on the seekbar */
 .ts-marker-pin {
   position: absolute;
-  top: 50%;
+  top: 0;
   transform: translate(-50%, -50%);
-  width: 18px;
-  height: 18px;
+  width: 15px;
+  height: 15px;
   border-radius: 50%;
   border: 2px solid #fff;
   display: flex;
@@ -1330,6 +1331,7 @@ progress::-webkit-progress-value {
   justify-content: center;
   background: rgba(15, 23, 42, 0.92);
   z-index: 9999;
+  overscroll-behavior: contain;
 }
 
 #previewModalWrapper {
@@ -1372,6 +1374,7 @@ progress::-webkit-progress-value {
   justify-content: center;
   z-index: 9998;
   padding: 20px;
+  overscroll-behavior: contain;
 }
 
 .modal-box {

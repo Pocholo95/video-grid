@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { UploadDestination } from "../types";
 import { makeId } from "../utils";
+import { useScrollLock } from "../hooks/useScrollLock";
 
 interface Props {
   destinations: UploadDestination[];
@@ -23,6 +24,8 @@ export default function DestinationManager({
   onSave,
   onClose,
 }: Props) {
+  useScrollLock();
+
   const [list, setList] = useState<UploadDestination[]>(() =>
     structuredClone(destinations),
   );
