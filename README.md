@@ -114,7 +114,7 @@ specific video.
 - **Keyboard shortcuts**: `Space` (play/pause), `M` (add marker), `Esc` (close)
 - **Live marker list** — click to seek, ✕ to delete individual markers
 - **Smart counting** — shows how many markers fit your grid (cols×rows), extras ignored, shortages use auto fallback
-- **Reset to Auto** — restore evenly-spaced timestamps
+- **Reset** — restore evenly-spaced timestamps
 - **Save Markers** — apply custom timestamps
 
 ### Smart behaviors

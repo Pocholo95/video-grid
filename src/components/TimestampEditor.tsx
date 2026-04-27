@@ -510,8 +510,19 @@ export default function TimestampEditor({
             <div className="ts-marker-list">
               {markers.length === 0 ? (
                 <p className="ts-marker-empty">
-                  No markers yet. Seek to a position and click{" "}
-                  <strong>+ Add Marker</strong>, or press <kbd>M</kbd>.
+                  {isTouch ? (
+                    <>
+                      No markers yet. Seek to a position and click{" "}
+                      <strong>+&nbsp;Add&nbsp;Marker</strong> or double tap the
+                      seekbar.
+                    </>
+                  ) : (
+                    <>
+                      No markers yet. Seek to a position and click{" "}
+                      <strong>+&nbsp;Add&nbsp;Marker</strong>, or press{" "}
+                      <kbd>M</kbd>.
+                    </>
+                  )}
                 </p>
               ) : (
                 markers.map((t, idx) => {
@@ -574,7 +585,7 @@ export default function TimestampEditor({
               }}
               title="Reset to evenly-spaced auto timestamps"
             >
-              ↺ Reset to Auto
+              ↺ Reset
             </button>
             <button className="icon-btn" onClick={onClose}>
               Cancel
