@@ -20,10 +20,9 @@ import type {
 
 import ControlPanel from "./components/ControlPanel";
 import ProcessingPanel from "./components/ProcessingPanel";
-import TaskCard from "./components/TaskCard";
+import TaskList from "./components/TaskList";
 import DestinationManager from "./components/DestinationManager";
 import PreviewModal from "./components/PreviewModal";
-import CopyAllPanel from "./components/CopyAllPanel";
 import Footer from "./components/Footer";
 
 export default function App() {
@@ -56,7 +55,6 @@ export default function App() {
     },
     [appSettings, setAppSettings],
   );
-  const enabledDests = destinations.filter((d) => d.enabled);
 
   // - Task items
   const [items, setItems] = useState<TaskItem[]>([]);
@@ -178,6 +176,16 @@ export default function App() {
     setItems,
   );
 
+  const handleUploadItem = useCallback(
+    (id: string) => uploadItem(id, destinations),
+    [uploadItem, destinations],
+  );
+
+  const handleUploadAll = useCallback(
+    () => uploadAll(destinations),
+    [uploadAll, destinations],
+  );
+
   // - Download all as ZIP
   const [isZipping, setIsZipping] = useState(false);
 
@@ -200,27 +208,22 @@ export default function App() {
   // - Preview modal
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
-  // - Derived values
-  const doneItems = items.filter(
-    (i) =>
-      (i.status === "done" || i.status === "processing") &&
-      i.outputBlob &&
-      i.outputName,
+  const handleClosePreview = useCallback(() => setPreviewUrl(null), []);
+
+  // - Destination manager handlers
+  const handleOpenDestManager = useCallback(() => setShowDestManager(true), []);
+
+  const handleCloseDestManager = useCallback(
+    () => setShowDestManager(false),
+    [],
   );
 
-  // "Start Processing" is only meaningful when there are queued tasks with metadata ready.
   const queuedItems = items.filter((i) => i.status === "queued");
   const hasQueuedFiles = queuedItems.length > 0;
   const allMetaReady =
     hasQueuedFiles && queuedItems.every((i) => i.metadata !== undefined);
 
   const totalCells = Math.max(1, opts.cols) * Math.max(1, opts.rows);
-  const totalPossibleUploads = doneItems.length * enabledDests.length;
-  const completedUploads =
-    items.filter((item) =>
-      enabledDests.every((dest) => item.uploads?.[dest.id]?.status === "done"),
-    ).length * enabledDests.length;
-  const hasPendingUploads = completedUploads < totalPossibleUploads;
 
   const requeuableItems = items.filter(
     (i) =>
@@ -261,82 +264,29 @@ export default function App() {
         onClear={handleClear}
         onRequeueAll={handleRequeueAll}
       />
-      <section className="panel">
-        <div className="tasks-header">
-          <h2>Tasks ({items.length})</h2>
-          <div className="tasks-actions-col">
-            <button
-              className="icon-btn dest-manager-btn"
-              title="Manage upload destinations"
-              onClick={() => setShowDestManager(true)}
-            >
-              <span className="dest-manager-icon">☁️</span>
-              <span className="dest-manager-text">
-                Upload Destinations{" "}
-                {destinations.length > 0
-                  ? `(${destinations.filter((d) => d.enabled).length}/${destinations.length})`
-                  : ""}
-              </span>
-            </button>
-            <div className="tasks-bulk-actions">
-              {enabledDests.length > 0 && doneItems.length > 0 && (
-                <button
-                  className="icon-btn primary upload-all-btn"
-                  disabled={isUploadingAll || !hasPendingUploads}
-                  onClick={() => uploadAll(destinations)}
-                  title={`Upload all to ${enabledDests.map((d) => d.name).join(", ")} ${
-                    hasPendingUploads ? "" : "(All uploads complete)"
-                  }`}
-                >
-                  {isUploadingAll
-                    ? `⏳ Uploading… (${uploadProgress.attempted}/${uploadProgress.total})`
-                    : `☁️ Upload All (${completedUploads}/${totalPossibleUploads})`}
-                </button>
-              )}
-              {doneItems.length > 1 && (
-                <button
-                  className="icon-btn primary"
-                  disabled={isZipping}
-                  onClick={downloadAll}
-                >
-                  {isZipping
-                    ? "⏳ Zipping…"
-                    : `⏬ Download All (${doneItems.length})`}
-                </button>
-              )}
-            </div>
-          </div>
-        </div>
-        {doneItems.length > 0 && <CopyAllPanel items={doneItems} />}
-        <div className="tasks">
-          {items.length === 0 ? (
-            <div className="empty">
-              No tasks yet. Add video files to get started.
-            </div>
-          ) : (
-            items.map((item) => (
-              <TaskCard
-                key={item.id}
-                item={item}
-                totalCells={totalCells}
-                showPreview={opts.preview}
-                destinations={destinations}
-                onPreview={setPreviewUrl}
-                onUpload={(id) => uploadItem(id, destinations)}
-                onUpdateTimestamps={handleUpdateTimestamps}
-                onRemove={handleRemoveItem}
-                onRequeue={handleRequeueItem}
-              />
-            ))
-          )}
-        </div>
-      </section>
-      <PreviewModal url={previewUrl} onClose={() => setPreviewUrl(null)} />
+      <TaskList
+        items={items}
+        totalCells={totalCells}
+        showPreview={opts.preview}
+        destinations={destinations}
+        isUploadingAll={isUploadingAll}
+        uploadProgress={uploadProgress}
+        isZipping={isZipping}
+        onOpenDestManager={handleOpenDestManager}
+        onUploadAll={handleUploadAll}
+        onDownloadAll={downloadAll}
+        onPreview={setPreviewUrl}
+        onUpload={handleUploadItem}
+        onUpdateTimestamps={handleUpdateTimestamps}
+        onRemove={handleRemoveItem}
+        onRequeue={handleRequeueItem}
+      />
+      <PreviewModal url={previewUrl} onClose={handleClosePreview} />
       {showDestManager && (
         <DestinationManager
           destinations={destinations}
           onSave={handleSaveDestinations}
-          onClose={() => setShowDestManager(false)}
+          onClose={handleCloseDestManager}
         />
       )}
       <Footer />
