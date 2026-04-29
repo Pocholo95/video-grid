@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import { uploadBlob } from "../upload";
 import type {
   DestinationUploadState,
@@ -14,10 +14,10 @@ const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 /**
  * Merges a partial DestinationUploadState into item.uploads[destId].
  *
- * @param prev   - Previous TaskItem array.
- * @param id     - ID of the item to update.
+ * @param prev - Previous TaskItem array.
+ * @param id - ID of the item to update.
  * @param destId - Destination ID whose upload state should be patched.
- * @param patch  - Partial state to merge.
+ * @param patch - Partial state to merge.
  * @returns Updated array with the target item replaced.
  */
 function patchUpload(
@@ -45,7 +45,7 @@ function patchUpload(
 /**
  * Hook providing upload logic for one or multiple destinations.
  *
- * @param items    - Current task item list (used read-only for lookups).
+ * @param items - Current task item list (used read-only for lookups).
  * @param setItems - Setter for the task item list.
  */
 export function useUpload(
@@ -54,24 +54,25 @@ export function useUpload(
 ) {
   const [isUploadingAll, setIsUploadingAll] = useState(false);
   const [uploadProgress, setUploadProgress] = useState({
-    completed: 0, // Successful uploads
-    total: 0, // Total possible uploads
-    attempted: 0, // Uploads we've tried
+    total: 0, // Total possible uploads in the current bulk run
+    attempted: 0, // Uploads attempted so far in the current bulk run
   });
 
-  useEffect(() => {
-    // Reset on new files/clear
-    setUploadProgress({ completed: 0, total: 0, attempted: 0 });
+  /**
+   * Resets upload progress counters and the uploading-all flag.
+   * Should be called whenever the task list is cleared so the bulk-upload
+   * button counters return to zero rather than showing stale numbers.
+   */
+  const resetUploadState = useCallback(() => {
+    setUploadProgress({ total: 0, attempted: 0 });
     setIsUploadingAll(false);
-  }, [items]);
-
-  // Remove the complex counting useEffect entirely;
+  }, []);
 
   /**
    * Upload a single task item to a single destination.
    *
    * @param itemId - ID of the TaskItem to upload.
-   * @param dest   - The destination to upload to.
+   * @param dest - The destination to upload to.
    */
   const uploadItemToDest = useCallback(
     async (itemId: string, dest: UploadDestination) => {
@@ -120,7 +121,7 @@ export function useUpload(
    * Upload a single task item to all enabled destinations that haven't
    * already received it.
    *
-   * @param itemId       - ID of the TaskItem to upload.
+   * @param itemId - ID of the TaskItem to upload.
    * @param destinations - Full list of configured destinations.
    */
   const uploadItem = useCallback(
@@ -154,7 +155,7 @@ export function useUpload(
       if (!pending.length) return;
 
       const totalUploads = pending.length * enabled.length;
-      setUploadProgress({ completed: 0, total: totalUploads, attempted: 0 });
+      setUploadProgress({ total: totalUploads, attempted: 0 });
       setIsUploadingAll(true);
 
       try {
@@ -169,8 +170,7 @@ export function useUpload(
             await uploadItemToDest(item.id, dest);
             attempted++;
 
-            // Just track attempts, forget success count
-            setUploadProgress({ completed: 0, total: totalUploads, attempted });
+            setUploadProgress({ total: totalUploads, attempted });
           }
         }
       } finally {
@@ -180,5 +180,11 @@ export function useUpload(
     [isUploadingAll, items, uploadItemToDest],
   );
 
-  return { isUploadingAll, uploadProgress, uploadItem, uploadAll };
+  return {
+    isUploadingAll,
+    uploadProgress,
+    uploadItem,
+    uploadAll,
+    resetUploadState,
+  };
 }

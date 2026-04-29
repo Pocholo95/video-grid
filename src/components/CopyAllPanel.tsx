@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { DestinationUploadState, TaskItem, UploadResult } from "../types";
-import { resolutionLabel, buildFormats } from "./UploadLinks";
+import { resolutionLabel, buildFormats } from "../uploadUtils";
 
 interface Props {
   /** Only done items with at least one successful upload should be passed. */

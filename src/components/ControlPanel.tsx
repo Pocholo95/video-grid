@@ -249,65 +249,6 @@ export default function ControlPanel({
             <input type="number" min={1} step={1} {...numField("rows")} />
           </label>
         </Section>
-        {/* Section: Style */}
-        <Section
-          label="Style"
-          expanded={sections.style}
-          onToggle={() => toggleSection("style")}
-        >
-          <label className="field">
-            <span>Timecode position</span>
-            <select
-              value={opts.position}
-              onChange={(e) =>
-                setOpts({
-                  ...opts,
-                  position: e.target.value as SavedOptions["position"],
-                })
-              }
-            >
-              <option value="disabled">Disabled</option>
-              <option value="top-left">Top-Left</option>
-              <option value="top-right">Top-Right</option>
-              <option value="bottom-left">Bottom-Left</option>
-              <option value="bottom-right">Bottom-Right</option>
-            </select>
-          </label>
-          {/* Empty div keeps the colour pickers on their own row */}
-          <div />
-          <label className="field color-field">
-            <span>Background color</span>
-            <div className="color-input-row">
-              <input
-                type="color"
-                value={opts.bgColor}
-                onChange={(e) => setOpts({ ...opts, bgColor: e.target.value })}
-              />
-              <span className="color-hex">{opts.bgColor}</span>
-            </div>
-          </label>
-          <label className="field color-field">
-            <span>Text color</span>
-            <div className="color-input-row">
-              <input
-                type="color"
-                value={opts.textColor}
-                onChange={(e) =>
-                  setOpts({ ...opts, textColor: e.target.value })
-                }
-              />
-              <span className="color-hex">{opts.textColor}</span>
-            </div>
-          </label>
-          <label className="check">
-            <input type="checkbox" {...checkField("header")} />
-            <span>Show header metadata</span>
-          </label>
-          <label className="check">
-            <input type="checkbox" {...checkField("preview")} />
-            <span>Show preview</span>
-          </label>
-        </Section>
         {/* Section: Output Modes - body uses a 2-column layout where each column
             is independent, so expanding Animated never shifts the VR control. */}
         <Section
@@ -396,8 +337,34 @@ export default function ControlPanel({
               </fieldset>
             )}
           </div>
-          {/* Right column: VR Video */}
+          {/* Right column: Timecode, Header Metadata, Preview, VR Video */}
           <div className="task-mode-col">
+            <label className="field">
+              <span>Timecode position</span>
+              <select
+                value={opts.position}
+                onChange={(e) =>
+                  setOpts({
+                    ...opts,
+                    position: e.target.value as SavedOptions["position"],
+                  })
+                }
+              >
+                <option value="disabled">Disabled</option>
+                <option value="top-left">Top-Left</option>
+                <option value="top-right">Top-Right</option>
+                <option value="bottom-left">Bottom-Left</option>
+                <option value="bottom-right">Bottom-Right</option>
+              </select>
+            </label>
+            <label className="check">
+              <input type="checkbox" {...checkField("header")} />
+              <span>Show header metadata</span>
+            </label>
+            <label className="check">
+              <input type="checkbox" {...checkField("preview")} />
+              <span>Show preview</span>
+            </label>
             <label className="field">
               <span>VR Video</span>
               <select
@@ -414,6 +381,38 @@ export default function ControlPanel({
               </select>
             </label>
           </div>
+        </Section>
+        {/* Section: Style */}
+        <Section
+          label="Style"
+          expanded={sections.style}
+          onToggle={() => toggleSection("style")}
+        >
+          {/* Empty div keeps the colour pickers on their own row */}
+          <label className="field color-field">
+            <span>Background color</span>
+            <div className="color-input-row">
+              <input
+                type="color"
+                value={opts.bgColor}
+                onChange={(e) => setOpts({ ...opts, bgColor: e.target.value })}
+              />
+              <span className="color-hex">{opts.bgColor}</span>
+            </div>
+          </label>
+          <label className="field color-field">
+            <span>Text color</span>
+            <div className="color-input-row">
+              <input
+                type="color"
+                value={opts.textColor}
+                onChange={(e) =>
+                  setOpts({ ...opts, textColor: e.target.value })
+                }
+              />
+              <span className="color-hex">{opts.textColor}</span>
+            </div>
+          </label>
         </Section>
       </div>
     </div>

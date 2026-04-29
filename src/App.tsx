@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { saveAs } from "file-saver";
 import JSZip from "jszip";
 
@@ -25,10 +25,10 @@ import DestinationManager from "./components/DestinationManager";
 import PreviewModal from "./components/PreviewModal";
 import Footer from "./components/Footer";
 
-export default function App() {
-  // - Persisted app settings
-  const initialSettings = loadAppSettings();
+// - Persisted app settings
+const initialSettings = loadAppSettings();
 
+export default function App() {
   const [appSettings, setAppSettingsState] =
     useState<AppSettings>(initialSettings);
   const [opts, setOptsState] = useState<SavedOptions>(() => {
@@ -53,6 +53,12 @@ export default function App() {
       persistDestinations(dests);
       setAppSettings({ ...appSettings, destinations: dests });
     },
+    [appSettings, setAppSettings],
+  );
+
+  const handleSetPresets = useCallback(
+    (p: AppSettings["presets"]) =>
+      setAppSettings({ ...appSettings, presets: p }),
     [appSettings, setAppSettings],
   );
 
@@ -162,19 +168,23 @@ export default function App() {
     [items, opts, processAll],
   );
 
+  // - Upload
+  const {
+    isUploadingAll,
+    uploadProgress,
+    uploadItem,
+    uploadAll,
+    resetUploadState,
+  } = useUpload(items, setItems);
+
   const handleClear = useCallback(() => {
     setItems([]);
     resetState();
+    resetUploadState();
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
-  }, [resetState]);
-
-  // - Upload
-  const { isUploadingAll, uploadProgress, uploadItem, uploadAll } = useUpload(
-    items,
-    setItems,
-  );
+  }, [resetState, resetUploadState]);
 
   const handleUploadItem = useCallback(
     (id: string) => uploadItem(id, destinations),
@@ -218,18 +228,29 @@ export default function App() {
     [],
   );
 
-  const queuedItems = items.filter((i) => i.status === "queued");
+  // - Derived values
+
+  // "Start Processing" is only meaningful when there are queued tasks with metadata ready.
+  const queuedItems = useMemo(
+    () => items.filter((i) => i.status === "queued"),
+    [items],
+  );
   const hasQueuedFiles = queuedItems.length > 0;
   const allMetaReady =
     hasQueuedFiles && queuedItems.every((i) => i.metadata !== undefined);
 
   const totalCells = Math.max(1, opts.cols) * Math.max(1, opts.rows);
 
-  const requeuableItems = items.filter(
-    (i) =>
-      i.status === "done" || i.status === "error" || i.status === "cancelled",
+  const hasRequeuableItems = useMemo(
+    () =>
+      items.some(
+        (i) =>
+          i.status === "done" ||
+          i.status === "error" ||
+          i.status === "cancelled",
+      ),
+    [items],
   );
-  const hasRequeuableItems = requeuableItems.length > 0;
 
   return (
     <>
@@ -249,7 +270,7 @@ export default function App() {
         opts={opts}
         setOpts={setOpts}
         presets={appSettings.presets}
-        setPresets={(p) => setAppSettings({ ...appSettings, presets: p })}
+        setPresets={handleSetPresets}
         fileInputRef={fileInputRef}
         onFilesChange={handleFilesChange}
       />
@@ -281,7 +302,9 @@ export default function App() {
         onRemove={handleRemoveItem}
         onRequeue={handleRequeueItem}
       />
-      <PreviewModal url={previewUrl} onClose={handleClosePreview} />
+      {previewUrl && (
+        <PreviewModal url={previewUrl} onClose={handleClosePreview} />
+      )}
       {showDestManager && (
         <DestinationManager
           destinations={destinations}
