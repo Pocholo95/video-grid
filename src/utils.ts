@@ -80,6 +80,24 @@ export const formatElapsed = (ms: number): string => {
 /** Generates a random UUID string suitable for use as an item ID. */
 export const makeId = (): string => crypto.randomUUID();
 
+// Helper to generate unique filename if collision exists
+export function makeUniqueName(name: string, existing: Set<string>): string {
+  if (!existing.has(name)) return name;
+
+  const lastDot = name.lastIndexOf(".");
+  const hasExt = lastDot > -1;
+  const base = hasExt ? name.substring(0, lastDot) : name;
+  const ext = hasExt ? name.substring(lastDot) : "";
+
+  let i = 1;
+  let candidate = `${base}_${i}${ext}`;
+  while (existing.has(candidate)) {
+    i++;
+    candidate = `${base}_${i}${ext}`;
+  }
+  return candidate;
+}
+
 /**
  * Type guard that returns true when `meta` contains valid, usable video dimensions
  * and a positive duration. Use this before passing metadata to grid generation.

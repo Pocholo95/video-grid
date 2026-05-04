@@ -24,6 +24,7 @@ import TaskList from "./components/TaskList";
 import DestinationManager from "./components/DestinationManager";
 import PreviewModal from "./components/PreviewModal";
 import Footer from "./components/Footer";
+import { makeUniqueName } from "./utils";
 
 // - Persisted app settings
 const initialSettings = loadAppSettings();
@@ -204,10 +205,18 @@ export default function App() {
       (i) => i.status === "done" && i.outputBlob && i.outputName,
     );
     if (!done.length) return;
+
     setIsZipping(true);
     try {
       const zip = new JSZip();
-      for (const item of done) zip.file(item.outputName!, item.outputBlob!);
+      const existingNames = new Set<string>();
+
+      for (const item of done) {
+        const uniqueName = makeUniqueName(item.outputName!, existingNames);
+        existingNames.add(uniqueName);
+        zip.file(uniqueName, item.outputBlob!);
+      }
+
       const blob = await zip.generateAsync({ type: "blob" });
       saveAs(blob, "vidgrid-outputs.zip");
     } finally {
