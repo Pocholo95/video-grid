@@ -25,6 +25,7 @@ export const DEFAULTS: SavedOptions = {
   webpQuality: 85,
   vrMode: "disabled",
   sectionStates: { grid: true, style: true, modes: true },
+  gridTemplate: undefined,
 };
 
 // Header layout

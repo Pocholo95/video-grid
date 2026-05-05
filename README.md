@@ -45,6 +45,9 @@ trigger an upload.
 - **VR Video support** — crop one eye from Side-by-Side or Top-Bottom stereo
   VR video so thumbnails show a single, undoubled image. See
   [VR Video](#vr-video).
+- **Custom grid templates** — design a free-form layout with any number of
+  rows and any number of cells per row, instead of a uniform columns × rows
+  grid. See [Custom Grid Templates](#custom-grid-templates).
 - **Custom timestamps per file** — click **Edit Timestamps** on any task item
   to set exact frame positions using a built-in video player with marker pins. See
   [Custom Timestamps](#custom-timestamps).
@@ -75,12 +78,13 @@ The controls are grouped into three fieldsets: **Grid**, **Style**, and **Output
 
 ### Grid
 
-| Option            | Description                               | Default |
-| ----------------- | ----------------------------------------- | ------- |
-| **Output width**  | Total pixel width of the generated image. | 1920 px |
-| **Frame spacing** | Gap in pixels between cells.              | 0       |
-| **Grid columns**  | Number of columns in the grid.            | 3       |
-| **Grid rows**     | Number of rows in the grid.               | 4       |
+| Option                   | Description                                                                            | Default |
+| ------------------------ | -------------------------------------------------------------------------------------- | ------- |
+| **Output width**         | Total pixel width of the generated image.                                              | 1920 px |
+| **Frame spacing**        | Gap in pixels between cells.                                                           | 0       |
+| **Grid columns**         | Number of columns in the uniform grid. Hidden when a custom template is active.        | 3       |
+| **Grid rows**            | Number of rows in the uniform grid. Hidden when a custom template is active.           | 4       |
+| **Custom grid template** | Enable a free-form layout editor. See [Custom Grid Templates](#custom-grid-templates). | Off     |
 
 ### Style
 
@@ -101,6 +105,52 @@ The controls are grouped into three fieldsets: **Grid**, **Style**, and **Output
 
 ---
 
+## Custom Grid Templates
+
+By default VidGrid-HTML arranges frames in a uniform columns × rows grid. The
+**Custom grid template** checkbox in the Grid section replaces that with a
+free-form layout: any number of rows, each with any number of cells.
+
+### How it works
+
+The template editor opens as a modal. Rows stack vertically on screen; within
+each row, cells share the full output width equally — there is no manual width
+control. The height of every cell in a row is derived automatically from the
+cell width and the video's aspect ratio, so the output is always
+pixel-perfect with no distortion. Fewer cells per row means wider, taller
+cells; more cells means narrower, shorter cells.
+
+### Building a template
+
+- **+ Add Row** appends a new full-width single-cell row at the bottom.
+- **+** at the right end of each row splits the row's available space by
+  adding one more cell. All cells in that row are immediately rebalanced to
+  equal widths.
+- **✕** on a cell removes it; the remaining cells in that row rebalance
+  equally. Removing the last cell in a row removes the entire row.
+- The **⠿** handle on the left of each row can be grabbed to drag the row to
+  a different position in the stack.
+- **↺ Reset (?x?)** discards the current layout and restores a uniform grid
+  sized based on the non-custom collumns/row option.
+
+### Cell numbering and timestamps
+
+Cells are numbered in reading order — left-to-right within each row and
+top-to-bottom across rows. That number determines which timestamp is
+sampled for each cell, and it is the same count the **Timestamp Editor**
+uses when you set per-file custom markers. If you change the template after
+setting custom markers on a task, requeue the task so the new cell count is
+applied.
+
+### Saving and reusing templates
+
+The full grid template is saved as part of the **Preset**. To reuse the same
+layout in a different preset or with different style settings, save the
+preset after building your grid template, then load it later and adjust any other
+options (output width, colours, header, etc.) without touching the template.
+
+---
+
 ## Custom Timestamps
 
 Each task item shows its timestamp mode (**Auto** or **Custom**) with an
@@ -113,7 +163,9 @@ specific video.
 - **Visual marker pins** on the seekbar — green (used in grid), orange (extra)
 - **Keyboard shortcuts**: `Space` (play/pause), `M` (add marker), `Esc` (close)
 - **Live marker list** — click to seek, ✕ to delete individual markers
-- **Smart counting** — shows how many markers fit your grid (cols×rows), extras ignored, shortages use auto fallback
+- **Smart counting** — shows how many markers fit your grid (total cell count
+  from the active layout, uniform or custom), extras ignored, shortages use
+  auto fallback
 - **Reset** — restore evenly-spaced timestamps
 - **Save Markers** — apply custom timestamps
 
@@ -245,9 +297,10 @@ The 🗂️ dropdown at the top of the options panel lets you manage named prese
   `<Default Preset>` is selected.
 
 Presets are stored in the browser's `localStorage` and persist between sessions.
-The last selected preset will also be restored when you return. All animation
-and VR settings are included in saved presets. Custom timestamps are per-file
-and are not stored int presets.
+The last selected preset will also be restored when you return. All settings are
+included in saved presets — grid options, style, output modes, animation
+settings, VR mode, and any custom grid template. Custom timestamps are per-file
+and are not stored in presets.
 
 ---
 

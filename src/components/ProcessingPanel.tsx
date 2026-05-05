@@ -84,7 +84,7 @@ export default function ProcessingPanel({
           </button>
         )}
         <button className="icon-btn" disabled={isProcessing} onClick={onClear}>
-          🗑️ Clear All
+          🗑️ Clear Tasks
         </button>
       </div>
       <div className="progress-area">

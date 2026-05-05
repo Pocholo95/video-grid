@@ -3,8 +3,95 @@ import {
   HEADER_PADDING_LEFT,
   HEADER_TEXT_SIZE,
 } from "./constants";
-import type { Position, VideoMetadata, VrMode } from "./types";
+import { computeTemplatePixelRects, templateFromUniform } from "./gridTemplate";
+import type { GridTemplate, Position, VideoMetadata, VrMode } from "./types";
 import { formatTime, hexToRgba, humanSize } from "./utils";
+
+export type FrameSlot = { x: number; y: number; cellW: number; cellH: number };
+
+/**
+ * Generates a grid layout describing the geometry of frames to be generated
+ *
+ * @param opts Task options
+ * @param meta Metadata about the file being processed
+ * @param headerHeight Header height to account for in the final canvas height.
+ * @returns object An array of FrameSlots and the size of the required canvas.
+ */
+export const getGridLayout = (
+  opts: {
+    width: number;
+    cols: number;
+    rows: number;
+    spacing: number;
+    gridTemplate?: GridTemplate;
+    vrMode: VrMode;
+  },
+  meta: VideoMetadata,
+  headerHeight: number = 0,
+): { frameSlots: FrameSlot[]; canvasWidth: number; canvasHeight: number } => {
+  const useTemplate = !!(
+    opts.gridTemplate && opts.gridTemplate.cells.length > 0
+  );
+  const template = useTemplate
+    ? opts.gridTemplate!
+    : templateFromUniform(opts.cols, opts.rows);
+
+  const rectResult = computeTemplatePixelRects(
+    template,
+    Math.max(240, opts.width),
+    Math.max(0, opts.spacing),
+    meta,
+    opts.vrMode,
+    0,
+  );
+
+  // Shift slots if needed (e.g. header above)
+  const frameSlots = rectResult.rects.map((r) => ({
+    x: r.x,
+    y: r.y + headerHeight,
+    cellW: r.w,
+    cellH: r.h,
+  }));
+
+  return {
+    frameSlots,
+    canvasWidth: rectResult.canvasWidth,
+    canvasHeight: rectResult.canvasHeight + headerHeight,
+  };
+};
+
+/**
+ * Helper to prepare the header canvas if enabled.
+ *
+ * @param opts Task options
+ * @param file Video file being processed
+ * @param meta Metadata about the file being processed
+ * @returns object Returns the header canvas and its height.
+ */
+export const prepareHeader = (
+  opts: {
+    header: boolean;
+    bgColor: string;
+    textColor: string;
+    vrMode: VrMode;
+    width: number;
+  },
+  file: File,
+  meta: VideoMetadata,
+): { headerCanvas: HTMLCanvasElement | undefined; headerHeight: number } => {
+  if (!opts.header) return { headerCanvas: undefined, headerHeight: 0 };
+
+  const headerCanvas = createHeaderCanvas(
+    file,
+    meta,
+    opts.vrMode,
+    Math.max(240, opts.width),
+    opts.bgColor,
+    opts.textColor,
+  );
+
+  return { headerCanvas, headerHeight: headerCanvas.height };
+};
 
 /**
  * Returns the source crop rectangle for a VR stereo frame, isolating one eye.

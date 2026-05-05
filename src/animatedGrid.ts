@@ -5,10 +5,11 @@ import { canNativelyPlay } from "./mediainfo";
 import type { VideoMetadata, VrMode } from "./types";
 import {
   calculateSampleTimes,
-  createHeaderCanvas,
   drawErrorPlaceholder,
   drawTimecodeOverlay,
+  getGridLayout,
   getVrCropRect,
+  prepareHeader,
   resolveTimestamps,
 } from "./gridUtils";
 import { errlog, log } from "./utils";
@@ -28,8 +29,13 @@ export type AnimatedGridOptions = GridOptions & {
 /**
  * Build an animated WebP contact sheet for a single video file.
  * Each grid cell plays a short clip sampled from its evenly-distributed timestamp.
- * Only files natively supported by the browser are accepted — FFmpeg fallback
+ * Only files natively supported by the browser are accepted - FFmpeg fallback
  * is not available for frame extraction in animated mode.
+ *
+ * When `opts.gridTemplate` is set and non-empty, the cell layout is driven by
+ * the template. Otherwise a uniform cols×rows grid is used.
+ * Cell pixel sizes are computed from the template's coordinate
+ * space.
  *
  * When `opts.vrMode` is not "disabled", the drawImage source rectangle is adjusted
  * to crop one eye from the stereo frame, identical to the static JPEG path.
@@ -39,20 +45,20 @@ export type AnimatedGridOptions = GridOptions & {
  * distributed times. Cells beyond the marker list fall back to auto times.
  *
  * Progress is split into two phases:
- *   - Frame composition  — `onFrameDone` is called after each canvas frame is
+ *   - Frame composition - `onFrameDone` is called after each canvas frame is
  *     composed and exported as PNG, representing the bulk of the seek+draw work.
- *   - WebP encoding      — `onEncodeProgress` receives a 0-1 ratio as FFmpeg
+ *   - WebP encoding - `onEncodeProgress` receives a 0-1 ratio as FFmpeg
  *     writes the PNG frames to its virtual FS (0-0.5) and then encodes the
  *     animated WebP (0.5-1.0).
  *
- * @param file              - The source video file.
- * @param meta              - Pre-read metadata (dimensions, duration, etc.).
- * @param opts              - Grid layout, appearance, and animation options.
- * @param isCancelled       - Polled before each animation frame; return true to abort.
- * @param onFrameDone       - Called after each composed animation frame with
- *                            (composedFrame, totalFrames).
- * @param onEncodeProgress  - Called with a 0-1 ratio during the FFmpeg encode phase.
- * @param onWarning         - Called for non-fatal issues to surface to the user.
+ * @param file - The source video file.
+ * @param meta - Pre-read metadata (dimensions, duration, etc.).
+ * @param opts - Grid layout, appearance, and animation options.
+ * @param isCancelled - Polled before each animation frame; return true to abort.
+ * @param onFrameDone - Called after each composed animation frame with
+ *   (composedFrame, totalFrames).
+ * @param onEncodeProgress - Called with a 0-1 ratio during the FFmpeg encode phase.
+ * @param onWarning - Called for non-fatal issues to surface to the user.
  * @returns The output filename, byte size, and animated WebP blob.
  */
 export const createAnimatedGridWebP = async (
@@ -70,45 +76,19 @@ export const createAnimatedGridWebP = async (
     );
   }
 
-  const canvas = document.createElement("canvas");
-  const ctx = canvas.getContext("2d")!;
-
-  const totalWidth = Math.max(240, opts.width);
-  const cols = Math.max(1, opts.cols);
-  const rows = Math.max(1, opts.rows);
-  const spacing = Math.max(0, opts.spacing);
-  const totalCells = cols * rows;
   const duration = Math.max(1, meta.duration || 1);
   const vrActive = opts.vrMode !== "disabled";
 
-  const cellWidth = Math.floor((totalWidth - spacing * (cols - 1)) / cols);
+  // Resolve header height if enabled
+  const { headerCanvas, headerHeight } = prepareHeader(opts, file, meta);
 
-  // Aspect ratio of a single cell, adjusted for VR crop mode.
-  let cellAspect =
-    meta.width > 0 && meta.height > 0 ? meta.height / meta.width : 9 / 16;
-  if (vrActive) {
-    if (opts.vrMode.startsWith("sbs")) cellAspect *= 2;
-    else cellAspect /= 2;
-  }
-
-  const cellHeight = Math.max(1, Math.floor(cellWidth * cellAspect));
-  const canvasWidth = cols * cellWidth + spacing * (cols - 1);
-
-  let headerCanvas: HTMLCanvasElement | undefined;
-  let headerHeight = 0;
-  if (opts.header) {
-    headerCanvas = createHeaderCanvas(
-      file,
-      meta,
-      opts.vrMode,
-      canvasWidth,
-      opts.bgColor,
-      opts.textColor,
-    );
-    headerHeight = headerCanvas.height;
-  }
-
-  const canvasHeight = headerHeight + rows * cellHeight + spacing * (rows - 1);
+  // Get layout and slots (shifted automatically by headerHeight)
+  const { frameSlots, canvasWidth, canvasHeight } = getGridLayout(
+    opts,
+    meta,
+    headerHeight,
+  );
+  const totalCells = frameSlots.length;
 
   const totalAnimFrames = Math.max(
     1,
@@ -116,7 +96,7 @@ export const createAnimatedGridWebP = async (
   );
   const frameDuration = 1 / opts.animFps;
 
-  // Choose base seek time per cell: custom markers or even distribution.
+  // Pick times automatically or from edited timestamps
   const baseTimes =
     opts.customTimestamps && opts.customTimestamps.length > 0
       ? resolveTimestamps(opts.customTimestamps, totalCells, duration)
@@ -159,6 +139,9 @@ export const createAnimatedGridWebP = async (
     URL.revokeObjectURL(videoUrl);
   };
 
+  // Setup <canvas> elements to capture frames
+  const canvas = document.createElement("canvas");
+  const ctx = canvas.getContext("2d")!;
   const composedFrames: Blob[] = [];
 
   try {
@@ -179,10 +162,7 @@ export const createAnimatedGridWebP = async (
           baseTimes[i] + f * frameDuration,
           duration - 0.001,
         );
-        const col = i % cols;
-        const row = Math.floor(i / cols);
-        const x = col * (cellWidth + spacing);
-        const y = headerHeight + row * (cellHeight + spacing);
+        const { x, y, cellW, cellH } = frameSlots[i];
 
         log(
           `  [AnimWebP] anim frame ${f + 1}/${totalAnimFrames}, cell ${i + 1}/${totalCells} @ t=${tSec.toFixed(3)}s`,
@@ -198,9 +178,9 @@ export const createAnimatedGridWebP = async (
               vh,
               opts.vrMode as Exclude<VrMode, "disabled">,
             );
-            ctx.drawImage(video, sx, sy, sw, sh, x, y, cellWidth, cellHeight);
+            ctx.drawImage(video, sx, sy, sw, sh, x, y, cellW, cellH);
           } else {
-            ctx.drawImage(video, x, y, cellWidth, cellHeight);
+            ctx.drawImage(video, x, y, cellW, cellH);
           }
         } catch (seekErr) {
           const msg =
@@ -212,7 +192,7 @@ export const createAnimatedGridWebP = async (
           onWarning(
             `Seek failed at animation frame ${f + 1}, cell ${i + 1}: ${msg}`,
           );
-          drawErrorPlaceholder(ctx, x, y, cellWidth, cellHeight, opts.bgColor);
+          drawErrorPlaceholder(ctx, x, y, cellW, cellH, opts.bgColor);
         }
 
         // Timecode overlay
@@ -221,9 +201,9 @@ export const createAnimatedGridWebP = async (
           tSec,
           x,
           y,
-          cellWidth,
-          cellHeight,
-          totalWidth,
+          cellW,
+          cellH,
+          canvasWidth,
           opts.position,
           opts.bgColor,
           opts.textColor,

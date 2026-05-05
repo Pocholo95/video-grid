@@ -183,7 +183,7 @@ export default function TaskCard({
                 : "Timestamps can be edited after analysis completes"
             }
           >
-            Edit Timestamps
+            ⏱️ Edit Timestamps
           </button>
         </div>
         <div className="task-grid">
@@ -225,7 +225,7 @@ export default function TaskCard({
                   className="icon-btn button-link"
                   style={{ textDecoration: "none", display: "inline-block" }}
                 >
-                  ⬇️ Download{" "}
+                  🔽 Download{" "}
                   {item.outputName.endsWith(".webp") ? "WebP" : "JPG"}
                 </a>
               ) : (

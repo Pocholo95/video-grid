@@ -248,7 +248,13 @@ export default function App() {
   const allMetaReady =
     hasQueuedFiles && queuedItems.every((i) => i.metadata !== undefined);
 
-  const totalCells = Math.max(1, opts.cols) * Math.max(1, opts.rows);
+  // When a custom grid template is active the effective cell count is the
+  // number of cells defined in it, not cols×rows. This feeds into the
+  // timestamp editor so marker counts and auto-fallback counts are correct.
+  const totalCells =
+    opts.gridTemplate && opts.gridTemplate.cells.length > 0
+      ? opts.gridTemplate.cells.length
+      : Math.max(1, opts.cols) * Math.max(1, opts.rows);
 
   const hasRequeuableItems = useMemo(
     () =>

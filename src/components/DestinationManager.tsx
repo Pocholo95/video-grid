@@ -135,7 +135,7 @@ export default function DestinationManager({
     >
       <div className="modal-box">
         <div className="modal-header">
-          <h2>Upload Destinations</h2>
+          <h2>☁️ Upload Destinations</h2>
           <button className="icon-btn" onClick={onClose} title="Close">
             ✕
           </button>
@@ -253,11 +253,11 @@ export default function DestinationManager({
             {error && <p className="form-error">{error}</p>}
 
             <div className="edit-actions">
-              <button className="icon-btn primary" onClick={confirmEdit}>
-                {editing.id === "__new__" ? "Add" : "Update"}
-              </button>
               <button className="icon-btn" onClick={cancelEdit}>
                 Cancel
+              </button>
+              <button className="icon-btn primary" onClick={confirmEdit}>
+                {editing.id === "__new__" ? "✓ Add" : "✓ Update"}
               </button>
             </div>
           </div>
@@ -270,6 +270,9 @@ export default function DestinationManager({
         )}
 
         <div className="modal-footer">
+          <button className="icon-btn" onClick={onClose}>
+            Discard changes
+          </button>
           <button
             className="icon-btn primary"
             onClick={() => {
@@ -277,10 +280,7 @@ export default function DestinationManager({
               onClose();
             }}
           >
-            Save &amp; close
-          </button>
-          <button className="icon-btn" onClick={onClose}>
-            Discard changes
+            ✓ Save &amp; close
           </button>
         </div>
       </div>

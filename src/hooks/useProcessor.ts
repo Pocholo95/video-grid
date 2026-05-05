@@ -151,6 +151,11 @@ export function useProcessor(updateItem: Updater) {
         bgColor: opts.bgColor || DEFAULTS.bgColor,
         textColor: opts.textColor || DEFAULTS.textColor,
         vrMode: opts.vrMode ?? DEFAULTS.vrMode,
+        // Pass through the custom template when present and non-empty.
+        gridTemplate:
+          opts.gridTemplate && opts.gridTemplate.cells.length > 0
+            ? opts.gridTemplate
+            : undefined,
       };
 
       const isAnimated = opts.animated ?? false;

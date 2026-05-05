@@ -33,6 +33,59 @@ export type VrMode =
  */
 export type ItemTimestampMode = "auto" | "custom";
 
+// - Custom grid templates
+
+/**
+ * A single cell in a custom grid template within a schmatic representation of the
+ * grid. Not to be mixed up with FrameSlot which describe theses cells but
+ * geometrically (to be able to draw them).
+ *
+ * `y` groups cells into rows - all cells sharing a `y` value form one row.
+ * `x` determines left-to-right order within that row.
+ * `w` is the cell's proportional weight within its row: the pixel width assigned
+ *   to this cell is `(w / sum_of_w_in_row) × available_row_width`. Equal `w`
+ *   values produce equal-width cells; larger values produce wider cells.
+ * `h` is always 1 in the editor as height it computed from width. The actual pixel
+ *   height in the output is derived from the cell's pixel width × the video
+ *   aspect ratio, so it is never stored here.
+ */
+export type GridCell = {
+  /** Unique cell identifier (used as item key). */
+  id: string;
+  /** Left-to-right order within the row. */
+  x: number;
+  /** Row index (0-based). Cells with the same y value form one row. */
+  y: number;
+  /**
+   * Proportional width weight within the row.
+   * Values are in grid "units" column units (1–12).
+   * The renderer converts weights to pixel widths proportionally.
+   */
+  w: number;
+  /** Always 1 - height is derived from aspect ratio at render time. */
+  h: number;
+};
+
+/**
+ * A custom grid layout template. Cells are grouped into rows by their `y`
+ * value. Each row can hold any number of cells with independent proportional
+ * widths. Row heights in the output are determined by the widest cell in each
+ * row multiplied by the video aspect ratio.
+ *
+ * When set on SavedOptions, this overrides the uniform cols×rows grid layout.
+ */
+export type GridTemplate = {
+  /**
+   * Internal column count used in the editor.
+   * Cell `w` values are expressed in these units and serve as proportional
+   * weights -* the renderer does not use this field directly it's used for the
+   *            schematic representation of the grid to keep the cells proportional.
+   */
+  cols: number;
+  /** Cell definitions. All cells must have non-overlapping x positions within their row. */
+  cells: GridCell[];
+};
+
 // - Upload
 export type UploadStatus = "idle" | "uploading" | "done" | "error";
 
@@ -130,6 +183,7 @@ export type SavedOptions = {
   webpQuality: number;
   vrMode: VrMode;
   sectionStates?: SectionStates;
+  gridTemplate?: GridTemplate;
 };
 
 export type Presets = Record<string, SavedOptions>;

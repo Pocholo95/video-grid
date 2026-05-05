@@ -5,14 +5,15 @@ import {
   isMemoryError,
   resetFFmpeg,
 } from "./ffmpeg";
-import type { Position, VideoMetadata, VrMode } from "./types";
+import type { GridTemplate, Position, VideoMetadata, VrMode } from "./types";
 import { errlog, formatTime, log, warn } from "./utils";
 import {
   calculateSampleTimes,
-  createHeaderCanvas,
   drawErrorPlaceholder,
   drawTimecodeOverlay,
+  getGridLayout,
   getVrCropRect,
+  prepareHeader,
   resolveTimestamps,
 } from "./gridUtils";
 
@@ -37,6 +38,11 @@ export type GridOptions = {
    * the end of the array still receive auto-calculated fallback times.
    */
   customTimestamps?: number[];
+  /**
+   * Optional custom grid template. When set and non-empty, this
+   * overrides the uniform cols×rows layout.
+   */
+  gridTemplate?: GridTemplate;
 };
 
 export type GridResult = {
@@ -51,7 +57,7 @@ export type GridResult = {
  * Rejects with a timeout error if the seek takes longer than SEEK_TIMEOUT_MS.
  *
  * @param video - The HTMLVideoElement to seek.
- * @param t     - Target time in seconds.
+ * @param t - Target time in seconds.
  */
 export const seekVideo = (video: HTMLVideoElement, t: number): Promise<void> =>
   new Promise((resolve, reject) => {
@@ -71,6 +77,11 @@ export const seekVideo = (video: HTMLVideoElement, t: number): Promise<void> =>
  * Build a JPEG contact sheet for a single video file.
  * Tries native browser seeking first, falling back to FFmpeg WASM if that fails.
  *
+ * When `opts.gridTemplate` is set and non-empty, the cell layout is driven by
+ * the template. Otherwise a uniform cols×rows grid is used.
+ * Cell pixel sizes are computed from the template's coordinate
+ * space.
+ *
  * When `opts.vrMode` is not "disabled", the source rectangle passed to drawImage
  * is adjusted to crop one eye from the stereo frame. This works on both the
  * native and FFmpeg fallback paths without any additional processing overhead.
@@ -80,12 +91,12 @@ export const seekVideo = (video: HTMLVideoElement, t: number): Promise<void> =>
  * of evenly-distributed automatic sampling. Cells beyond the list fall back to
  * auto-calculated times so the grid is always fully populated.
  *
- * @param file         - The source video file.
- * @param meta         - Pre-read metadata (dimensions, duration, etc.).
- * @param opts         - Grid layout and appearance options.
- * @param isCancelled  - Polled before each frame; return true to abort cleanly.
- * @param onFrameDone  - Called after every frame to drive the progress bar.
- * @param onWarning    - Called for non-fatal issues to show to the user.
+ * @param file - The source video file.
+ * @param meta - Pre-read metadata (dimensions, duration, etc.).
+ * @param opts - Grid layout and appearance options.
+ * @param isCancelled - Polled before each frame; return true to abort cleanly.
+ * @param onFrameDone - Called after every frame to drive the progress bar.
+ * @param onWarning - Called for non-fatal issues to show to the user.
  * @returns The output filename, byte size, and JPEG blob.
  */
 export const createGridJpg = async (
@@ -100,45 +111,29 @@ export const createGridJpg = async (
   ) => void,
   onWarning: (message: string) => void,
 ): Promise<GridResult> => {
-  const totalWidth = Math.max(240, opts.width);
-  const cols = Math.max(1, opts.cols);
-  const rows = Math.max(1, opts.rows);
-  const spacing = Math.max(0, opts.spacing);
-  const total = cols * rows;
   const duration = Math.max(1, meta.duration || 1);
   const vrActive = opts.vrMode !== "disabled";
 
-  // Aspect ratio of a single cell. For SBS formats each eye is half the frame
-  // width, so the eye itself has double the raw height/width ratio. For TB the
-  // eye is half the frame height, halving that ratio.
-  let cellAspect =
-    meta.width > 0 && meta.height > 0 ? meta.height / meta.width : 9 / 16;
-  if (vrActive) {
-    if (opts.vrMode.startsWith("sbs")) cellAspect *= 2;
-    else cellAspect /= 2;
-  }
+  // Resolve header height if enabled
+  const { headerCanvas, headerHeight } = prepareHeader(opts, file, meta);
 
+  // Get layout and slots (shifted automatically by headerHeight)
+  const { frameSlots, canvasWidth, canvasHeight } = getGridLayout(
+    opts,
+    meta,
+    headerHeight,
+  );
+  const totalCells = frameSlots.length;
+
+  // Pick times automatically or from edited timestamps
+  const times =
+    opts.customTimestamps && opts.customTimestamps.length > 0
+      ? resolveTimestamps(opts.customTimestamps, totalCells, duration)
+      : calculateSampleTimes(totalCells, duration);
+
+  // Setup <canvas> elements to capture frames
   const canvas = document.createElement("canvas");
   const ctx = canvas.getContext("2d")!;
-  const cellWidth = Math.floor((totalWidth - spacing * (cols - 1)) / cols);
-  const cellHeight = Math.max(1, Math.floor(cellWidth * cellAspect));
-  const canvasWidth = cols * cellWidth + spacing * (cols - 1);
-
-  let headerCanvas: HTMLCanvasElement | undefined;
-  let headerHeight = 0;
-  if (opts.header) {
-    headerCanvas = createHeaderCanvas(
-      file,
-      meta,
-      opts.vrMode,
-      canvasWidth,
-      opts.bgColor,
-      opts.textColor,
-    );
-    headerHeight = headerCanvas.height;
-  }
-
-  const canvasHeight = headerHeight + rows * cellHeight + spacing * (rows - 1);
   canvas.width = canvasWidth;
   canvas.height = canvasHeight;
   ctx.fillStyle = opts.bgColor;
@@ -147,12 +142,7 @@ export const createGridJpg = async (
     ctx.drawImage(headerCanvas, 0, 0);
   }
 
-  // Choose sample times: per-file custom markers or evenly-distributed auto times.
-  const times =
-    opts.customTimestamps && opts.customTimestamps.length > 0
-      ? resolveTimestamps(opts.customTimestamps, total, duration)
-      : calculateSampleTimes(total, duration);
-
+  // Setup <video> elements to capture frames
   const videoUrl = URL.createObjectURL(file);
   const video = document.createElement("video");
   video.muted = true;
@@ -201,14 +191,14 @@ export const createGridJpg = async (
   let ffmpegFailedFrames = 0;
   const ensureFFmpegBitmaps = async (): Promise<void> => {
     if (ffmpegBitmaps !== null) return;
-    log(`  Switching to FFmpeg batch extraction for all ${total} frames…`);
+    log(`  Switching to FFmpeg batch extraction for all ${totalCells} frames…`);
     ffmpegBitmaps = await extractFramesFFmpegBatch(
       file,
       times,
       (idx, _total, err) => {
         if (err) {
           ffmpegFailedFrames++;
-          onWarning(`FFmpeg frame ${idx + 1}/${total} failed: ${err}`);
+          onWarning(`FFmpeg frame ${idx + 1}/${totalCells} failed: ${err}`);
           if (ffmpegFailedFrames > 2) {
             throw new Error(
               "FFmpeg decoding failed repeatedly — likely OOM or unsupported codec.",
@@ -223,13 +213,10 @@ export const createGridJpg = async (
   for (let i = 0; i < times.length; i++) {
     if (isCancelled()) break;
     const tSec = times[i];
-    const col = i % cols;
-    const row = Math.floor(i / cols);
-    const x = col * (cellWidth + spacing);
-    const y = headerHeight + row * (cellHeight + spacing);
+    const { x, y, cellW, cellH } = frameSlots[i];
 
     log(
-      `  Frame ${i + 1}/${total} — t=${tSec.toFixed(3)}s (${formatTime(tSec)}) from "${file.name}"`,
+      `  Frame ${i + 1}/${totalCells} — t=${tSec.toFixed(3)}s (${formatTime(tSec)}) from "${file.name}"`,
     );
 
     let frameDrawn = false;
@@ -246,9 +233,9 @@ export const createGridJpg = async (
             vh,
             opts.vrMode as Exclude<VrMode, "disabled">,
           );
-          ctx.drawImage(video, sx, sy, sw, sh, x, y, cellWidth, cellHeight);
+          ctx.drawImage(video, sx, sy, sw, sh, x, y, cellW, cellH);
         } else {
-          ctx.drawImage(video, x, y, cellWidth, cellHeight);
+          ctx.drawImage(video, x, y, cellW, cellH);
         }
         frameDrawn = true;
       } catch (seekErr) {
@@ -274,9 +261,9 @@ export const createGridJpg = async (
               bitmap.height,
               opts.vrMode as Exclude<VrMode, "disabled">,
             );
-            ctx.drawImage(bitmap, sx, sy, sw, sh, x, y, cellWidth, cellHeight);
+            ctx.drawImage(bitmap, sx, sy, sw, sh, x, y, cellW, cellH);
           } else {
-            ctx.drawImage(bitmap, x, y, cellWidth, cellHeight);
+            ctx.drawImage(bitmap, x, y, cellW, cellH);
           }
           bitmap.close();
           ffmpegBitmaps![i] = null;
@@ -300,7 +287,7 @@ export const createGridJpg = async (
 
     // Error placeholder when both paths failed
     if (!frameDrawn) {
-      drawErrorPlaceholder(ctx, x, y, cellWidth, cellHeight, opts.bgColor);
+      drawErrorPlaceholder(ctx, x, y, cellW, cellH, opts.bgColor);
     }
 
     // Timecode overlay
@@ -309,15 +296,15 @@ export const createGridJpg = async (
       tSec,
       x,
       y,
-      cellWidth,
-      cellHeight,
-      totalWidth,
+      cellW,
+      cellH,
+      canvasWidth,
       opts.position,
       opts.bgColor,
       opts.textColor,
     );
 
-    onFrameDone(i + 1, total, tSec);
+    onFrameDone(i + 1, totalCells, tSec);
     // Avoid using requestAnimationFrame. unfocused windows/tab throttle it
     await new Promise<void>((r) => setTimeout(r, 0));
   }
