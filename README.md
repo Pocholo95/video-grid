@@ -86,22 +86,22 @@ The controls are grouped into three fieldsets: **Grid**, **Style**, and **Output
 | **Grid rows**            | Number of rows in the uniform grid. Hidden when a custom template is active.           | 4       |
 | **Custom grid template** | Enable a free-form layout editor. See [Custom Grid Templates](#custom-grid-templates). | Off     |
 
-### Style
-
-| Option                   | Description                                                             | Default   |
-| ------------------------ | ----------------------------------------------------------------------- | --------- |
-| **Timecode position**    | Corner where the timestamp overlay appears, or **Disabled** to omit it. | Top-left  |
-| **Background color**     | Canvas and header background.                                           | `#000000` |
-| **Text color**           | Header text and timecode label colour.                                  | `#ffffff` |
-| **Show header metadata** | Toggle the filename/info header row.                                    | On        |
-| **Show preview**         | Show thumbnail previews in the tasks list.                              | On        |
-
 ### Output Modes
 
-| Option              | Description                                                                                                             | Default  |
-| ------------------- | ----------------------------------------------------------------------------------------------------------------------- | -------- |
-| **Animated output** | Generate an animated WebP instead of a static JPEG. Reveals more options, see [Animation settings](#animation-settings) | Off      |
-| **VR Video**        | Crop one part of a stereo VR frame (SBS or TB layout), see [VR Video options](#vr-video-options)                        | Disabled |
+| Option                   | Description                                                                                                             | Default  |
+| ------------------------ | ----------------------------------------------------------------------------------------------------------------------- | -------- |
+| **Timecode position**    | Corner where the timestamp overlay appears, or **Disabled** to omit it.                                                 | Top-left |
+| **Show header metadata** | Toggle the filename/info header row.                                                                                    | On       |
+| **Show preview**         | Show thumbnail previews in the tasks list.                                                                              | On       |
+| **VR Video**             | Crop one part of a stereo VR frame (SBS or TB layout), see [VR Video options](#vr-video-options)                        | Disabled |
+| **Animated output**      | Generate an animated WebP instead of a static JPEG. Reveals more options, see [Animation settings](#animation-settings) | Off      |
+
+### Style
+
+| Option               | Description                            | Default   |
+| -------------------- | -------------------------------------- | --------- |
+| **Background color** | Canvas and header background.          | `#000000` |
+| **Text color**       | Header text and timecode label colour. | `#ffffff` |
 
 ---
 
@@ -419,7 +419,11 @@ See [RELEASE.md](./RELEASE.md) for deployment instructions
 
 ## Tech stack
 
-- [Vite](https://vitejs.dev/) + TypeScript
+- [Vite](https://vitejs.dev/) with TypeScript
+- [React JS](https://react.dev/)
+- [TailwindCSS](https://tailwindcss.com/)
+- [Radix UI](https://www.radix-ui.com/)
+- [Lucide](https://lucide.dev/)
 - [mediainfo.js](https://mediainfo.js.org/) — container/codec metadata
 - [@ffmpeg/ffmpeg](https://github.com/ffmpegwasm/ffmpeg.wasm) — animated WebP
   encoding via libwebp, and frame extraction fallback for natively unsupported formats

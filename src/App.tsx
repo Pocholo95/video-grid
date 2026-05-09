@@ -268,14 +268,20 @@ export default function App() {
   );
 
   return (
-    <>
-      <header className="app-header">
-        <a href="/" className="brand-mark" aria-label="Go to homepage">
-          <img src="favicon.svg" alt="Logo" />
+    <div className="mx-auto flex max-w-6xl flex-col gap-5 p-6">
+      <header className="bg-card text-card-foreground flex items-center gap-4 rounded-xl border p-6 shadow-sm">
+        <a
+          href="/"
+          aria-label="Go to homepage"
+          className="focus-visible:ring-ring/50 inline-flex shrink-0 rounded-md focus-visible:ring-2 focus-visible:outline-none"
+        >
+          <img src="favicon.svg" alt="Logo" className="size-14 rounded-md" />
         </a>
-        <div className="header-text">
-          <h1>{PROJECT_NAME}</h1>
-          <p className="subtitle">
+        <div className="flex flex-col gap-1">
+          <h1 className="text-2xl font-semibold leading-none tracking-tight">
+            {PROJECT_NAME}
+          </h1>
+          <p className="text-muted-foreground text-sm">
             Thumbnail Grids Generator for videos. Client-side only processing,
             no upload required!
           </p>
@@ -320,14 +326,13 @@ export default function App() {
       {previewUrl && (
         <PreviewModal url={previewUrl} onClose={handleClosePreview} />
       )}
-      {showDestManager && (
-        <DestinationManager
-          destinations={destinations}
-          onSave={handleSaveDestinations}
-          onClose={handleCloseDestManager}
-        />
-      )}
+      <DestinationManager
+        open={showDestManager}
+        destinations={destinations}
+        onSave={handleSaveDestinations}
+        onClose={handleCloseDestManager}
+      />
       <Footer />
-    </>
+    </div>
   );
 }

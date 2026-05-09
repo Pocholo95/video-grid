@@ -1,6 +1,16 @@
 import { useState } from "react";
+import { Check, Copy } from "lucide-react";
 import type { DestinationUploadState, TaskItem, UploadResult } from "../types";
 import { resolutionLabel, buildFormats } from "../uploadUtils";
+import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 interface Props {
   /** Only done items with at least one successful upload should be passed. */
@@ -140,43 +150,57 @@ function CopyButton({ text, disabled }: { text: string; disabled?: boolean }) {
   };
 
   return (
-    <button
-      className={`copy-btn${copied ? " copied" : ""}`}
+    <Button
+      type="button"
+      variant="default"
+      size="sm"
       onClick={handleCopy}
       disabled={disabled}
       title={copied ? "Copied!" : "Copy all links"}
     >
-      {copied ? "✓ Copied" : "Copy All"}
-    </button>
+      {copied ? (
+        <>
+          <Check className="size-4" /> Copied
+        </>
+      ) : (
+        <>
+          <Copy className="size-4" /> Copy All
+        </>
+      )}
+    </Button>
   );
 }
 
+/**
+ * Toolbar that lets the user pick a link format and copy all uploaded
+ * link strings (one per task) at once.
+ * @param items Task items that could be used to generate the output strings
+ */
 export default function CopyAllPanel({ items }: Props) {
   const [format, setFormat] = useState<FormatKey>("bbcodeThumb");
 
-  // Only include items that have at least one upload result
+  // Only include items that have at least one upload result.
   const uploadedItems = items.filter((i) => firstResult(i) !== null);
   if (uploadedItems.length === 0) return null;
 
   const copyText = buildCopyText(uploadedItems, format);
 
   return (
-    <div className="copy-all-panel">
-      <div className="copy-all-row">
-        <span className="copy-all-label">Copy all links:</span>
-        <select
-          className="copy-all-select"
-          value={format}
-          onChange={(e) => setFormat(e.target.value as FormatKey)}
-        >
+    <div className="bg-muted/30 flex flex-wrap items-center gap-3 rounded-md border p-3">
+      <Label className="text-sm font-medium">Copy all links:</Label>
+      <Select value={format} onValueChange={(v) => setFormat(v as FormatKey)}>
+        <SelectTrigger className="w-auto min-w-45">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
           {(Object.keys(FORMAT_LABELS) as FormatKey[]).map((k) => (
-            <option key={k} value={k}>
+            <SelectItem key={k} value={k}>
               {FORMAT_LABELS[k]}
-            </option>
+            </SelectItem>
           ))}
-        </select>
-        <CopyButton text={copyText} disabled={uploadedItems.length === 0} />
-      </div>
+        </SelectContent>
+      </Select>
+      <CopyButton text={copyText} disabled={uploadedItems.length === 0} />
     </div>
   );
 }

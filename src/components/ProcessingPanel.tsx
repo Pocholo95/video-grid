@@ -1,6 +1,31 @@
 import { useEffect, useState } from "react";
+import {
+  AlertTriangle,
+  CircleCheck,
+  Info,
+  Play,
+  RotateCcw,
+  Square,
+  Trash2,
+} from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import type { ProcessorStatus } from "../hooks/useProcessor";
 import { formatElapsed } from "../utils";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Field, FieldLabel } from "@/components/ui/field";
+import { Progress } from "@/components/ui/progress";
+
+const STATUS_TEXT_ICON: Record<
+  NonNullable<ProcessorStatus["textKind"]>,
+  LucideIcon
+> = {
+  info: Info,
+  success: CircleCheck,
+  warning: AlertTriangle,
+  cancelled: Square,
+};
 
 interface Props {
   status: ProcessorStatus;
@@ -58,57 +83,76 @@ export default function ProcessingPanel({
     : "";
 
   return (
-    <div className="panel">
-      <div className="actions">
-        <button
-          className="icon-btn primary"
-          disabled={!hasFiles || !allMetadataReady || isProcessing}
-          onClick={onStart}
-        >
-          ▶️ Start Processing
-        </button>
-        <button
-          className="icon-btn"
-          disabled={!isProcessing}
-          onClick={onCancel}
-        >
-          ⏹️ Cancel
-        </button>
-        {hasRequeuableItems && (
-          <button
-            className="icon-btn"
-            disabled={isProcessing}
-            onClick={onRequeueAll}
+    <Card>
+      <CardContent className="flex flex-col gap-4">
+        <div className="flex flex-wrap gap-2">
+          <Button
+            disabled={!hasFiles || !allMetadataReady || isProcessing}
+            onClick={onStart}
           >
-            ↺ Requeue All
-          </button>
-        )}
-        <button className="icon-btn" disabled={isProcessing} onClick={onClear}>
-          🗑️ Clear Tasks
-        </button>
-      </div>
-      <div className="progress-area">
-        <div className="progress-block">
-          <div className="progress-label">
-            <span>Current file</span>
-            <span>{Math.round(status.currentPct)}%</span>
-          </div>
-          <progress value={status.currentPct} max={100} />
+            <Play className="size-4" />
+            Start Processing
+          </Button>
+          <Button
+            variant="secondary"
+            disabled={!isProcessing}
+            onClick={onCancel}
+          >
+            <Square className="size-4" />
+            Cancel
+          </Button>
+          {hasRequeuableItems && (
+            <Button
+              variant="secondary"
+              disabled={isProcessing}
+              onClick={onRequeueAll}
+            >
+              <RotateCcw className="size-4" />
+              Requeue All
+            </Button>
+          )}
+          <Button variant="secondary" disabled={isProcessing} onClick={onClear}>
+            <Trash2 className="size-4" />
+            Clear Tasks
+          </Button>
         </div>
-        {status.batchTotal > 0 && (
-          <div className="progress-block">
-            <div className="progress-label">
-              <span>
-                Batch progress ({status.batchDone}/{status.batchTotal})
-                {batchElapsedStr}
-              </span>
-              <span>{batchPct}%</span>
-            </div>
-            <progress value={batchPct} max={100} />
-          </div>
-        )}
-        <div className="status">{status.text}</div>
-      </div>
-    </div>
+
+        <div className="flex flex-col gap-3">
+          <Field>
+            <FieldLabel className="text-muted-foreground flex w-full justify-between text-xs font-normal">
+              <span>Current file</span>
+              <span>{Math.round(status.currentPct)}%</span>
+            </FieldLabel>
+            <Progress value={status.currentPct} />
+          </Field>
+
+          {status.batchTotal > 0 && (
+            <Field>
+              <FieldLabel className="text-muted-foreground flex w-full justify-between text-xs font-normal">
+                <span>
+                  Batch progress ({status.batchDone}/{status.batchTotal})
+                  {batchElapsedStr}
+                </span>
+                <span>{batchPct}%</span>
+              </FieldLabel>
+              <Progress value={batchPct} />
+            </Field>
+          )}
+
+          {status.text &&
+            (() => {
+              const StatusIcon = STATUS_TEXT_ICON[status.textKind ?? "info"];
+              return (
+                <Alert className="py-2">
+                  <StatusIcon />
+                  <AlertDescription style={{ overflowWrap: "anywhere" }}>
+                    {status.text}
+                  </AlertDescription>
+                </Alert>
+              );
+            })()}
+        </div>
+      </CardContent>
+    </Card>
   );
 }

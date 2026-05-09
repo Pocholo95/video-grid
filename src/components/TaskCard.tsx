@@ -1,8 +1,36 @@
 import { useEffect, useRef, useState } from "react";
+import {
+  AlertTriangle,
+  CircleAlert,
+  Clock,
+  Cloud,
+  Download,
+  Loader2,
+  RotateCcw,
+  Target,
+  X,
+} from "lucide-react";
 import type { TaskItem, UploadDestination } from "../types";
 import { formatElapsed, formatTime, humanSize } from "../utils";
 import UploadLinks from "./UploadLinks";
 import TimestampEditor from "./TimestampEditor";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Field, FieldLabel } from "@/components/ui/field";
+import { Progress } from "@/components/ui/progress";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { cn } from "@/lib/utils";
 
 interface Props {
   item: TaskItem;
@@ -34,6 +62,7 @@ export default function TaskCard({
   const urlRef = useRef<string | null>(null);
   const [blobUrl, setBlobUrl] = useState<string | null>(null);
   const [showEditor, setShowEditor] = useState(false);
+  const [pendingMarkers, setPendingMarkers] = useState<number[] | null>(null);
 
   useEffect(() => {
     if (!item.outputBlob || !showPreview) {
@@ -106,22 +135,39 @@ export default function TaskCard({
       (fallback > 0 ? ` + ${fallback} auto` : "");
   }
 
-  const handleSaveMarkers = (markers: number[]) => {
-    const isDoneItem = item.status === "done";
-    const shouldRequeue =
-      isDoneItem &&
-      window.confirm(
-        "This task is already done. Requeue it with the new timestamps for processing?",
-      );
-
+  const applyMarkers = (markers: number[]) => {
     if (markers.length === 0) {
       onUpdateTimestamps(item.id, "auto", []);
     } else {
       onUpdateTimestamps(item.id, "custom", markers);
     }
+  };
 
-    if (shouldRequeue) onRequeue(item.id);
+  const handleSaveMarkers = (markers: number[]) => {
+    const isDoneItem = item.status === "done";
+    if (isDoneItem) {
+      // Defer; show requeue confirmation dialog.
+      setPendingMarkers(markers);
+      setShowEditor(false);
+      return;
+    }
+    applyMarkers(markers);
     setShowEditor(false);
+  };
+
+  const handleRequeueConfirm = () => {
+    if (pendingMarkers != null) {
+      applyMarkers(pendingMarkers);
+      onRequeue(item.id);
+      setPendingMarkers(null);
+    }
+  };
+
+  const handleRequeueDecline = () => {
+    if (pendingMarkers != null) {
+      applyMarkers(pendingMarkers);
+      setPendingMarkers(null);
+    }
   };
 
   // Disabled while processing - can't open editor mid-batch.
@@ -135,169 +181,233 @@ export default function TaskCard({
 
   return (
     <>
-      <article
-        className={`task-card task-${item.status}${allDone ? " task-uploaded" : ""}`}
+      <Card
+        className={cn(
+          "gap-4 py-4",
+          item.status === "error" && "border-destructive/50",
+          allDone && "border-emerald-500/40",
+        )}
       >
-        <div className="task-top">
-          <div className="task-top-text">
-            <h3 title={item.file.name}>{item.file.name}</h3>
-            {item.warning && <p className="warning">{item.warning}</p>}
-            {meta && (
-              <p className="small">
-                Duration: {formatTime(meta.duration)} &nbsp;·&nbsp;
-                {meta.width}×{meta.height} &nbsp;·&nbsp;
-                {meta.bitrate
-                  ? `${Math.round(meta.bitrate / 1000)} kbps`
-                  : "n/a"}{" "}
-                &nbsp;·&nbsp;
-                {humanSize(item.file.size)}
-              </p>
-            )}
-          </div>
-          <div className="task-top-actions">
-            <div className="badge">{item.status}</div>
-            <button
-              className="icon-btn task-remove-btn"
-              onClick={() => onRemove(item.id)}
-              disabled={item.status === "processing"}
-              title="Remove this task"
-            >
-              ✕
-            </button>
-          </div>
-        </div>
-        {/* Timestamp row */}
-        <div className="ts-card-row">
-          <span
-            className={`ts-card-label${isCustom ? " ts-card-label--custom" : ""}`}
-          >
-            🎯 {tsLabel}
-          </span>
-          <button
-            className={`icon-btn ts-card-edit-btn${isCustom ? " ts-card-edit-btn--active" : ""}`}
-            disabled={!canEditTimestamps}
-            onClick={() => setShowEditor(true)}
-            title={
-              canEditTimestamps
-                ? "Edit timestamps for this file"
-                : "Timestamps can be edited after analysis completes"
-            }
-          >
-            ⏱️ Edit Timestamps
-          </button>
-        </div>
-        <div className="task-grid">
-          <div className="task-preview">
-            {blobUrl ? (
-              <img
-                src={blobUrl}
-                alt={`Preview for ${item.file.name}`}
-                onClick={() => onPreview(blobUrl)}
-                style={{ cursor: "zoom-in" }}
-              />
-            ) : (
-              <div className="preview-placeholder">
-                {showPreview
-                  ? item.status === "processing"
-                    ? "Processing…"
-                    : "No preview"
-                  : "Preview off"}
-              </div>
-            )}
-          </div>
-          <div className="task-info">
-            <p>
-              <strong>Task:</strong> {item.outputName ?? "—"}
-            </p>
-            <p>
-              <strong>Size:</strong>{" "}
-              {item.outputSize ? humanSize(item.outputSize) : "—"}
-            </p>
-            <p>
-              <strong>Status:</strong> {statusText}
-            </p>
-            {item.error && <p className="error">{item.error}</p>}
-            <div className="action-row">
-              {isDone && item.outputBlob && item.outputName ? (
-                <a
-                  href={blobUrl || "#"}
-                  download={item.outputName}
-                  className="icon-btn button-link"
-                  style={{ textDecoration: "none", display: "inline-block" }}
-                >
-                  🔽 Download{" "}
-                  {item.outputName.endsWith(".webp") ? "WebP" : "JPG"}
-                </a>
-              ) : (
-                <span className="muted">No task yet</span>
+        <CardContent className="flex flex-col gap-3">
+          {/* Top row: filename + meta + status badge + remove button */}
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0 flex-1">
+              <h3
+                className="truncate text-sm font-semibold"
+                title={item.file.name}
+              >
+                {item.file.name}
+              </h3>
+              {item.warning && (
+                <Alert className="mt-2 py-2">
+                  <AlertTriangle />
+                  <AlertDescription className="text-xs">
+                    {item.warning}
+                  </AlertDescription>
+                </Alert>
               )}
-              {isDone && enabledDests.length > 0 && !allDone && (
-                <button
-                  className="icon-btn button-link upload-btn"
-                  onClick={() => onUpload(item.id)}
-                  disabled={!canUpload}
-                  title={`Upload to ${enabledDests.map((d) => d.name).join(", ")}`}
-                >
-                  ☁️ Upload
-                  {enabledDests.length === 1
-                    ? ` to ${enabledDests[0].name}`
-                    : ` (${enabledDests.length} destinations)`}
-                </button>
-              )}
-              {canRequeue && (
-                <button
-                  className="icon-btn"
-                  onClick={() => onRequeue(item.id)}
-                  title="Requeue this task to process it again"
-                >
-                  ↺ Requeue
-                </button>
+              {meta && (
+                <p className="text-muted-foreground mt-1 text-xs">
+                  Duration: {formatTime(meta.duration)} · {meta.width}×
+                  {meta.height} ·{" "}
+                  {meta.bitrate
+                    ? `${Math.round(meta.bitrate / 1000)} kbps`
+                    : "n/a"}{" "}
+                  · {humanSize(item.file.size)}
+                </p>
               )}
             </div>
-            {/* Per-destination upload progress */}
-            {enabledDests.map((dest) => {
-              const state = item.uploads?.[dest.id];
-              if (!state || state.status === "idle") return null;
-              return (
-                <div key={dest.id} className="upload-progress-wrap">
-                  {state.status === "uploading" && (
-                    <>
-                      <div className="progress-label">
-                        <span>Uploading to {dest.name}…</span>
-                        <span>{state.progress}%</span>
-                      </div>
-                      <progress value={state.progress} max={100} />
-                    </>
-                  )}
-                  {state.status === "error" && state.error && (
-                    <p className="error">
-                      Upload to {dest.name} failed: {state.error}
-                    </p>
+            <div className="flex shrink-0 items-center gap-2">
+              <Badge variant={item.status} className="uppercase shrink-0">
+                {item.status}
+              </Badge>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => onRemove(item.id)}
+                disabled={item.status === "processing"}
+                title="Remove this task"
+              >
+                <X className="size-4" />
+              </Button>
+            </div>
+          </div>
+
+          {/* Timestamp row */}
+          <div className="bg-muted/30 flex flex-wrap items-center justify-between gap-2 rounded-md px-3 py-2">
+            <span
+              className={cn(
+                "flex items-center gap-2 text-xs",
+                isCustom ? "text-primary font-medium" : "text-muted-foreground",
+              )}
+            >
+              <Target className="size-4" />
+              {tsLabel}
+            </span>
+            <Button
+              variant={isCustom ? "default" : "secondary"}
+              size="sm"
+              disabled={!canEditTimestamps}
+              onClick={() => setShowEditor(true)}
+              title={
+                canEditTimestamps
+                  ? "Edit timestamps for this file"
+                  : "Timestamps can be edited after analysis completes"
+              }
+            >
+              <Clock className="size-4" />
+              Edit Timestamps
+            </Button>
+          </div>
+
+          {/* Preview + info grid */}
+          <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+            <div className="bg-muted/30 flex min-h-35 items-center justify-center overflow-hidden rounded-md">
+              {blobUrl ? (
+                <img
+                  src={blobUrl}
+                  alt={`Preview for ${item.file.name}`}
+                  onClick={() => onPreview(blobUrl)}
+                  className="max-h-65 w-full cursor-zoom-in object-contain"
+                />
+              ) : (
+                <div className="flex flex-col items-center gap-2 p-4 text-center text-xs">
+                  {showPreview ? (
+                    item.status === "done" || item.status === "cancelled" ? (
+                      <div className="text-muted-foreground">No preview</div>
+                    ) : item.status === "queued" ? (
+                      <>
+                        <Clock className="size-8 text-muted-foreground" />
+                        <div className="text-muted-foreground font-medium">
+                          Queued
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <div className="relative">
+                          <div className="animate-ping absolute inset-0 rounded-full bg-primary/20 opacity-75" />
+                          <Loader2 className="size-8 animate-spin text-primary" />
+                        </div>
+                        <div className="text-muted-foreground">
+                          Generating preview…
+                        </div>
+                      </>
+                    )
+                  ) : (
+                    <div className="text-muted-foreground">Preview off</div>
                   )}
                 </div>
-              );
-            })}
+              )}
+            </div>
+            <div className="flex flex-col gap-2 text-sm">
+              <p>
+                <span className="text-muted-foreground">Task: </span>
+                <span className="break-all">{item.outputName ?? "—"}</span>
+              </p>
+              <p>
+                <span className="text-muted-foreground">Size: </span>
+                {item.outputSize ? humanSize(item.outputSize) : "—"}
+              </p>
+              <p>
+                <span className="text-muted-foreground">Status: </span>
+                <span className="inline-block first-letter-capitalize">
+                  {statusText}
+                </span>
+              </p>
+              {item.error && (
+                <Alert variant="destructive" className="py-2">
+                  <CircleAlert />
+                  <AlertDescription className="text-xs">
+                    {item.error}
+                  </AlertDescription>
+                </Alert>
+              )}
+              <div className="mt-1 flex flex-wrap gap-2">
+                {isDone && item.outputBlob && item.outputName && (
+                  <Button asChild variant="secondary" size="sm">
+                    <a href={blobUrl || "#"} download={item.outputName}>
+                      <Download className="size-4" />
+                      Download{" "}
+                      {item.outputName.endsWith(".webp") ? "WebP" : "JPG"}
+                    </a>
+                  </Button>
+                )}
+                {isDone && enabledDests.length > 0 && !allDone && (
+                  <Button
+                    variant="default"
+                    size="sm"
+                    onClick={() => onUpload(item.id)}
+                    disabled={!canUpload}
+                    title={`Upload to ${enabledDests.map((d) => d.name).join(", ")}`}
+                  >
+                    <Cloud className="size-4" />
+                    Upload
+                    {enabledDests.length === 1
+                      ? ` to ${enabledDests[0].name}`
+                      : ` (${enabledDests.length} destinations)`}
+                  </Button>
+                )}
+                {canRequeue && (
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => onRequeue(item.id)}
+                    title="Requeue this task to process it again"
+                  >
+                    <RotateCcw className="size-4" />
+                    Requeue
+                  </Button>
+                )}
+              </div>
+              {/* Per-destination upload progress */}
+              {enabledDests.map((dest) => {
+                const state = item.uploads?.[dest.id];
+                if (!state || state.status === "idle") return null;
+                if (state.status === "uploading") {
+                  return (
+                    <Field key={dest.id}>
+                      <FieldLabel className="text-muted-foreground flex w-full justify-between text-xs font-normal">
+                        <span>Uploading to {dest.name}…</span>
+                        <span>{state.progress}%</span>
+                      </FieldLabel>
+                      <Progress value={state.progress} />
+                    </Field>
+                  );
+                }
+                if (state.status === "error" && state.error) {
+                  return (
+                    <p key={dest.id} className="text-destructive text-xs">
+                      Upload to {dest.name} failed: {state.error}
+                    </p>
+                  );
+                }
+                return null;
+              })}
+            </div>
           </div>
-        </div>
-        {/* Per-destination upload results */}
-        {enabledDests.some((d) => item.uploads?.[d.id]?.status === "done") && (
-          <div className="upload-results">
-            {enabledDests.map((dest) => {
-              const state = item.uploads?.[dest.id];
-              if (state?.status !== "done" || !state.result) return null;
-              return (
-                <UploadLinks
-                  key={dest.id}
-                  destName={dest.name}
-                  result={state.result}
-                  filename={item.outputName ?? item.file.name}
-                  metadata={item.metadata}
-                />
-              );
-            })}
-          </div>
-        )}
-      </article>
+
+          {/* Per-destination upload results */}
+          {enabledDests.some(
+            (d) => item.uploads?.[d.id]?.status === "done",
+          ) && (
+            <div className="flex flex-col gap-2">
+              {enabledDests.map((dest) => {
+                const state = item.uploads?.[dest.id];
+                if (state?.status !== "done" || !state.result) return null;
+                return (
+                  <UploadLinks
+                    key={dest.id}
+                    destName={dest.name}
+                    result={state.result}
+                    filename={item.outputName ?? item.file.name}
+                    metadata={item.metadata}
+                  />
+                );
+              })}
+            </div>
+          )}
+        </CardContent>
+      </Card>
       {showEditor && item.metadata && (
         <TimestampEditor
           item={item}
@@ -306,6 +416,31 @@ export default function TaskCard({
           onClose={() => setShowEditor(false)}
         />
       )}
+      <AlertDialog
+        open={pendingMarkers !== null}
+        onOpenChange={(open) => {
+          if (!open) handleRequeueDecline();
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Requeue with new timestamps?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This task is already done. Requeue it with the new timestamps for
+              processing?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={handleRequeueDecline}>
+              Save markers only
+            </AlertDialogCancel>
+            <AlertDialogAction onClick={handleRequeueConfirm}>
+              <RotateCcw className="size-4" />
+              Save &amp; Requeue
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }

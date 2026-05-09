@@ -22,6 +22,13 @@ import {
 
 export type ProcessorStatus = {
   text: string;
+  /**
+   * Semantic kind of the current `text` message. Drives the icon shown
+   * by the consumer (ProcessingPanel) so we don't have to embed emoji
+   * directly in the message string. Optional; consumer treats undefined
+   * as "info".
+   */
+  textKind?: "info" | "success" | "warning" | "cancelled";
   currentPct: number;
   batchDone: number;
   batchTotal: number;
@@ -97,11 +104,11 @@ export function useProcessor(updateItem: Updater) {
           item.metadata = meta;
           if (!canNativelyPlay(item.file)) {
             item.warning =
-              "⚠️ Browser cannot decode this format natively — FFmpeg WASM will be used " +
+              "Browser cannot decode this format natively — FFmpeg WASM will be used " +
               "for frame extraction (expect slower processing and higher memory usage for large files).";
           } else if (!hasUsableMetadata(meta)) {
             item.warning =
-              "⚠️ Could not read metadata from this file. Processing may fail or produce incorrect output.";
+              "Could not read metadata from this file. Processing may fail or produce incorrect output.";
           }
           updateItem(item.id, {
             metadata: item.metadata,
@@ -109,14 +116,14 @@ export function useProcessor(updateItem: Updater) {
           });
         } catch (e) {
           const msg = e instanceof Error ? e.message : "Metadata read failed";
-          item.warning = `⚠️ Metadata analysis failed: ${msg}`;
+          item.warning = `Metadata analysis failed: ${msg}`;
           updateItem(item.id, { warning: item.warning });
           warn(`Metadata failed for "${item.file.name}":`, e);
         }
       }
 
       setStatus({
-        text: `${files.length} new file(s) analyzed. Set your options/preset and Press ▶️ Start Processing.`,
+        text: `${files.length} new file(s) analyzed. Set your options/preset and press Start Processing.`,
         currentPct: 0,
         batchDone: 0,
         batchTotal: 0,
@@ -384,8 +391,9 @@ export function useProcessor(updateItem: Updater) {
           batchStartTime: null,
           batchDurationMs,
           text: cancelRef.current
-            ? `⏹️ Cancelled after ${done} file(s) processed in ${formatElapsed(batchDurationMs)}.`
-            : `✅ Done. ${done} file(s) processed in ${formatElapsed(batchDurationMs)}.`,
+            ? `Cancelled after ${done} file(s) processed in ${formatElapsed(batchDurationMs)}.`
+            : `Done. ${done} file(s) processed in ${formatElapsed(batchDurationMs)}.`,
+          textKind: cancelRef.current ? "cancelled" : "success",
         }));
       }
     },

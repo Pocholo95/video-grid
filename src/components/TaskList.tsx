@@ -1,7 +1,10 @@
 import { useMemo } from "react";
+import { Cloud, Download, Loader2, Upload } from "lucide-react";
 import type { TaskItem, UploadDestination } from "../types";
 import TaskCard from "./TaskCard";
 import CopyAllPanel from "./CopyAllPanel";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
 
 interface Props {
   items: TaskItem[];
@@ -96,75 +99,90 @@ export default function TaskList({
   const hasPendingUploads = completedUploads < totalPossibleUploads;
 
   return (
-    <section className="panel">
-      <div className="tasks-header">
-        <h2>Tasks ({items.length})</h2>
-        <div className="tasks-actions-col">
-          <button
-            className="icon-btn dest-manager-btn"
-            title="Manage upload destinations"
-            onClick={onOpenDestManager}
-          >
-            <span className="dest-manager-icon">☁️</span>
-            <span className="dest-manager-text">
-              Upload Destinations{" "}
+    <Card>
+      <CardContent className="flex flex-col gap-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h2 className="text-lg font-semibold">Tasks ({items.length})</h2>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              variant="secondary"
+              title="Manage upload destinations"
+              onClick={onOpenDestManager}
+            >
+              <Cloud className="size-4" />
+              Upload Destinations
               {destinations.length > 0
-                ? `(${enabledDests.length}/${destinations.length})`
+                ? ` (${enabledDests.length}/${destinations.length})`
                 : ""}
-            </span>
-          </button>
-          <div className="tasks-bulk-actions">
+            </Button>
             {enabledDests.length > 0 && doneItems.length > 0 && (
-              <button
-                className="icon-btn primary upload-all-btn"
+              <Button
+                variant="default"
                 disabled={isUploadingAll || !hasPendingUploads}
                 onClick={onUploadAll}
                 title={`Upload all to ${enabledDests.map((d) => d.name).join(", ")} ${
                   hasPendingUploads ? "" : "(All uploads complete)"
                 }`}
               >
-                {isUploadingAll
-                  ? `⏳ Uploading… (${uploadProgress.attempted}/${uploadProgress.total})`
-                  : `☁️ Upload All (${completedUploads}/${totalPossibleUploads})`}
-              </button>
+                {isUploadingAll ? (
+                  <>
+                    <Loader2 className="size-4 animate-spin" />
+                    Uploading… ({uploadProgress.attempted}/
+                    {uploadProgress.total})
+                  </>
+                ) : (
+                  <>
+                    <Upload className="size-4" />
+                    Upload All ({completedUploads}/{totalPossibleUploads})
+                  </>
+                )}
+              </Button>
             )}
             {doneItems.length > 1 && (
-              <button
-                className="icon-btn primary"
+              <Button
+                variant="default"
                 disabled={isZipping}
                 onClick={onDownloadAll}
               >
-                {isZipping
-                  ? "⏳ Zipping…"
-                  : `⏬ Download All (${doneItems.length})`}
-              </button>
+                {isZipping ? (
+                  <>
+                    <Loader2 className="size-4 animate-spin" />
+                    Zipping…
+                  </>
+                ) : (
+                  <>
+                    <Download className="size-4" />
+                    Download All ({doneItems.length})
+                  </>
+                )}
+              </Button>
             )}
           </div>
         </div>
-      </div>
-      {doneItems.length > 0 && <CopyAllPanel items={doneItems} />}
-      <div className="tasks">
-        {items.length === 0 ? (
-          <div className="empty">
-            No tasks yet. Add video files to get started.
-          </div>
-        ) : (
-          items.map((item) => (
-            <TaskCard
-              key={item.id}
-              item={item}
-              totalCells={totalCells}
-              showPreview={showPreview}
-              destinations={destinations}
-              onPreview={onPreview}
-              onUpload={onUpload}
-              onUpdateTimestamps={onUpdateTimestamps}
-              onRemove={onRemove}
-              onRequeue={onRequeue}
-            />
-          ))
-        )}
-      </div>
-    </section>
+        {doneItems.length > 0 && <CopyAllPanel items={doneItems} />}
+        <div className="flex flex-col gap-3">
+          {items.length === 0 ? (
+            <div className="text-muted-foreground py-8 text-center text-sm">
+              No tasks yet. Add video files to get started.
+            </div>
+          ) : (
+            items.map((item) => (
+              <TaskCard
+                key={item.id}
+                item={item}
+                totalCells={totalCells}
+                showPreview={showPreview}
+                destinations={destinations}
+                onPreview={onPreview}
+                onUpload={onUpload}
+                onUpdateTimestamps={onUpdateTimestamps}
+                onRemove={onRemove}
+                onRequeue={onRequeue}
+              />
+            ))
+          )}
+        </div>
+      </CardContent>
+    </Card>
   );
 }

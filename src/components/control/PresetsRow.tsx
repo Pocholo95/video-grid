@@ -1,0 +1,153 @@
+import { useRef, useState } from "react";
+import { Save, Trash2, FolderOpen, Check, X } from "lucide-react";
+import { DEFAULTS, PRESETS_DEFAULT_VALUE } from "../../constants";
+import { deletePreset, loadPresets, savePreset } from "../../presets";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import type { AppSettings, SavedOptions } from "../../types";
+
+interface Props {
+  opts: SavedOptions;
+  setOpts: (o: SavedOptions) => void;
+  presets: AppSettings["presets"];
+  setPresets: (p: AppSettings["presets"]) => void;
+}
+
+/**
+ * Renders the presets selector + delete/save buttons, with an inline
+ * "rename" input row that appears when the user clicks Save.
+ */
+export default function PresetsRow({
+  opts,
+  setOpts,
+  presets,
+  setPresets,
+}: Props) {
+  const presetNameRef = useRef<HTMLInputElement>(null);
+  const [nameVisible, setNameVisible] = useState(false);
+  const [nameValue, setNameValue] = useState("");
+
+  const selectedPreset = presets.lastUsed ?? PRESETS_DEFAULT_VALUE;
+
+  const applyPreset = (name: string) => {
+    if (name === PRESETS_DEFAULT_VALUE) {
+      setOpts(DEFAULTS);
+      setPresets({ ...presets, lastUsed: null });
+    } else if (presets.entries[name]) {
+      setOpts(presets.entries[name]);
+      setPresets({ ...presets, lastUsed: name });
+    }
+  };
+
+  const openSave = () => {
+    const cur = presets.lastUsed;
+    setNameValue(cur && cur !== PRESETS_DEFAULT_VALUE ? cur : "");
+    setNameVisible(true);
+    setTimeout(() => presetNameRef.current?.focus(), 0);
+  };
+
+  const confirmSave = () => {
+    const name = nameValue.trim();
+    if (!name || name === PRESETS_DEFAULT_VALUE) return;
+    savePreset(name, opts);
+    const entries = loadPresets();
+    setPresets({ entries, lastUsed: name });
+    setNameVisible(false);
+  };
+
+  const handleDelete = () => {
+    const name = presets.lastUsed;
+    if (!name) return;
+    deletePreset(name);
+    const entries = loadPresets();
+    setPresets({ entries, lastUsed: null });
+    setOpts(DEFAULTS);
+  };
+
+  return (
+    <div className="flex flex-col gap-2">
+      <div className="flex items-center gap-2">
+        <FolderOpen
+          className="text-muted-foreground size-4 shrink-0"
+          aria-hidden="true"
+        />
+        <Select value={selectedPreset} onValueChange={applyPreset}>
+          <SelectTrigger className="flex-1">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={PRESETS_DEFAULT_VALUE}>
+              &lt;Default Preset&gt;
+            </SelectItem>
+            {Object.keys(presets.entries).map((n) => (
+              <SelectItem key={n} value={n}>
+                {n}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Button
+          variant="outline"
+          size="icon"
+          title="Delete selected preset"
+          disabled={!presets.lastUsed}
+          onClick={handleDelete}
+        >
+          <Trash2 className="size-4" />
+        </Button>
+        <Button
+          variant="outline"
+          size="icon"
+          title="Save / add preset"
+          onClick={openSave}
+        >
+          <Save className="size-4" />
+        </Button>
+      </div>
+
+      {nameVisible && (
+        <div className="flex items-center gap-2">
+          <Input
+            ref={presetNameRef}
+            type="text"
+            placeholder="Preset name… (reuse a name to overwrite)"
+            maxLength={64}
+            value={nameValue}
+            onChange={(e) => setNameValue(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                confirmSave();
+              }
+              if (e.key === "Escape") setNameVisible(false);
+            }}
+            className="flex-1"
+          />
+          <Button
+            variant="outline"
+            size="icon"
+            title="Cancel"
+            onClick={() => setNameVisible(false)}
+          >
+            <X className="size-4" />
+          </Button>
+          <Button
+            size="icon"
+            title="Confirm"
+            onClick={confirmSave}
+            disabled={!nameValue.trim()}
+          >
+            <Check className="size-4" />
+          </Button>
+        </div>
+      )}
+    </div>
+  );
+}

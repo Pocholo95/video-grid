@@ -1,11 +1,22 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
+import * as DialogPrimitive from "@radix-ui/react-dialog";
+import {
+  Grid3x3,
+  GripVertical,
+  HelpCircle,
+  Plus,
+  RotateCcw,
+  X,
+} from "lucide-react";
+import { Dialog, DialogPortal, DialogOverlay } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import type { GridCell, GridTemplate } from "../types";
 import {
   EDITOR_COLS,
   sortCellsReadingOrder,
   templateFromUniform,
 } from "../gridTemplate";
-import { useScrollLock } from "../hooks/useScrollLock";
 
 interface Props {
   template: GridTemplate;
@@ -76,8 +87,6 @@ export default function GridTemplateEditor({
   onSave,
   onClose,
 }: Props) {
-  useScrollLock();
-
   const [cells, setCells] = useState<GridCell[]>(() => {
     // Normalise on init: rebalance each row and renumber.
     const rows = getRowIndices(template.cells);
@@ -240,15 +249,6 @@ export default function GridTemplateEditor({
     setCells(templateFromUniform(cols, rows).cells);
   }, [cols, rows]);
 
-  // Keyboard Shortcuts
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    };
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
-  }, [onClose]);
-
   const handleSave = useCallback(() => {
     onSave({ cols: EDITOR_COLS, cells });
   }, [cells, onSave]);
@@ -260,183 +260,217 @@ export default function GridTemplateEditor({
   const cellOrder = new Map(sortedForLabels.map((c, idx) => [c.id, idx + 1]));
 
   return (
-    <div
-      className="modal-backdrop tpl-editor-backdrop"
-      onClick={(e) => e.target === e.currentTarget && onClose()}
+    <Dialog
+      open
+      onOpenChange={(open) => {
+        if (!open) onClose();
+      }}
     >
-      <div className="modal-box tpl-editor-box">
-        {/* Header */}
-        <div className="modal-header tpl-editor-header">
-          <h2>
-            <span className="tpl-editor-title-icon">▦</span> Grid Template
-            Editor
-          </h2>
-          <button
-            className="icon-btn tpl-help-btn"
-            onClick={() => setShowHelp((v: boolean) => !v)}
-            title="How does the template grid work?"
-            aria-pressed={showHelp}
-          >
-            ?
-          </button>
-          <button className="icon-btn" onClick={onClose} title="Close (Esc)">
-            ✕
-          </button>
-        </div>
-
-        {/* Collapsible help panel */}
-        {showHelp && (
-          <div className="tpl-help-panel">
-            <p>
-              Each row spans the full width, with cells sharing it{" "}
-              <strong>equally</strong>. More cells = narrower; fewer = wider.
-              Cell <strong>height</strong> auto-adjusts from width and aspect
-              ratio, so output stays proportional.
-            </p>
-            <p>
-              Cells are numbered in timestamp order: top-to-bottom,
-              left-to-right. This also drives the{" "}
-              <strong>Timestamp Editor</strong>—after changing the template,
-              requeue tasks to apply the new cell count.
-            </p>
-            <p>
-              Templates are saved in <strong>presets</strong>. Save once, reload
-              anytime, and tweak other settings without rebuilding.
-            </p>
+      <DialogPortal>
+        <DialogOverlay />
+        <DialogPrimitive.Content
+          className="bg-background fixed top-1/2 left-1/2 z-50 flex max-h-[92vh] w-[min(96vw,900px)] -translate-x-1/2 -translate-y-1/2 flex-col gap-4 rounded-lg border p-4 shadow-lg sm:p-6"
+          onOpenAutoFocus={(e) => e.preventDefault()}
+        >
+          <DialogPrimitive.Title className="sr-only">
+            Grid Template Editor
+          </DialogPrimitive.Title>
+          {/* Header */}
+          <div className="flex items-center justify-between gap-2">
+            <h2 className="flex items-center gap-2 text-base font-semibold sm:text-lg">
+              <Grid3x3 className="size-5 shrink-0" />
+              Grid Template Editor
+            </h2>
+            <div className="flex items-center gap-1">
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setShowHelp((v: boolean) => !v)}
+                title="How does the template grid work?"
+                aria-pressed={showHelp}
+              >
+                <HelpCircle className="size-4" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={onClose}
+                title="Close (Esc)"
+              >
+                <X className="size-4" />
+              </Button>
+            </div>
           </div>
-        )}
 
-        {/* Scrollable canvas */}
-        <div className="tpl-grid-scroll">
-          <div
-            ref={canvasRef}
-            className="tpl-canvas"
-            onPointerMove={handleRowDragMove}
-            onPointerUp={handleRowDragEnd}
-            onPointerCancel={handleRowDragEnd}
-          >
-            {rowIndices.map((rowY) => {
-              const rowCells = getRowCells(cells, rowY);
-              const isDraggingThis = dragRowY === rowY;
-              const isDropTarget =
-                dropBeforeY === rowY && dragRowY !== null && dragRowY !== rowY;
-              const isDropTargetAfter =
-                dropBeforeY === null &&
-                rowY === rowIndices[rowIndices.length - 1] &&
-                dragRowY !== null &&
-                dragRowY !== rowY;
+          {/* Collapsible help panel */}
+          {showHelp && (
+            <div className="bg-muted/30 text-muted-foreground flex flex-col gap-2 rounded-md border p-3 text-sm">
+              <p>
+                Each row spans the full width, with cells sharing it{" "}
+                <strong className="text-foreground">equally</strong>. More cells
+                = narrower; fewer = wider. Cell{" "}
+                <strong className="text-foreground">height</strong> auto-adjusts
+                from width and aspect ratio, so output stays proportional.
+              </p>
+              <p>
+                Cells are numbered in timestamp order: top-to-bottom,
+                left-to-right. This also drives the{" "}
+                <strong className="text-foreground">Timestamp Editor</strong>
+                —after changing the template, requeue tasks to apply the new
+                cell count.
+              </p>
+              <p>
+                Templates are saved in{" "}
+                <strong className="text-foreground">presets</strong>. Save once,
+                reload anytime, and tweak other settings without rebuilding.
+              </p>
+            </div>
+          )}
 
-              return (
-                <div
-                  key={rowY}
-                  ref={(el) => {
-                    if (el) rowRefs.current.set(rowY, el);
-                    else rowRefs.current.delete(rowY);
-                  }}
-                  className={[
-                    "tpl-row",
-                    isDraggingThis ? "tpl-row--dragging" : "",
-                    isDropTarget ? "tpl-row--drop-before" : "",
-                    isDropTargetAfter ? "tpl-row--drop-after" : "",
-                  ]
-                    .filter(Boolean)
-                    .join(" ")}
-                >
-                  {/* Row drag handle */}
+          {/* Scrollable canvas */}
+          <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto">
+            <div
+              ref={canvasRef}
+              className="flex flex-col gap-2"
+              onPointerMove={handleRowDragMove}
+              onPointerUp={handleRowDragEnd}
+              onPointerCancel={handleRowDragEnd}
+            >
+              {rowIndices.map((rowY) => {
+                const rowCells = getRowCells(cells, rowY);
+                const isDraggingThis = dragRowY === rowY;
+                const isDropTarget =
+                  dropBeforeY === rowY &&
+                  dragRowY !== null &&
+                  dragRowY !== rowY;
+                const isDropTargetAfter =
+                  dropBeforeY === null &&
+                  rowY === rowIndices[rowIndices.length - 1] &&
+                  dragRowY !== null &&
+                  dragRowY !== rowY;
+
+                return (
                   <div
-                    className="tpl-row-handle"
-                    title="Drag to reorder row"
-                    onPointerDown={(e) => handleRowDragStart(e, rowY)}
+                    key={rowY}
+                    ref={(el) => {
+                      if (el) rowRefs.current.set(rowY, el);
+                      else rowRefs.current.delete(rowY);
+                    }}
+                    className={cn(
+                      "bg-muted/30 flex items-stretch gap-2 rounded-md border p-2 transition-all",
+                      isDraggingThis && "opacity-40",
+                      isDropTarget && "border-primary border-t-4",
+                      isDropTargetAfter && "border-primary border-b-4",
+                    )}
                   >
-                    ⠿
-                  </div>
-
-                  {/* Cells + inline add button */}
-                  <div className="tpl-row-cells">
-                    {rowCells.map((cell) => {
-                      const num = cellOrder.get(cell.id) ?? "?";
-                      return (
-                        <div
-                          key={cell.id}
-                          className="tpl-cell"
-                          style={{ flex: `${cell.w} 0 0` }}
-                        >
-                          <span className="tpl-cell-num">{num}</span>
-                          <button
-                            className="tpl-cell-remove"
-                            title="Remove this cell"
-                            onClick={() => handleRemoveCell(cell.id)}
-                          >
-                            ✕
-                          </button>
-                        </div>
-                      );
-                    })}
-
-                    {/* Inline "+" add-cell button at the end of the row */}
-                    <button
-                      className="tpl-row-add-cell"
-                      onClick={() => handleAddCellToRow(rowY)}
-                      disabled={rowCells.length >= EDITOR_COLS}
-                      title="Add a cell to this row — all cells will share the width equally"
+                    {/* Row drag handle */}
+                    <div
+                      className="text-muted-foreground hover:bg-accent flex w-8 shrink-0 cursor-grab items-center justify-center rounded touch-none active:cursor-grabbing"
+                      title="Drag to reorder row"
+                      onPointerDown={(e) => handleRowDragStart(e, rowY)}
                     >
-                      +
-                    </button>
+                      <GripVertical className="size-4" />
+                    </div>
+
+                    {/* Cells + inline add button */}
+                    <div className="flex flex-1 items-stretch gap-2">
+                      {rowCells.map((cell) => {
+                        const num = cellOrder.get(cell.id) ?? "?";
+                        return (
+                          <div
+                            key={cell.id}
+                            className="bg-card group relative flex h-16 items-center justify-center rounded border"
+                            style={{ flex: `${cell.w} 0 0` }}
+                          >
+                            <span className="text-foreground font-mono text-base font-semibold tabular-nums">
+                              {num}
+                            </span>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="absolute top-1 right-1 size-6 opacity-75 lg:opacity-0 border lg:border-0 border-input/50 lg:transition-opacity group-hover:opacity-100"
+                              title="Remove this cell"
+                              onClick={() => handleRemoveCell(cell.id)}
+                            >
+                              <X className="size-3" />
+                            </Button>
+                          </div>
+                        );
+                      })}
+
+                      {/* Inline "+" add-cell button at the end of the row */}
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        className="h-16 w-12 shrink-0 border-dashed"
+                        onClick={() => handleAddCellToRow(rowY)}
+                        disabled={rowCells.length >= EDITOR_COLS}
+                        title="Add a cell to this row — all cells will share the width equally"
+                      >
+                        <Plus className="size-4" />
+                      </Button>
+                    </div>
                   </div>
+                );
+              })}
+
+              {/* Empty state */}
+              {rowIndices.length === 0 && (
+                <div className="text-muted-foreground rounded-md border border-dashed p-8 text-center text-sm">
+                  No rows yet — click{" "}
+                  <strong className="text-foreground">+ Add Row</strong> to
+                  start.
                 </div>
-              );
-            })}
+              )}
+            </div>
 
-            {/* Empty state */}
-            {rowIndices.length === 0 && (
-              <div className="tpl-empty-state">
-                No rows yet — click <strong>+ Add Row</strong> to start.
-              </div>
-            )}
+            {/* Bottom toolbar — Add Row + Reset */}
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={handleAddRow}
+                title="Append a new full-width row"
+              >
+                <Plus className="size-4" />
+                Add Row
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleReset}
+                title={`Reset to a uniform ${cols}×${rows} grid`}
+              >
+                <RotateCcw className="size-4" />
+                Reset ({cols}×{rows})
+              </Button>
+              {cellCount > 0 && (
+                <span className="text-muted-foreground ml-auto text-xs">
+                  {cellCount} cell{cellCount !== 1 ? "s" : ""} across{" "}
+                  {rowIndices.length} row{rowIndices.length !== 1 ? "s" : ""}
+                </span>
+              )}
+            </div>
           </div>
 
-          {/* Bottom toolbar — Add Row + Reset */}
-          <div className="tpl-bottom-bar">
-            <button
-              className="icon-btn tpl-add-btn"
-              onClick={handleAddRow}
-              title="Append a new full-width row"
+          {/* Footer */}
+          <div className="flex items-center justify-end gap-2 border-t pt-4">
+            <Button variant="secondary" onClick={onClose}>
+              Cancel
+            </Button>
+            <Button
+              variant="default"
+              disabled={cellCount === 0}
+              onClick={handleSave}
+              title={
+                cellCount === 0 ? "Add at least one row first" : "Save template"
+              }
             >
-              + Add Row
-            </button>
-            <button
-              className="icon-btn"
-              onClick={handleReset}
-              title={`Reset to a uniform ${cols}×${rows} grid`}
-            >
-              ↺ Reset ({cols}×{rows})
-            </button>
-            {cellCount > 0 && (
-              <span className="tpl-bottom-info">
-                {cellCount} cell{cellCount !== 1 ? "s" : ""} across{" "}
-                {rowIndices.length} row{rowIndices.length !== 1 ? "s" : ""}
-              </span>
-            )}
+              Save Template
+            </Button>
           </div>
-        </div>
-
-        {/* Footer */}
-        <div className="modal-footer tpl-editor-footer">
-          <button className="icon-btn" onClick={onClose}>
-            Cancel
-          </button>
-          <button
-            className="icon-btn primary"
-            disabled={cellCount === 0}
-            onClick={handleSave}
-            title={
-              cellCount === 0 ? "Add at least one row first" : "Save template"
-            }
-          >
-            ✓ Save Template
-          </button>
-        </div>
-      </div>
-    </div>
+        </DialogPrimitive.Content>
+      </DialogPortal>
+    </Dialog>
   );
 }

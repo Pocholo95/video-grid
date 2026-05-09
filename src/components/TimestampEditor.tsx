@@ -1,9 +1,23 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import * as DialogPrimitive from "@radix-ui/react-dialog";
+import {
+  AlertTriangle,
+  Pause,
+  Play,
+  Plus,
+  RotateCcw,
+  Target,
+  Trash2,
+  X,
+} from "lucide-react";
+import { Dialog, DialogPortal, DialogOverlay } from "@/components/ui/dialog";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import type { TaskItem } from "../types";
 import { calculateSampleTimes } from "../gridUtils";
 import { formatTimeExact } from "../utils";
 import { useLongPress } from "../hooks/useLongPress";
-import { useScrollLock } from "../hooks/useScrollLock";
 
 interface Props {
   item: TaskItem;
@@ -45,10 +59,15 @@ function MarkerPin({
   // Long-press suppression is owned by TimestampEditor via the guarded
   // onSeek / onDelete callbacks, so no local ref is needed here.
   const longPress = useLongPress(() => onDelete(idx), { thresholdMs: 500 });
+  const isUsed = idx < totalCells;
+  const isSelected = selected === idx;
 
   return (
     <div
-      className={`ts-marker-pin${idx < totalCells ? " ts-marker-pin--used" : " ts-marker-pin--overflow"}${selected === idx ? " ts-marker-pin--selected" : ""}`}
+      data-marker-pin
+      className={cn(
+        "absolute top-0 flex h-full -translate-x-1/2 cursor-pointer flex-col items-center",
+      )}
       style={{ left: `${duration > 0 ? (t / duration) * 100 : 0}%` }}
       onPointerDown={(e) => {
         e.stopPropagation();
@@ -84,7 +103,23 @@ function MarkerPin({
         if (!isTouch) onDelete(idx);
       }}
     >
-      <span className="ts-marker-pin-label">{idx + 1}</span>
+      <span
+        className={cn(
+          "rounded px-1 text-[10px] leading-tight font-semibold tabular-nums",
+          isUsed
+            ? "bg-primary text-primary-foreground"
+            : "bg-muted text-muted-foreground border",
+          isSelected && "ring-foreground ring-2 ring-offset-1",
+        )}
+      >
+        {idx + 1}
+      </span>
+      <div
+        className={cn(
+          "w-0.5 flex-1",
+          isUsed ? "bg-primary" : "bg-muted-foreground/50",
+        )}
+      />
     </div>
   );
 }
@@ -95,8 +130,6 @@ export default function TimestampEditor({
   onSave,
   onClose,
 }: Props) {
-  useScrollLock();
-
   const duration = item.metadata?.duration ?? 0;
   const videoRef = useRef<HTMLVideoElement>(null);
   const seekbarRef = useRef<HTMLDivElement>(null);
@@ -176,6 +209,12 @@ export default function TimestampEditor({
   }, [item.file]);
 
   // Sync currentTime display while playing.
+  // Depend on blobUrl/videoError so listeners attach once the <video> element
+  // is actually mounted (it is only rendered when !videoError && blobUrl is
+  // set). Without this, the effect would run on first render when
+  // videoRef.current is still null and the listeners would never be attached,
+  // so timeupdate events would never reach React state and the seekbar
+  // playhead would not move during playback.
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
@@ -196,7 +235,7 @@ export default function TimestampEditor({
       video.removeEventListener("loadedmetadata", onReady);
       video.removeEventListener("error", onErr);
     };
-  }, []);
+  }, [blobUrl, videoError]);
 
   const addMarker = useCallback(
     (clientX: number) => {
@@ -300,13 +339,13 @@ export default function TimestampEditor({
     [duration],
   );
 
-  // Keyboard shortcuts: Space = play/pause, Escape = close, M = add marker.
+  // Keyboard shortcuts: Space = play/pause, M = add marker, Arrow = seek.
+  // Escape is handled by the surrounding Dialog primitive.
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       const tag = (e.target as HTMLElement).tagName;
       if (tag === "INPUT" || tag === "TEXTAREA") return;
-      if (e.key === "Escape") onClose();
-      else if (e.key === " ") {
+      if (e.key === " ") {
         e.preventDefault();
         togglePlay();
       } else if (e.key === "m" || e.key === "M") {
@@ -321,17 +360,17 @@ export default function TimestampEditor({
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [onClose, addMarkerAtCurrentTime, seekBy]);
+  }, [addMarkerAtCurrentTime, seekBy]);
 
   const handleSeekbarPointerDown = (e: React.PointerEvent) => {
-    if ((e.target as HTMLElement).closest(".ts-marker-pin")) return;
+    if ((e.target as HTMLElement).closest("[data-marker-pin]")) return;
     e.currentTarget.setPointerCapture(e.pointerId);
     setIsDragging(true);
     seekbarHandler(e.clientX);
   };
 
   const handleSeekbarClick = (e: React.MouseEvent) => {
-    if ((e.target as HTMLElement).closest(".ts-marker-pin")) return;
+    if ((e.target as HTMLElement).closest("[data-marker-pin]")) return;
     if (clickTimerRef.current) {
       window.clearTimeout(clickTimerRef.current);
       clickTimerRef.current = null;
@@ -360,245 +399,297 @@ export default function TimestampEditor({
   const autoFilledCount = Math.max(0, totalCells - markers.length);
 
   return (
-    <div
-      className="modal-backdrop ts-editor-backdrop"
-      onClick={(e) => e.target === e.currentTarget && onClose()}
+    <Dialog
+      open
+      onOpenChange={(open) => {
+        if (!open) onClose();
+      }}
     >
-      <div className="modal-box ts-editor-box">
-        <div className="modal-header">
-          <h2>
-            <span className="ts-editor-title-icon">🎯</span> Timestamps for{" "}
-            <span className="ts-editor-filename" title={item.file.name}>
-              {item.file.name}
-            </span>
-          </h2>
-          <button className="icon-btn" onClick={onClose} title="Close (Esc)">
-            ✕
-          </button>
-        </div>
-
-        <div className="ts-editor-body">
-          {/* Left: video + controls */}
-          <div className="ts-editor-left">
-            {videoError ? (
-              <div className="ts-video-error">
-                ⚠️ Browser cannot play this file for preview. You can still edit
-                markers using the seekbar below.
-              </div>
-            ) : (
-              <video
-                ref={videoRef}
-                className="ts-video"
-                src={blobUrl ?? undefined}
-                muted
-                playsInline
-                preload="metadata"
-              />
-            )}
-
-            {/* Seekbar */}
-            <div
-              ref={seekbarRef}
-              className="ts-seekbar"
-              onPointerDown={handleSeekbarPointerDown}
-              onPointerMove={(e) => isDragging && seekbarHandler(e.clientX)}
-              onPointerUp={(e) => {
-                setIsDragging(false);
-                e.currentTarget.releasePointerCapture(e.pointerId);
-              }}
-              onClick={handleSeekbarClick}
-            >
-              {/* Track fill */}
-              <div
-                className="ts-seekbar-fill"
-                style={{ width: `${progressPct}%` }}
-              />
-
-              {markers.map((t, idx) => (
-                <MarkerPin
-                  key={idx}
-                  t={t}
-                  idx={idx}
-                  totalCells={totalCells}
-                  selected={selectedMarker}
-                  duration={duration}
-                  isTouch={isTouch}
-                  onSeek={seekToMarkerGuarded}
-                  onDelete={deleteMarkerFromLongPress}
-                />
-              ))}
-
-              {/* Playhead */}
-              <div
-                className="ts-playhead"
-                style={{ left: `${progressPct}%` }}
-              />
-            </div>
-
-            {/* Transport controls */}
-            <div className="ts-transport">
-              <button
-                className="icon-btn ts-play-btn"
-                onClick={togglePlay}
-                disabled={!videoReady && !videoError}
-                title={isPlaying ? "Pause (Space)" : "Play (Space)"}
-              >
-                {isPlaying ? "⏸" : "▶️"}
-              </button>
-              <span className="ts-timecode">
-                {fmtT(currentTime)} <span className="ts-timecode-sep">/</span>{" "}
-                {fmtT(duration)}
+      <DialogPortal>
+        <DialogOverlay />
+        <DialogPrimitive.Content
+          className="bg-background fixed top-1/2 left-1/2 z-50 flex max-h-[92vh] w-[min(96vw,1100px)] -translate-x-1/2 -translate-y-1/2 flex-col gap-4 rounded-lg border p-4 shadow-lg sm:p-6"
+          onOpenAutoFocus={(e) => e.preventDefault()}
+        >
+          <DialogPrimitive.Title className="sr-only">
+            Edit timestamps for {item.file.name}
+          </DialogPrimitive.Title>
+          <div className="flex items-center justify-between gap-3">
+            <h2 className="flex min-w-0 items-center gap-2 text-base font-semibold sm:text-lg">
+              <Target className="size-5 shrink-0" />
+              <span className="shrink-0">Timestamps for</span>
+              <span className="truncate font-normal" title={item.file.name}>
+                {item.file.name}
               </span>
-              <button
-                className="icon-btn ts-add-btn"
-                onClick={addMarkerAtCurrentTime}
-                title="Add marker at current position (M)"
+            </h2>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={onClose}
+              title="Close (Esc)"
+            >
+              <X className="size-4" />
+            </Button>
+          </div>
+
+          <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto md:grid md:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)] md:overflow-hidden">
+            {/* Left: video + controls */}
+            <div className="flex flex-col gap-3 md:min-h-0">
+              {videoError ? (
+                <Alert>
+                  <AlertTriangle />
+                  <AlertDescription>
+                    Browser cannot play this file for preview. You can still
+                    edit markers using the seekbar below.
+                  </AlertDescription>
+                </Alert>
+              ) : (
+                <video
+                  ref={videoRef}
+                  className="bg-muted/30 max-h-[55vh] w-full rounded-md object-contain"
+                  src={blobUrl ?? undefined}
+                  muted
+                  playsInline
+                  preload="metadata"
+                />
+              )}
+
+              {/* Seekbar */}
+              <div
+                ref={seekbarRef}
+                className="bg-muted relative h-8 w-full shrink-0 cursor-pointer touch-none rounded-md select-none"
+                onPointerDown={handleSeekbarPointerDown}
+                onPointerMove={(e) => isDragging && seekbarHandler(e.clientX)}
+                onPointerUp={(e) => {
+                  setIsDragging(false);
+                  e.currentTarget.releasePointerCapture(e.pointerId);
+                }}
+                onClick={handleSeekbarClick}
               >
-                + Add Marker
-              </button>
+                {/* Track fill */}
+                <div
+                  className="bg-primary/30 pointer-events-none absolute top-0 left-0 h-full rounded-md"
+                  style={{ width: `${progressPct}%` }}
+                />
+
+                {/* Playhead */}
+                <div
+                  className="bg-foreground pointer-events-none absolute top-0 h-full w-0.5 -translate-x-1/2"
+                  style={{ left: `${progressPct}%` }}
+                />
+
+                {markers.map((t, idx) => (
+                  <MarkerPin
+                    key={idx}
+                    t={t}
+                    idx={idx}
+                    totalCells={totalCells}
+                    selected={selectedMarker}
+                    duration={duration}
+                    isTouch={isTouch}
+                    onSeek={seekToMarkerGuarded}
+                    onDelete={deleteMarkerFromLongPress}
+                  />
+                ))}
+              </div>
+
+              {/* Transport controls */}
+              <div className="flex items-center gap-3">
+                <Button
+                  variant="secondary"
+                  size="icon"
+                  onClick={togglePlay}
+                  disabled={!videoReady && !videoError}
+                  title={isPlaying ? "Pause (Space)" : "Play (Space)"}
+                >
+                  {isPlaying ? (
+                    <Pause className="size-4" />
+                  ) : (
+                    <Play className="size-4" />
+                  )}
+                </Button>
+                <span className="font-mono text-sm tabular-nums">
+                  {fmtT(currentTime)}{" "}
+                  <span className="text-muted-foreground">/</span>{" "}
+                  {fmtT(duration)}
+                </span>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  className="ml-auto"
+                  onClick={addMarkerAtCurrentTime}
+                  title="Add marker at current position (M)"
+                >
+                  <Plus className="size-4" />
+                  Add Marker
+                </Button>
+              </div>
+
+              {/* Marker count summary */}
+              <div className="text-muted-foreground text-xs">
+                {markers.length === 0 ? (
+                  <span>
+                    No markers — all {totalCells} cells will use auto
+                    timestamps.
+                  </span>
+                ) : (
+                  <>
+                    <span className="text-foreground">
+                      {effectiveCount} marker{effectiveCount !== 1 ? "s" : ""}{" "}
+                      set for {effectiveCount} cell
+                      {effectiveCount !== 1 ? "s" : ""}
+                    </span>
+                    {autoFilledCount > 0 && (
+                      <span>
+                        {" · "}
+                        {autoFilledCount} cell{autoFilledCount !== 1 ? "s" : ""}{" "}
+                        use auto fallback
+                      </span>
+                    )}
+                    {markers.length > totalCells && (
+                      <span className="text-destructive">
+                        {" · "}
+                        {markers.length - totalCells} marker
+                        {markers.length - totalCells !== 1 ? "s" : ""} ignored
+                        (beyond {totalCells}-cell grid)
+                      </span>
+                    )}
+                  </>
+                )}
+              </div>
             </div>
 
-            {/* Marker count summary */}
-            <div className="ts-summary">
-              {markers.length === 0 ? (
-                <span className="ts-summary-auto">
-                  No markers — all {totalCells} cells will use auto timestamps.
+            {/* Right: marker list */}
+            <div className="bg-muted/30 flex h-[40vh] shrink-0 flex-col gap-2 rounded-md border p-3 md:h-auto md:min-h-0 md:shrink">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-sm font-semibold">
+                  Markers ({markers.length})
                 </span>
+                {markers.length > 0 && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-destructive hover:text-destructive"
+                    onClick={clearAllMarkers}
+                    title="Remove all markers"
+                  >
+                    <Trash2 className="size-4" />
+                    Clear all
+                  </Button>
+                )}
+              </div>
+
+              <div className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto">
+                {markers.length === 0 ? (
+                  <p className="text-muted-foreground p-2 text-xs">
+                    {isTouch ? (
+                      <>
+                        No markers yet. Seek to a position and click{" "}
+                        <strong>+&nbsp;Add&nbsp;Marker</strong> or double tap
+                        the seekbar.
+                      </>
+                    ) : (
+                      <>
+                        No markers yet. Seek to a position and click{" "}
+                        <strong>+&nbsp;Add&nbsp;Marker</strong>, or press{" "}
+                        <kbd className="bg-muted rounded border px-1 py-0.5 font-mono text-xs">
+                          M
+                        </kbd>
+                        .
+                      </>
+                    )}
+                  </p>
+                ) : (
+                  markers.map((t, idx) => {
+                    const isUsed = idx < totalCells;
+                    const isSelected = selectedMarker === idx;
+                    return (
+                      <div
+                        key={idx}
+                        className={cn(
+                          "hover:bg-accent flex cursor-pointer items-center gap-2 rounded-md border px-2 py-1.5 text-sm transition-colors",
+                          isSelected && "bg-accent border-primary",
+                          !isUsed && "opacity-60",
+                        )}
+                        onClick={() => seekToMarker(t, idx)}
+                      >
+                        <span className="text-muted-foreground w-8 font-mono text-xs tabular-nums">
+                          #{idx + 1}
+                        </span>
+                        <span className="flex-1 font-mono text-xs tabular-nums">
+                          {fmtT(t)}
+                        </span>
+                        {!isUsed && (
+                          <span className="bg-muted text-muted-foreground rounded px-1.5 py-0.5 text-[10px] uppercase">
+                            ignored
+                          </span>
+                        )}
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="size-6"
+                          title="Delete this marker"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            deleteMarker(idx);
+                          }}
+                        >
+                          <X className="size-3" />
+                        </Button>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-3 border-t pt-4 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-muted-foreground text-xs">
+              {isTouch ? (
+                <>
+                  Tap seekbar to seek &nbsp;·&nbsp; Double-tap seekbar to add
+                  marker &nbsp;·&nbsp; Long-press marker to remove
+                </>
               ) : (
                 <>
-                  <span className="ts-summary-used">
-                    {effectiveCount} marker{effectiveCount !== 1 ? "s" : ""} set
-                    for {effectiveCount} cell{effectiveCount !== 1 ? "s" : ""}
-                  </span>
-                  {autoFilledCount > 0 && (
-                    <span className="ts-summary-auto">
-                      {" · "}
-                      {autoFilledCount} cell{autoFilledCount !== 1 ? "s" : ""}{" "}
-                      use auto fallback
-                    </span>
-                  )}
-                  {markers.length > totalCells && (
-                    <span className="ts-summary-overflow">
-                      {" · "}
-                      {markers.length - totalCells} marker
-                      {markers.length - totalCells !== 1 ? "s" : ""} ignored
-                      (beyond {totalCells}-cell grid)
-                    </span>
-                  )}
+                  <kbd className="bg-muted rounded border px-1 py-0.5 font-mono text-xs">
+                    Space
+                  </kbd>{" "}
+                  Play/Pause &nbsp;·&nbsp;{" "}
+                  <kbd className="bg-muted rounded border px-1 py-0.5 font-mono text-xs">
+                    M
+                  </kbd>{" "}
+                  Add Marker &nbsp;·&nbsp; Double-click seekbar to add marker
+                  &nbsp;·&nbsp; Right-click marker to remove
                 </>
               )}
-            </div>
-          </div>
-
-          {/* Right: marker list */}
-          <div className="ts-editor-right">
-            <div className="ts-marker-list-header">
-              <span className="ts-marker-list-title">
-                Markers ({markers.length})
-              </span>
-              {markers.length > 0 && (
-                <button
-                  className="icon-btn danger-btn ts-clear-btn"
-                  onClick={clearAllMarkers}
-                  title="Remove all markers"
-                >
-                  🗑️ Clear all
-                </button>
-              )}
-            </div>
-
-            <div className="ts-marker-list">
-              {markers.length === 0 ? (
-                <p className="ts-marker-empty">
-                  {isTouch ? (
-                    <>
-                      No markers yet. Seek to a position and click{" "}
-                      <strong>+&nbsp;Add&nbsp;Marker</strong> or double tap the
-                      seekbar.
-                    </>
-                  ) : (
-                    <>
-                      No markers yet. Seek to a position and click{" "}
-                      <strong>+&nbsp;Add&nbsp;Marker</strong>, or press{" "}
-                      <kbd>M</kbd>.
-                    </>
-                  )}
-                </p>
-              ) : (
-                markers.map((t, idx) => {
-                  const isUsed = idx < totalCells;
-                  const isSelected = selectedMarker === idx;
-                  return (
-                    <div
-                      key={idx}
-                      className={`ts-marker-row${isSelected ? " ts-marker-row--selected" : ""}${!isUsed ? " ts-marker-row--overflow" : ""}`}
-                      onClick={() => seekToMarker(t, idx)}
-                    >
-                      <span className="ts-marker-num">#{idx + 1}</span>
-                      <span className="ts-marker-time">{fmtT(t)}</span>
-                      {!isUsed && (
-                        <span className="ts-marker-overflow-badge">
-                          ignored
-                        </span>
-                      )}
-                      <button
-                        className="icon-btn ts-marker-delete"
-                        title="Delete this marker"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          deleteMarker(idx);
-                        }}
-                      >
-                        ✕
-                      </button>
-                    </div>
+            </p>
+            <div className="flex items-center gap-2 self-end sm:self-auto">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setMarkers(
+                    calculateSampleTimes(totalCells, Math.max(1, duration)),
                   );
-                })
-              )}
+                  setSelectedMarker(null);
+                }}
+                title="Reset to evenly-spaced auto timestamps"
+              >
+                <RotateCcw className="size-4" />
+                Reset
+              </Button>
+              <Button variant="secondary" onClick={onClose}>
+                Cancel
+              </Button>
+              <Button variant="default" onClick={() => onSave(markers)}>
+                Save Markers
+              </Button>
             </div>
           </div>
-        </div>
-
-        <div className="modal-footer">
-          <p className="ts-editor-hint">
-            {isTouch ? (
-              <>
-                Tap seekbar to seek &nbsp;·&nbsp; Double-tap seekbar to add
-                marker &nbsp;·&nbsp; Long-press marker to remove
-              </>
-            ) : (
-              <>
-                <kbd>Space</kbd> Play/Pause &nbsp;·&nbsp; <kbd>M</kbd> Add
-                Marker &nbsp;·&nbsp; Double-click seekbar to add marker
-                &nbsp;·&nbsp; Right-click marker to remove
-              </>
-            )}
-          </p>
-          <div className="ts-editor-actions">
-            <button
-              className="icon-btn"
-              onClick={() => {
-                setMarkers(
-                  calculateSampleTimes(totalCells, Math.max(1, duration)),
-                );
-                setSelectedMarker(null);
-              }}
-              title="Reset to evenly-spaced auto timestamps"
-            >
-              ↺ Reset
-            </button>
-            <button className="icon-btn" onClick={onClose}>
-              Cancel
-            </button>
-            <button
-              className="icon-btn primary"
-              onClick={() => onSave(markers)}
-            >
-              ✓ Save Markers
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
+        </DialogPrimitive.Content>
+      </DialogPortal>
+    </Dialog>
   );
 }
