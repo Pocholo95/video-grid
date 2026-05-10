@@ -72,7 +72,7 @@ trigger an upload.
 
 ---
 
-## Options
+## Generation Options
 
 The controls are grouped into three fieldsets: **Grid**, **Style**, and **Output Modes**.
 
@@ -92,7 +92,6 @@ The controls are grouped into three fieldsets: **Grid**, **Style**, and **Output
 | ------------------------ | ----------------------------------------------------------------------------------------------------------------------- | -------- |
 | **Timecode position**    | Corner where the timestamp overlay appears, or **Disabled** to omit it.                                                 | Top-left |
 | **Show header metadata** | Toggle the filename/info header row.                                                                                    | On       |
-| **Show preview**         | Show thumbnail previews in the tasks list.                                                                              | On       |
 | **VR Video**             | Crop one part of a stereo VR frame (SBS or TB layout), see [VR Video options](#vr-video-options)                        | Disabled |
 | **Animated output**      | Generate an animated WebP instead of a static JPEG. Reveals more options, see [Animation settings](#animation-settings) | Off      |
 
@@ -301,6 +300,19 @@ The last selected preset will also be restored when you return. All settings are
 included in saved presets — grid options, style, output modes, animation
 settings, VR mode, and any custom grid template. Custom timestamps are per-file
 and are not stored in presets.
+
+---
+
+## Settings
+
+A few app-wide settings are available through the **⚙️ Settings** icon in the header:
+
+| Setting           | Description                                                                                                                                             |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Themes**        | Choose a visual style for the app (Dark, Light, Dimmed, or Classic). The change visually applies immediately to the UI but need to be saved to persist. |
+| **Show Previews** | Toggle visibility of thumbnail previews in the tasks list.                                                                                              |
+
+These settings are independent of presets, they persist separately and affect only the application's appearance and behavior, not your grid generation options.
 
 ---
 
