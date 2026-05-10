@@ -8,7 +8,7 @@ each video. No upload, no server processing, no account required.
 
 ## What it does
 
-VidGrid-HTML analyses each video, samples frames at evenly-spaced timestamps
+VidGrid-HTML analyzes each video, samples frames at evenly-spaced timestamps
 or custom timestamps per file across the duration, and assembles them into
 a configurable grid. Each cell can be annotated with a timecode overlay. An
 optional header row shows the filename, resolution, duration, bitrate, and file
@@ -61,7 +61,7 @@ trigger an upload.
   or for all tasks at once. See [Copying Links](#copying-links).
 - **Configurable grid** — choose columns, rows, output width, frame spacing,
   and timecode position (or disable the overlay entirely).
-- **Custom colours** — set the background and text colour for the header and
+- **Custom colors** — set the background and text color for the header and
   timecode overlays.
 - **Optional metadata header** — toggle a header row showing file info above
   the grid.
@@ -98,10 +98,10 @@ The controls are grouped into three fieldsets: **Grid**, **Style**, and **Output
 
 ### Style
 
-| Option               | Description                            | Default   |
-| -------------------- | -------------------------------------- | --------- |
-| **Background color** | Canvas and header background.          | `#000000` |
-| **Text color**       | Header text and timecode label colour. | `#ffffff` |
+| Option               | Description                           | Default   |
+| -------------------- | ------------------------------------- | --------- |
+| **Background color** | Canvas and header background.         | `#000000` |
+| **Text color**       | Header text and timecode label color. | `#ffffff` |
 
 ---
 
@@ -147,7 +147,7 @@ applied.
 The full grid template is saved as part of the **Preset**. To reuse the same
 layout in a different preset or with different style settings, save the
 preset after building your grid template, then load it later and adjust any other
-options (output width, colours, header, etc.) without touching the template.
+options (output width, colors, header, etc.) without touching the template.
 
 ---
 

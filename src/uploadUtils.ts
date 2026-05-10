@@ -10,7 +10,7 @@ export type LinkFormat = {
 
 /**
  * Derives a human-readable resolution label (e.g. "1080p") from pixel height,
- * with BBCode colour tags for forum use. Returns an empty string if metadata
+ * with BBCode color tags for forum use. Returns an empty string if metadata
  * is missing or height is zero.
  *
  * @param meta - Optional VideoMetadata; height is used to pick the label.

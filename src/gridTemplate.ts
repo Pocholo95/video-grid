@@ -13,7 +13,7 @@ export type CellPixelRect = {
   /**
    * Pixel height of the cell (cell pixel width × video aspect ratio).
    * May be shorter than the row height when other cells in the row are wider.
-   * The background colour fills the remaining vertical space automatically
+   * The background color fills the remaining vertical space automatically
    * because the canvas is pre-filled before any cells are drawn.
    */
   h: number;
@@ -56,7 +56,7 @@ const groupByRow = (cells: GridCell[]): GridCell[][] => {
  *   where `availableRowWidth = totalWidth - spacing × (n - 1)`.
  * - Each cell's pixel height = `cellPixelWidth × videoAspectRatio`.
  * - Row height = tallest cell in that row (widest cell's height).
- * - Cells shorter than the row height are top-aligned; background colour fills
+ * - Cells shorter than the row height are top-aligned; background color fills
  *   the remaining space (the canvas is pre-filled before drawing begins).
  * - Any pixel rounding remainder is absorbed by the last cell in each row.
  *

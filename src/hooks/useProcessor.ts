@@ -64,13 +64,13 @@ export function useProcessor(updateItem: Updater) {
   const cancelRef = useRef(false);
 
   /**
-   * Analyse newly selected files with MediaInfo to populate metadata.
+   * Analyze newly selected files with MediaInfo to populate metadata.
    * Updates each item in-place and calls updateItem after each file.
    *
    * @param files - The File objects selected by the user.
    * @returns A fully-populated TaskItem array ready for processing.
    */
-  const analyseFiles = useCallback(
+  const analyzeFiles = useCallback(
     async (files: File[]): Promise<TaskItem[]> => {
       setStatus({
         text: `Analysing ${files.length} file(s)…`,
@@ -424,7 +424,7 @@ export function useProcessor(updateItem: Updater) {
   return {
     isProcessing,
     status,
-    analyseFiles,
+    analyzeFiles,
     processAll,
     requestCancel,
     resetState,

@@ -178,7 +178,7 @@ export default function App() {
   const {
     isProcessing,
     status,
-    analyseFiles,
+    analyzeFiles: analyzeFiles,
     processAll,
     requestCancel,
     resetState,
@@ -190,10 +190,10 @@ export default function App() {
   // Add new files as tasks - existing tasks are preserved.
   const handleFilesChange = useCallback(
     async (files: File[]) => {
-      const newItems = await analyseFiles(files);
+      const newItems = await analyzeFiles(files);
       setItems((prev) => [...prev, ...newItems]);
     },
-    [analyseFiles],
+    [analyzeFiles],
   );
 
   // Only process tasks that are currently queued.

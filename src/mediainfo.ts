@@ -41,7 +41,7 @@ export const closeMediaInfo = (): void => {
  * Reads video metadata from a file using MediaInfo.
  * Returns zeroed fields on failure rather than throwing.
  *
- * @param file       - The video file to analyse.
+ * @param file       - The video file to analyze.
  * @param onProgress - Optional callback for progress updates (0-100, status message).
  * @returns Parsed metadata including duration, dimensions, and bitrate.
  */

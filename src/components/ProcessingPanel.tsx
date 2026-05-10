@@ -46,7 +46,7 @@ interface Props {
  * @param status              - Current processor status snapshot.
  * @param isProcessing        - Whether a batch is actively running.
  * @param hasFiles            - Whether there are queued files ready to process.
- * @param allMetadataReady    - Whether all queued files have been analysed.
+ * @param allMetadataReady    - Whether all queued files have been analyzed.
  * @param hasRequeuableItems  - Whether at least one item can be requeued.
  * @param onStart             - Called when the user clicks Start Processing.
  * @param onCancel            - Called when the user clicks Cancel.
