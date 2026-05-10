@@ -536,8 +536,7 @@ export default function TimestampEditor({
                   <>
                     <span className="text-foreground">
                       {effectiveCount} marker{effectiveCount !== 1 ? "s" : ""}{" "}
-                      set for {effectiveCount} cell
-                      {effectiveCount !== 1 ? "s" : ""}
+                      set for {totalCells} cell{effectiveCount !== 1 ? "s" : ""}
                     </span>
                     {autoFilledCount > 0 && (
                       <span>

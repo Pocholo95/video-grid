@@ -27,7 +27,7 @@ export default function OutputModesSection({
 }: Props) {
   const isAnimated = opts.animated ?? false;
 
-  const checkField = (key: "header" | "preview" | "animated") => ({
+  const checkField = (key: "header" | "animated") => ({
     checked: opts[key] ?? false,
     onCheckedChange: (checked: boolean | "indeterminate") =>
       setOpts({ ...opts, [key]: checked === true }),
@@ -67,10 +67,6 @@ export default function OutputModesSection({
         <Field orientation="horizontal">
           <Checkbox id="cp-chk-header" {...checkField("header")} />
           <FieldLabel htmlFor="cp-chk-header">Show header metadata</FieldLabel>
-        </Field>
-        <Field orientation="horizontal">
-          <Checkbox id="cp-chk-preview" {...checkField("preview")} />
-          <FieldLabel htmlFor="cp-chk-preview">Show preview</FieldLabel>
         </Field>
         <Field>
           <FieldLabel htmlFor="cp-vr">VR Video</FieldLabel>

@@ -49,13 +49,14 @@ export default function ControlPanel({
   return (
     <Card>
       <CardContent className="flex flex-col gap-4">
+        <FilePicker onFilesChange={onFilesChange} />
+        <hr />
         <PresetsRow
           opts={opts}
           setOpts={setOpts}
           presets={presets}
           setPresets={setPresets}
         />
-        <FilePicker onFilesChange={onFilesChange} />
         <GridSection
           opts={opts}
           setOpts={setOpts}

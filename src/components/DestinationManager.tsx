@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Cloud, Pencil, Plus, Trash2 } from "lucide-react";
 import type { UploadDestination } from "../types";
 import { makeId } from "../utils";
@@ -22,13 +22,6 @@ import {
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 
-interface Props {
-  open: boolean;
-  destinations: UploadDestination[];
-  onSave: (destinations: UploadDestination[]) => void;
-  onClose: () => void;
-}
-
 const DEFAULT_URL = "https://api.imgbb.com/1/upload?key={key}";
 
 const EMPTY: Omit<UploadDestination, "id"> = {
@@ -39,10 +32,19 @@ const EMPTY: Omit<UploadDestination, "id"> = {
   enabled: true,
 };
 
+interface Props {
+  open: boolean;
+  destinations: UploadDestination[];
+  onSave: (destinations: UploadDestination[]) => void;
+  onUpdate: (destinations: UploadDestination[]) => void;
+  onClose: () => void;
+}
+
 export default function DestinationManager({
   open,
   destinations,
   onSave,
+  onUpdate,
   onClose,
 }: Props) {
   const [list, setList] = useState<UploadDestination[]>(() =>
@@ -51,6 +53,13 @@ export default function DestinationManager({
   const [editing, setEditing] = useState<UploadDestination | null>(null);
   const [draft, setDraft] = useState<Omit<UploadDestination, "id">>(EMPTY);
   const [error, setError] = useState("");
+
+  // Re‑initialize list from the latest saved settings every time dialog opens
+  useEffect(() => {
+    if (open) {
+      setList(structuredClone(destinations));
+    }
+  }, [open, destinations]);
 
   const openAdd = () => {
     setEditing({ id: "__new__", ...EMPTY });
@@ -109,8 +118,8 @@ export default function DestinationManager({
     }
 
     if (editing!.id === "__new__") {
-      setList((prev) => [
-        ...prev,
+      const newList = [
+        ...list,
         {
           id: makeId(),
           ...draft,
@@ -118,49 +127,58 @@ export default function DestinationManager({
           apiKey: draft.apiKey.trim(),
           url: trimmedUrl,
         },
-      ]);
+      ];
+      setList(newList);
+      onUpdate(newList); // Persist immediately
     } else {
-      setList((prev) =>
-        prev.map((d) =>
-          d.id === editing!.id
-            ? {
-                ...d,
-                ...draft,
-                name: draft.name.trim(),
-                apiKey: draft.apiKey.trim(),
-                url: trimmedUrl,
-              }
-            : d,
-        ),
+      const newList = list.map((d) =>
+        d.id === editing!.id
+          ? {
+              ...d,
+              ...draft,
+              name: draft.name.trim(),
+              apiKey: draft.apiKey.trim(),
+              url: trimmedUrl,
+            }
+          : d,
       );
+      setList(newList);
+      onUpdate(newList); // Persist immediately
     }
     setEditing(null);
     setError("");
   };
 
   const toggleEnabled = (id: string) => {
-    setList((prev) =>
-      prev.map((d) => (d.id === id ? { ...d, enabled: !d.enabled } : d)),
+    const newList = list.map((d) =>
+      d.id === id ? { ...d, enabled: !d.enabled } : d,
     );
+    setList(newList);
   };
 
-  const removeItem = (id: string) =>
-    setList((prev) => prev.filter((d) => d.id !== id));
-
-  // Reset internal state every time the dialog re-opens.
-  const handleOpenChange = (next: boolean) => {
-    if (!next) {
-      onClose();
-      return;
-    }
-    setList(structuredClone(destinations));
+  const removeItem = (id: string) => {
+    const newList = list.filter((d) => d.id !== id);
+    setList(newList);
+    onUpdate(newList); // Persist immediately
     setEditing(null);
-    setDraft(EMPTY);
     setError("");
   };
 
+  const handleSaveAndClose = () => {
+    onSave(list);
+    onClose();
+  };
+
+  const handleDiscardAndClose = () => {
+    // Do not call onSave; just close → list will be reset on next open
+    onClose();
+  };
+
   return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
+    <Dialog
+      open={open}
+      onOpenChange={(isOpen) => !isOpen && handleDiscardAndClose()}
+    >
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
@@ -251,10 +269,7 @@ export default function DestinationManager({
               <Select
                 value={draft.type}
                 onValueChange={(value) =>
-                  setDraft((p) => ({
-                    ...p,
-                    type: value as "chevereto",
-                  }))
+                  setDraft((p) => ({ ...p, type: value as "chevereto" }))
                 }
               >
                 <SelectTrigger id="dest-type">
@@ -323,17 +338,11 @@ export default function DestinationManager({
         )}
 
         <DialogFooter>
-          <Button variant="ghost" onClick={onClose}>
+          <Button variant="ghost" onClick={handleDiscardAndClose}>
             Discard changes
           </Button>
-          <Button
-            variant="default"
-            onClick={() => {
-              onSave(list);
-              onClose();
-            }}
-          >
-            Save &amp; close
+          <Button variant="default" onClick={handleSaveAndClose}>
+            Save & close
           </Button>
         </DialogFooter>
       </DialogContent>

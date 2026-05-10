@@ -1,22 +1,18 @@
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { saveAs } from "file-saver";
 import JSZip from "jszip";
+import { Settings as SettingsIcon } from "lucide-react";
 
 import { DEFAULTS, PROJECT_NAME } from "./constants";
-import {
-  loadAppSettings,
-  persistAppSettings,
-  persistDestinations,
-} from "./presets";
-import { useProcessor } from "./hooks/useProcessor";
-import { useUpload } from "./hooks/useUpload";
-
 import type {
   AppSettings,
-  TaskItem,
   SavedOptions,
+  TaskItem,
   UploadDestination,
 } from "./types";
+import { useAppSettings } from "./hooks/useAppSettings";
+import { useProcessor } from "./hooks/useProcessor";
+import { useUpload } from "./hooks/useUpload";
 
 import ControlPanel from "./components/ControlPanel";
 import ProcessingPanel from "./components/ProcessingPanel";
@@ -24,46 +20,89 @@ import TaskList from "./components/TaskList";
 import DestinationManager from "./components/DestinationManager";
 import PreviewModal from "./components/PreviewModal";
 import Footer from "./components/Footer";
+import Settings from "./components/Settings";
 import { makeUniqueName } from "./utils";
 
-// - Persisted app settings
-const initialSettings = loadAppSettings();
-
 export default function App() {
-  const [appSettings, setAppSettingsState] =
-    useState<AppSettings>(initialSettings);
+  const {
+    savedSettings,
+    getCurrentSettings,
+    updateSettings,
+    saveSettings,
+    resetPending,
+    updateDestinations,
+    updateSettingAndPersist,
+  } = useAppSettings();
+
+  // Initialize opts from current presets or defaults
   const [opts, setOptsState] = useState<SavedOptions>(() => {
-    const { lastUsed, entries } = initialSettings.presets;
+    const { lastUsed, entries } = savedSettings.presets;
     if (lastUsed && entries[lastUsed]) {
-      return entries[lastUsed];
+      return structuredClone(entries[lastUsed]);
     }
-    return { ...DEFAULTS };
+    return structuredClone(DEFAULTS);
   });
 
-  const setAppSettings = useCallback((s: AppSettings) => {
-    setAppSettingsState(s);
-    persistAppSettings(s);
+  // Track original app settings for revert on cancel
+  const [originalAppSettings, setOriginalAppSettings] = useState<AppSettings>();
+
+  // Theme handling with immediate class application (using getCurrentSettings for preview)
+  const applyTheme = useCallback(
+    (theme: "dark" | "light" | "dimmed" | "classic") => {
+      document.documentElement.className = theme;
+    },
+    [],
+  );
+
+  const currentTheme = getCurrentSettings().theme;
+  useEffect(() => {
+    applyTheme(currentTheme);
+  }, [applyTheme, currentTheme]);
+
+  // Settings dialog handlers - preview mode changes don't persist to localStorage
+  const handleOpenThemeDialog = useCallback(() => {
+    if (!originalAppSettings) {
+      setOriginalAppSettings(structuredClone(savedSettings));
+    }
+    setShowThemeDialog(true);
+  }, [savedSettings, originalAppSettings]);
+
+  const handleThemeChange = useCallback(
+    (newTheme: "dark" | "light" | "dimmed" | "classic") => {
+      updateSettings({ theme: newTheme });
+    },
+    [],
+  );
+
+  const handleShowPreviewChange = useCallback((newShow: boolean) => {
+    updateSettings({ showPreview: newShow });
   }, []);
 
-  // - Destinations
-  const destinations = appSettings.destinations;
+  // Save merged settings (saved + pending) to localStorage and UI
+  const handleSaveAndClose = useCallback(() => {
+    saveSettings(getCurrentSettings());
+    setShowThemeDialog(false);
+  }, [getCurrentSettings]);
+
+  const handleCancelSettings = useCallback(() => {
+    resetPending();
+    setShowThemeDialog(false);
+  }, []);
+
+  // Destinations - always use saved (not preview) state for this dialog
+  const destinations = getCurrentSettings().destinations;
   const [showDestManager, setShowDestManager] = useState(false);
 
   const handleSaveDestinations = useCallback(
     (dests: UploadDestination[]) => {
-      persistDestinations(dests);
-      setAppSettings({ ...appSettings, destinations: dests });
+      updateDestinations(dests);
     },
-    [appSettings, setAppSettings],
+    [updateDestinations],
   );
 
-  const handleSetPresets = useCallback(
-    (p: AppSettings["presets"]) =>
-      setAppSettings({ ...appSettings, presets: p }),
-    [appSettings, setAppSettings],
-  );
+  // Task items
+  const [showThemeDialog, setShowThemeDialog] = useState(false);
 
-  // - Task items
   const [items, setItems] = useState<TaskItem[]>([]);
 
   const updateItem = useCallback((id: string, patch: Partial<TaskItem>) => {
@@ -135,9 +174,7 @@ export default function App() {
     );
   }, []);
 
-  const setOpts = useCallback((o: SavedOptions) => setOptsState(o), []);
-
-  // - Processing
+  // Processing
   const {
     isProcessing,
     status,
@@ -169,7 +206,7 @@ export default function App() {
     [items, opts, processAll],
   );
 
-  // - Upload
+  // Upload
   const {
     isUploadingAll,
     uploadProgress,
@@ -182,9 +219,7 @@ export default function App() {
     setItems([]);
     resetState();
     resetUploadState();
-    if (fileInputRef.current) {
-      fileInputRef.current.value = "";
-    }
+    if (fileInputRef.current) fileInputRef.current.value = "";
   }, [resetState, resetUploadState]);
 
   const handleUploadItem = useCallback(
@@ -197,7 +232,7 @@ export default function App() {
     [uploadAll, destinations],
   );
 
-  // - Download all as ZIP
+  // Download all as ZIP
   const [isZipping, setIsZipping] = useState(false);
 
   const downloadAll = useCallback(async () => {
@@ -224,22 +259,23 @@ export default function App() {
     }
   }, [items]);
 
-  // - Preview modal
+  // Preview dialog
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-
   const handleClosePreview = useCallback(() => setPreviewUrl(null), []);
 
-  // - Destination manager handlers
-  const handleOpenDestManager = useCallback(() => setShowDestManager(true), []);
+  // Destination manager handlers
+  const handleEnablePreviews = useCallback(
+    () => updateSettingAndPersist("showPreview", true),
+    [updateSettingAndPersist],
+  );
 
+  const handleOpenDestManager = useCallback(() => setShowDestManager(true), []);
   const handleCloseDestManager = useCallback(
     () => setShowDestManager(false),
     [],
   );
 
-  // - Derived values
-
-  // "Start Processing" is only meaningful when there are queued tasks with metadata ready.
+  // Derived values
   const queuedItems = useMemo(
     () => items.filter((i) => i.status === "queued"),
     [items],
@@ -277,7 +313,7 @@ export default function App() {
         >
           <img src="favicon.svg" alt="Logo" className="size-14 rounded-md" />
         </a>
-        <div className="flex flex-col gap-1">
+        <div className="min-w-0 flex-1 flex flex-col gap-1">
           <h1 className="text-2xl font-semibold leading-none tracking-tight">
             {PROJECT_NAME}
           </h1>
@@ -286,15 +322,28 @@ export default function App() {
             no upload required!
           </p>
         </div>
+
+        <button
+          onClick={handleOpenThemeDialog}
+          className="self-start bg-secondary hover:bg-secondary/80 text-secondary-foreground p-2 rounded-md transition-colors focus-visible:ring-ring/50 inline-flex items-center justify-center"
+          aria-label="Open settings"
+        >
+          <SettingsIcon className="size-4" />
+        </button>
       </header>
+
+      {/* Control Panel - passes preset-related callbacks for save */}
       <ControlPanel
         opts={opts}
-        setOpts={setOpts}
-        presets={appSettings.presets}
-        setPresets={handleSetPresets}
+        setOpts={setOptsState}
+        presets={getCurrentSettings().presets}
+        setPresets={(p: AppSettings["presets"]) => {
+          updateSettings({ presets: p as Partial<AppSettings>["presets"] });
+        }}
         fileInputRef={fileInputRef}
         onFilesChange={handleFilesChange}
       />
+
       <ProcessingPanel
         status={status}
         isProcessing={isProcessing}
@@ -306,10 +355,11 @@ export default function App() {
         onClear={handleClear}
         onRequeueAll={handleRequeueAll}
       />
+
       <TaskList
         items={items}
         totalCells={totalCells}
-        showPreview={opts.preview}
+        showPreview={getCurrentSettings().showPreview}
         destinations={destinations}
         isUploadingAll={isUploadingAll}
         uploadProgress={uploadProgress}
@@ -322,17 +372,33 @@ export default function App() {
         onUpdateTimestamps={handleUpdateTimestamps}
         onRemove={handleRemoveItem}
         onRequeue={handleRequeueItem}
+        handleEnablePreviews={handleEnablePreviews}
       />
+
       {previewUrl && (
         <PreviewModal url={previewUrl} onClose={handleClosePreview} />
       )}
+
       <DestinationManager
         open={showDestManager}
         destinations={destinations}
         onSave={handleSaveDestinations}
+        onUpdate={handleSaveDestinations}
         onClose={handleCloseDestManager}
       />
+
       <Footer />
+
+      {/* Settings Dialog */}
+      <Settings
+        open={showThemeDialog}
+        theme={getCurrentSettings().theme}
+        showPreview={getCurrentSettings().showPreview}
+        onThemeChange={handleThemeChange}
+        onShowPreviewChange={handleShowPreviewChange}
+        onSave={handleSaveAndClose}
+        onCancel={handleCancelSettings}
+      />
     </div>
   );
 }

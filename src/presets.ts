@@ -9,6 +9,8 @@ import type {
 const DEFAULT: AppSettings = {
   presets: { entries: {}, lastUsed: null },
   destinations: [],
+  theme: "dark",
+  showPreview: true,
 };
 
 /**
@@ -27,6 +29,8 @@ export const loadAppSettings = (): AppSettings => {
         lastUsed: parsed.presets?.lastUsed ?? null,
       },
       destinations,
+      theme: parsed.theme ?? DEFAULT.theme,
+      showPreview: parsed.showPreview ?? DEFAULT.showPreview,
     };
   } catch {
     return structuredClone(DEFAULT);

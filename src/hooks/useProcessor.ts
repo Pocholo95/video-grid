@@ -247,7 +247,7 @@ export function useProcessor(updateItem: Updater) {
             if (!hasUsableMetadata(meta)) {
               throw new Error(
                 "MediaInfo could not determine video dimensions or duration. " +
-                  "The file may be corrupt or in an unrecognised format.",
+                  "The file may be corrupt or in an unrecognized format.",
               );
             }
 

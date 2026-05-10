@@ -29,7 +29,7 @@ const badgeVariants = cva(
           "border-transparent bg-muted/80 text-muted-foreground/80 backdrop-blur-sm hover:bg-muted/90",
         processing:
           "border-transparent bg-primary/20 text-primary animate-pulse",
-        done: "border-transparent bg-emerald-500/20 text-emerald-400 border-emerald-400/30",
+        done: "border-transparent bg-emerald-500/20 text-emerald-500 border-emerald-400/30",
         success:
           "border-transparent bg-emerald-500/20 text-emerald-400 border-emerald-400/30",
         error:

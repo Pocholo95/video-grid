@@ -48,9 +48,19 @@ export default function PresetsRow({
 
   const openSave = () => {
     const cur = presets.lastUsed;
-    setNameValue(cur && cur !== PRESETS_DEFAULT_VALUE ? cur : "");
+    const hasName = cur && cur !== PRESETS_DEFAULT_VALUE;
+    setNameValue(hasName ? cur : "");
     setNameVisible(true);
-    setTimeout(() => presetNameRef.current?.focus(), 0);
+    setTimeout(() => {
+      if (presetNameRef.current) {
+        presetNameRef.current.focus();
+        // Select all text if there's a name to be edited, otherwise leave cursor at start for new entry
+        const valueLength = nameValue.length;
+        if (valueLength > 0) {
+          presetNameRef.current.setSelectionRange(0, valueLength);
+        }
+      }
+    }, 0);
   };
 
   const confirmSave = () => {
@@ -79,8 +89,8 @@ export default function PresetsRow({
           aria-hidden="true"
         />
         <Select value={selectedPreset} onValueChange={applyPreset}>
-          <SelectTrigger className="flex-1">
-            <SelectValue />
+          <SelectTrigger className="w-full min-w-20 truncate">
+            <SelectValue className="truncate" />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value={PRESETS_DEFAULT_VALUE}>

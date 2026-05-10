@@ -4,6 +4,7 @@ import {
   CircleAlert,
   Clock,
   Cloud,
+  EyeOff,
   Download,
   Loader2,
   RotateCcw,
@@ -11,7 +12,7 @@ import {
   X,
 } from "lucide-react";
 import type { TaskItem, UploadDestination } from "../types";
-import { formatElapsed, formatTime, humanSize } from "../utils";
+import { formatElapsed, humanSize } from "../utils";
 import UploadLinks from "./UploadLinks";
 import TimestampEditor from "./TimestampEditor";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -46,6 +47,7 @@ interface Props {
   ) => void;
   onRemove: (id: string) => void;
   onRequeue: (id: string) => void;
+  handleEnablePreviews: () => void;
 }
 
 export default function TaskCard({
@@ -58,11 +60,13 @@ export default function TaskCard({
   onUpdateTimestamps,
   onRemove,
   onRequeue,
+  handleEnablePreviews,
 }: Props) {
   const urlRef = useRef<string | null>(null);
   const [blobUrl, setBlobUrl] = useState<string | null>(null);
   const [showEditor, setShowEditor] = useState(false);
   const [pendingMarkers, setPendingMarkers] = useState<number[] | null>(null);
+  const [showPreviewDialog, setShowPreviewDialog] = useState(false);
 
   useEffect(() => {
     if (!item.outputBlob || !showPreview) {
@@ -101,7 +105,6 @@ export default function TaskCard({
     statusText = item.status;
   }
 
-  const meta = item.metadata;
   const isDone = item.status === "done";
   const enabledDests = destinations.filter((d) => d.enabled);
 
@@ -189,7 +192,7 @@ export default function TaskCard({
         )}
       >
         <CardContent className="flex flex-col gap-3">
-          {/* Top row: filename + meta + status badge + remove button */}
+          {/* Top row: filename + status badge + remove button */}
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0 flex-1">
               <h3
@@ -198,24 +201,6 @@ export default function TaskCard({
               >
                 {item.file.name}
               </h3>
-              {item.warning && (
-                <Alert className="mt-2 py-2">
-                  <AlertTriangle />
-                  <AlertDescription className="text-xs">
-                    {item.warning}
-                  </AlertDescription>
-                </Alert>
-              )}
-              {meta && (
-                <p className="text-muted-foreground mt-1 text-xs">
-                  Duration: {formatTime(meta.duration)} · {meta.width}×
-                  {meta.height} ·{" "}
-                  {meta.bitrate
-                    ? `${Math.round(meta.bitrate / 1000)} kbps`
-                    : "n/a"}{" "}
-                  · {humanSize(item.file.size)}
-                </p>
-              )}
             </div>
             <div className="flex shrink-0 items-center gap-2">
               <Badge variant={item.status} className="uppercase shrink-0">
@@ -232,6 +217,22 @@ export default function TaskCard({
               </Button>
             </div>
           </div>
+
+          {/* Warning row */}
+          {item.warning && (
+            <Alert className="py-2">
+              <AlertTriangle />
+              <AlertDescription>{item.warning}</AlertDescription>
+            </Alert>
+          )}
+
+          {/* Error row */}
+          {item.error && (
+            <Alert variant="destructive" className="py-2">
+              <CircleAlert />
+              <AlertDescription>{item.error}</AlertDescription>
+            </Alert>
+          )}
 
           {/* Timestamp row */}
           <div className="bg-muted/30 flex flex-wrap items-center justify-between gap-2 rounded-md px-3 py-2">
@@ -271,10 +272,34 @@ export default function TaskCard({
                   className="max-h-65 w-full cursor-zoom-in object-contain"
                 />
               ) : (
-                <div className="flex flex-col items-center gap-2 p-4 text-center text-xs">
-                  {showPreview ? (
+                <div
+                  className="flex flex-col items-center justify-center gap-2 p-4 text-center text-xs"
+                  onClick={() => {
+                    if (!showPreview && item.status !== "error") {
+                      setShowPreviewDialog(true);
+                    }
+                  }}
+                  title={
+                    showPreview
+                      ? "Click to open full-size preview"
+                      : item.status === "error"
+                        ? "Preview not generated due to error"
+                        : "Click to enable previews globally"
+                  }
+                >
+                  {item.status === "error" ? (
+                    <>
+                      <CircleAlert className="size-8 text-destructive mb-1" />
+                      <div className="text-muted-foreground">
+                        Preview not generated
+                      </div>
+                    </>
+                  ) : showPreview ? (
                     item.status === "done" || item.status === "cancelled" ? (
-                      <div className="text-muted-foreground">No preview</div>
+                      <>
+                        <EyeOff className="size-8 text-muted-foreground mb-1" />
+                        <div className="text-muted-foreground">No preview</div>
+                      </>
                     ) : item.status === "queued" ? (
                       <>
                         <Clock className="size-8 text-muted-foreground" />
@@ -294,7 +319,10 @@ export default function TaskCard({
                       </>
                     )
                   ) : (
-                    <div className="text-muted-foreground">Preview off</div>
+                    <>
+                      <EyeOff className="size-8 text-muted-foreground" />
+                      <div className="text-muted-foreground">Preview off</div>
+                    </>
                   )}
                 </div>
               )}
@@ -314,14 +342,6 @@ export default function TaskCard({
                   {statusText}
                 </span>
               </p>
-              {item.error && (
-                <Alert variant="destructive" className="py-2">
-                  <CircleAlert />
-                  <AlertDescription className="text-xs">
-                    {item.error}
-                  </AlertDescription>
-                </Alert>
-              )}
               <div className="mt-1 flex flex-wrap gap-2">
                 {isDone && item.outputBlob && item.outputName && (
                   <Button asChild variant="secondary" size="sm">
@@ -436,11 +456,44 @@ export default function TaskCard({
             </AlertDialogCancel>
             <AlertDialogAction onClick={handleRequeueConfirm}>
               <RotateCcw className="size-4" />
-              Save &amp; Requeue
+              Save & Requeue
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Preview Enable Dialog */}
+      {showPreviewDialog && (
+        <AlertDialog
+          open={showPreviewDialog}
+          onOpenChange={setShowPreviewDialog}
+        >
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Enable previews?</AlertDialogTitle>
+              <AlertDialogDescription>
+                You have disabled previews in the settings.
+                <br />
+                Do you want to enable them again?
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel onClick={() => setShowPreviewDialog(false)}>
+                Cancel
+              </AlertDialogCancel>
+              <AlertDialogAction
+                className="bg-primary hover:bg-primary/90"
+                onClick={() => {
+                  handleEnablePreviews();
+                  setShowPreviewDialog(false);
+                }}
+              >
+                Enable Previews
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      )}
     </>
   );
 }

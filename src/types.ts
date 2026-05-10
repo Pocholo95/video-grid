@@ -166,6 +166,9 @@ export type SectionStates = {
   modes: boolean;
 };
 
+/** Available theme options for the app. */
+export type Theme = "dark" | "light" | "dimmed" | "classic";
+
 export type SavedOptions = {
   width: number;
   cols: number;
@@ -195,4 +198,8 @@ export type AppSettings = {
   };
   /** Upload destinations stored alongside other app settings */
   destinations: UploadDestination[];
+  /** Current theme: "dark", "light", or "classic" */
+  theme: Theme;
+  /** Whether to show preview thumbnails in the tasks list (app-wide setting) */
+  showPreview: boolean;
 };

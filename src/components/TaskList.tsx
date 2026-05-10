@@ -26,6 +26,7 @@ interface Props {
   ) => void;
   onRemove: (id: string) => void;
   onRequeue: (id: string) => void;
+  handleEnablePreviews: () => void;
 }
 
 /**
@@ -67,6 +68,7 @@ export default function TaskList({
   onUpdateTimestamps,
   onRemove,
   onRequeue,
+  handleEnablePreviews,
 }: Props) {
   const enabledDests = useMemo(
     () => destinations.filter((d) => d.enabled),
@@ -178,6 +180,7 @@ export default function TaskList({
                 onUpdateTimestamps={onUpdateTimestamps}
                 onRemove={onRemove}
                 onRequeue={onRequeue}
+                handleEnablePreviews={handleEnablePreviews}
               />
             ))
           )}
