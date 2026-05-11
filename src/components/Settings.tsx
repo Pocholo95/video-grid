@@ -16,6 +16,7 @@ import {
   Select,
   SelectContent,
   SelectItem,
+  SelectItemDescription,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
@@ -64,7 +65,7 @@ export default function Settings({
           </DialogDescription>
         </DialogHeader>
 
-        <FieldSet className="p-4 rounded-lg border bg-muted/30">
+        <FieldSet className="p-4 rounded-lg border bg-muted/30 min-w-0">
           <Field orientation="responsive" className="">
             <FieldLabel>
               <Moon className="size-4" /> Theme
@@ -79,33 +80,45 @@ export default function Settings({
                 <SelectValue className="truncate" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="dark" className="flex items-center gap-2">
-                  <Moon className="size-4" /> Dark
-                  <span className="text-muted-foreground ml-auto text-xs truncate max-w-30 sm:max-w-xs">
+                <SelectItem
+                  value="dark"
+                  className="flex items-center gap-2 min-w-0"
+                >
+                  <Moon className="size-4 shrink-0" /> Dark
+                  <SelectItemDescription>
                     Default dark theme with muted colors
-                  </span>
+                  </SelectItemDescription>
                 </SelectItem>
-                <SelectItem value="dimmed" className="flex items-center gap-2">
-                  <div className="size-4 relative flex items-end justify-center">
+                <SelectItem
+                  value="dimmed"
+                  className="flex items-center gap-2 min-w-0"
+                >
+                  <div className="size-4 relative shrink-0 flex items-end justify-center">
                     <Moon className="size-full opacity-50" />
                     <Sun className="absolute size-[60%] top-[-30%]" />
                   </div>{" "}
                   Dimmed
-                  <span className="text-muted-foreground ml-auto text-xs truncate max-w-30 sm:max-w-xs">
+                  <SelectItemDescription>
                     Reduced eye strain, softer than light
-                  </span>
+                  </SelectItemDescription>
                 </SelectItem>
-                <SelectItem value="light" className="flex items-center gap-2">
-                  <Sun className="size-4" /> Light
-                  <span className="text-muted-foreground ml-auto text-xs truncate max-w-30 sm:max-w-xs">
+                <SelectItem
+                  value="light"
+                  className="flex items-center gap-2 min-w-0"
+                >
+                  <Sun className="size-4 shrink-0" /> Light
+                  <SelectItemDescription>
                     Bright light theme for daytime use
-                  </span>
+                  </SelectItemDescription>
                 </SelectItem>
-                <SelectItem value="classic" className="flex items-center gap-2">
-                  <Monitor className="size-4" /> Classic
-                  <span className="text-muted-foreground ml-auto text-xs truncate max-w-30 sm:max-w-xs">
+                <SelectItem
+                  value="classic"
+                  className="flex items-center gap-2 min-w-0"
+                >
+                  <Monitor className="size-4 shrink-0" /> Classic
+                  <SelectItemDescription>
                     Original navy and blue palette
-                  </span>
+                  </SelectItemDescription>
                 </SelectItem>
               </SelectContent>
             </Select>
@@ -129,20 +142,25 @@ export default function Settings({
 
           <FieldSeparator />
 
-          <div className="flex items-start gap-2">
+          <div className="flex items-start gap-2 min-w-0">
             <div className="min-w-0 flex-1 flex flex-col gap-1">
               <Button
                 variant={"outline"}
                 onClick={() => setShowDestManagerOpen(true)}
+                className="w-full min-w-0"
               >
-                <Cloud className="size-4 shrink-0 opacity-70 mr-2" />
-                Upload Destinations
-                {(() => {
-                  const enabled = destinations.filter((d) => d.enabled).length;
-                  return ` (${enabled}/${destinations.length})`;
-                })()}
+                <Cloud className="size-4 shrink-0 opacity-70" />
+                <span>
+                  Upload Destinations{" "}
+                  {(() => {
+                    const enabled = destinations.filter(
+                      (d) => d.enabled,
+                    ).length;
+                    return `(${enabled}/${destinations.length})`;
+                  })()}
+                </span>
               </Button>
-              <span className="text-muted-foreground text-xs">
+              <span className="text-muted-foreground text-xs min-w-0">
                 Configure where to upload the generated files
               </span>
             </div>
@@ -162,11 +180,13 @@ export default function Settings({
           onClose={() => setShowDestManagerOpen(false)}
         />
 
-        <DialogFooter className="flex justify-between pt-2">
-          <Button variant="ghost" onClick={onCancel}>
+        <DialogFooter className="flex justify-between pt-2 min-w-0">
+          <Button variant="ghost" onClick={onCancel} className="min-w-0">
             Cancel
           </Button>
-          <Button onClick={onSaveAndClose}>Save & close</Button>
+          <Button onClick={onSaveAndClose} className="min-w-0">
+            Save & close
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
