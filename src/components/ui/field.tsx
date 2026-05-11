@@ -169,6 +169,16 @@ function FieldLegend({
   );
 }
 
+function FieldSeparator({ className, ...props }: React.ComponentProps<"hr">) {
+  return (
+    <hr
+      data-slot="field-separator"
+      className={cn("shrink-0 bg-border", className)}
+      {...props}
+    />
+  );
+}
+
 export {
   Field,
   FieldContent,
@@ -178,4 +188,5 @@ export {
   FieldLabel,
   FieldLegend,
   FieldSet,
+  FieldSeparator,
 };

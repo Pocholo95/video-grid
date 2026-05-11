@@ -170,7 +170,7 @@ export default function DestinationManager({
   };
 
   const handleDiscardAndClose = () => {
-    // Do not call onSave; just close → list will be reset on next open
+    // Just close without saving - list will be reset on next open from parent
     onClose();
   };
 

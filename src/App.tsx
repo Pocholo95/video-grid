@@ -4,12 +4,7 @@ import JSZip from "jszip";
 import { Settings as SettingsIcon } from "lucide-react";
 
 import { DEFAULTS, PROJECT_NAME } from "./constants";
-import type {
-  AppSettings,
-  SavedOptions,
-  TaskItem,
-  UploadDestination,
-} from "./types";
+import type { AppSettings, SavedOptions, TaskItem } from "./types";
 import { useAppSettings } from "./hooks/useAppSettings";
 import { useProcessor } from "./hooks/useProcessor";
 import { useUpload } from "./hooks/useUpload";
@@ -17,7 +12,6 @@ import { useUpload } from "./hooks/useUpload";
 import ControlPanel from "./components/ControlPanel";
 import ProcessingPanel from "./components/ProcessingPanel";
 import TaskList from "./components/TaskList";
-import DestinationManager from "./components/DestinationManager";
 import PreviewModal from "./components/PreviewModal";
 import Footer from "./components/Footer";
 import Settings from "./components/Settings";
@@ -30,8 +24,8 @@ export default function App() {
     updateSettings,
     saveSettings,
     resetPending,
-    updateDestinations,
     updateSettingAndPersist,
+    updateDestinations,
   } = useAppSettings();
 
   // Initialize opts from current presets or defaults
@@ -59,12 +53,15 @@ export default function App() {
     applyTheme(currentTheme);
   }, [applyTheme, currentTheme]);
 
+  // Settings
+  const [showSettingsDialog, setShowSettingsDialog] = useState(false);
+
   // Settings dialog handlers - preview mode changes don't persist to localStorage
   const handleOpenThemeDialog = useCallback(() => {
     if (!originalAppSettings) {
       setOriginalAppSettings(structuredClone(savedSettings));
     }
-    setShowThemeDialog(true);
+    setShowSettingsDialog(true);
   }, [savedSettings, originalAppSettings]);
 
   const handleThemeChange = useCallback(
@@ -78,30 +75,13 @@ export default function App() {
     updateSettings({ showPreview: newShow });
   }, []);
 
-  // Save merged settings (saved + pending) to localStorage and UI
-  const handleSaveAndClose = useCallback(() => {
-    saveSettings(getCurrentSettings());
-    setShowThemeDialog(false);
-  }, [getCurrentSettings]);
-
   const handleCancelSettings = useCallback(() => {
     resetPending();
-    setShowThemeDialog(false);
-  }, []);
+    setShowSettingsDialog(false);
+  }, [resetPending]);
 
   // Destinations - always use saved (not preview) state for this dialog
   const destinations = getCurrentSettings().destinations;
-  const [showDestManager, setShowDestManager] = useState(false);
-
-  const handleSaveDestinations = useCallback(
-    (dests: UploadDestination[]) => {
-      updateDestinations(dests);
-    },
-    [updateDestinations],
-  );
-
-  // Task items
-  const [showThemeDialog, setShowThemeDialog] = useState(false);
 
   const [items, setItems] = useState<TaskItem[]>([]);
 
@@ -263,16 +243,10 @@ export default function App() {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const handleClosePreview = useCallback(() => setPreviewUrl(null), []);
 
-  // Destination manager handlers
+  // Enable previews callback - used by TaskList to trigger showPreview setting
   const handleEnablePreviews = useCallback(
     () => updateSettingAndPersist("showPreview", true),
     [updateSettingAndPersist],
-  );
-
-  const handleOpenDestManager = useCallback(() => setShowDestManager(true), []);
-  const handleCloseDestManager = useCallback(
-    () => setShowDestManager(false),
-    [],
   );
 
   // Derived values
@@ -364,7 +338,6 @@ export default function App() {
         isUploadingAll={isUploadingAll}
         uploadProgress={uploadProgress}
         isZipping={isZipping}
-        onOpenDestManager={handleOpenDestManager}
         onUploadAll={handleUploadAll}
         onDownloadAll={downloadAll}
         onPreview={setPreviewUrl}
@@ -379,25 +352,23 @@ export default function App() {
         <PreviewModal url={previewUrl} onClose={handleClosePreview} />
       )}
 
-      <DestinationManager
-        open={showDestManager}
-        destinations={destinations}
-        onSave={handleSaveDestinations}
-        onUpdate={handleSaveDestinations}
-        onClose={handleCloseDestManager}
-      />
-
       <Footer />
 
-      {/* Settings Dialog */}
+      {/* Settings Dialog with nested Upload Destinations */}
       <Settings
-        open={showThemeDialog}
+        open={showSettingsDialog}
         theme={getCurrentSettings().theme}
         showPreview={getCurrentSettings().showPreview}
+        destinations={destinations}
         onThemeChange={handleThemeChange}
         onShowPreviewChange={handleShowPreviewChange}
-        onSave={handleSaveAndClose}
+        onSaveAndClose={() => {
+          // Save pending settings (theme/preview) and close dialog
+          saveSettings();
+          setShowSettingsDialog(false);
+        }}
         onCancel={handleCancelSettings}
+        updateDestinations={updateDestinations}
       />
     </div>
   );

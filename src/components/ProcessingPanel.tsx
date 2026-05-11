@@ -111,7 +111,11 @@ export default function ProcessingPanel({
               Requeue All
             </Button>
           )}
-          <Button variant="secondary" disabled={isProcessing} onClick={onClear}>
+          <Button
+            variant="destructive"
+            disabled={isProcessing || (!hasFiles && !hasRequeuableItems)}
+            onClick={onClear}
+          >
             <Trash2 className="size-4" />
             Clear Tasks
           </Button>

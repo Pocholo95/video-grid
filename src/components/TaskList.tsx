@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { Cloud, Download, Loader2, Upload } from "lucide-react";
+import { Download, Loader2, Upload } from "lucide-react";
 import type { TaskItem, UploadDestination } from "../types";
 import TaskCard from "./TaskCard";
 import CopyAllPanel from "./CopyAllPanel";
@@ -14,7 +14,6 @@ interface Props {
   isUploadingAll: boolean;
   uploadProgress: { attempted: number; total: number };
   isZipping: boolean;
-  onOpenDestManager: () => void;
   onUploadAll: () => void;
   onDownloadAll: () => void;
   onPreview: (url: string) => void;
@@ -60,7 +59,6 @@ export default function TaskList({
   isUploadingAll,
   uploadProgress,
   isZipping,
-  onOpenDestManager,
   onUploadAll,
   onDownloadAll,
   onPreview,
@@ -106,17 +104,6 @@ export default function TaskList({
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h2 className="text-lg font-semibold">Tasks ({items.length})</h2>
           <div className="flex flex-wrap items-center gap-2">
-            <Button
-              variant="secondary"
-              title="Manage upload destinations"
-              onClick={onOpenDestManager}
-            >
-              <Cloud className="size-4" />
-              Upload Destinations
-              {destinations.length > 0
-                ? ` (${enabledDests.length}/${destinations.length})`
-                : ""}
-            </Button>
             {enabledDests.length > 0 && doneItems.length > 0 && (
               <Button
                 variant="default"

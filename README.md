@@ -307,24 +307,23 @@ and are not stored in presets.
 
 A few app-wide settings are available through the **⚙️ Settings** icon in the header:
 
-| Setting           | Description                                                                                                                                             |
-| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Themes**        | Choose a visual style for the app (Dark, Light, Dimmed, or Classic). The change visually applies immediately to the UI but need to be saved to persist. |
-| **Show Previews** | Toggle visibility of thumbnail previews in the tasks list.                                                                                              |
+| Setting                | Description                                                                                                                                             |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Themes**             | Choose a visual style for the app (Dark, Light, Dimmed, or Classic). The change visually applies immediately to the UI but need to be saved to persist. |
+| **Show Previews**      | Toggle visibility of thumbnail previews in the tasks list.                                                                                              |
+| **Upload Destinatons** | Button that opens a new dialog window to manage the upload destinations for the generated files. See [Upload Destinations](#upload-destinations).       |
 
 These settings are independent of presets, they persist separately and affect only the application's appearance and behavior, not your grid generation options.
 
----
-
-## Upload Destinations
+### Upload Destinations
 
 VidGrid-HTML can upload completed grids to one or more image hosts compatible
 with the Chevereto v1 API (including [ImgBB](https://imgbb.com)) as long as they
-have enabled API uploads and provide you with an API key (Under Settings).
+have enabled API uploads and provide you with an API key (often under "Settings" in the hosting website dashboard).
 
-### Managing destinations
+#### Managing destinations
 
-Click **☁️ Upload Destinations** in the top-right corner to open the destination
+Click **☁️ Upload Destinations** in the Settings to open the destination
 manager. From there you can:
 
 - **Add** a new destination by clicking **＋ Add destination** and filling in
@@ -340,7 +339,7 @@ manager. From there you can:
 
 ### Uploading
 
-Once one or more destinations are enabled and processing is complete:
+Once one or more destinations are added and enabled (see [Settings](#settings)) and processing is complete:
 
 - Each task card shows a **☁️ Upload** button. Clicking it uploads that grid
   to all enabled destinations.
