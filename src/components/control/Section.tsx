@@ -37,7 +37,10 @@ export default function Section({
           <button
             type="button"
             aria-expanded={expanded}
-            className="hover:bg-accent/50 flex w-full items-center justify-between rounded-lg px-4 py-3 text-sm font-medium transition-colors"
+            className={cn(
+              "hover:bg-accent/50 flex w-full items-center justify-between px-4 py-3 text-sm font-medium transition-colors",
+              expanded ? "rounded-t-lg" : "rounded-lg",
+            )}
           >
             <span>{label}</span>
             <ChevronDown
