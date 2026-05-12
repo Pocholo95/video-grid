@@ -30,7 +30,7 @@ export default function PreviewModal({ url, onClose }: Props) {
       <DialogPortal>
         <DialogOverlay className="bg-black/80" />
         <DialogPrimitive.Content
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 outline-none data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0"
+          className="rounded-none fixed inset-0 z-50 flex items-center justify-center p-4 outline-none data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0"
           onClick={(e) => {
             if (e.target === e.currentTarget) onClose();
           }}
@@ -48,7 +48,7 @@ export default function PreviewModal({ url, onClose }: Props) {
             <img
               src={url}
               alt="Preview"
-              className="max-h-full max-w-full rounded-md object-contain shadow-2xl"
+              className="max-h-full max-w-full rounded-none object-contain shadow-2xl"
             />
           )}
         </DialogPrimitive.Content>

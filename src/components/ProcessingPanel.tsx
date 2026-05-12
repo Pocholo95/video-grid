@@ -117,7 +117,7 @@ export default function ProcessingPanel({
             onClick={onClear}
           >
             <Trash2 className="size-4" />
-            Clear Tasks
+            Remove All Tasks
           </Button>
         </div>
 
@@ -130,18 +130,17 @@ export default function ProcessingPanel({
             <Progress value={status.currentPct} />
           </Field>
 
-          {status.batchTotal > 0 && (
-            <Field>
-              <FieldLabel className="text-muted-foreground flex w-full justify-between text-xs font-normal">
-                <span>
-                  Batch progress ({status.batchDone}/{status.batchTotal})
-                  {batchElapsedStr}
-                </span>
-                <span>{batchPct}%</span>
-              </FieldLabel>
-              <Progress value={batchPct} />
-            </Field>
-          )}
+          <Field>
+            <FieldLabel className="text-muted-foreground flex w-full justify-between text-xs font-normal">
+              <span>
+                {status.batchTotal > 0
+                  ? `Batch progress (${status.batchDone}/${status.batchTotal})${batchElapsedStr}`
+                  : "Batch progress"}
+              </span>
+              <span>{batchPct}%</span>
+            </FieldLabel>
+            <Progress value={batchPct} />
+          </Field>
 
           {status.text &&
             (() => {

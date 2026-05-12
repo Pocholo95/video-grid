@@ -134,9 +134,11 @@ export default function Settings({
             />
             <FieldContent>
               <FieldLabel htmlFor="show-previews">Show Previews</FieldLabel>
-              <FieldDescription>
-                Display thumbnail previews in the tasks list (app-wide)
-              </FieldDescription>
+              <FieldLabel htmlFor="show-previews">
+                <FieldDescription>
+                  Display thumbnail previews in the tasks list
+                </FieldDescription>
+              </FieldLabel>
             </FieldContent>
           </Field>
 
@@ -150,7 +152,7 @@ export default function Settings({
                 className="w-full min-w-0"
               >
                 <Cloud className="size-4 shrink-0 opacity-70" />
-                <span>
+                <span className="wrap-break-word">
                   Upload Destinations{" "}
                   {(() => {
                     const enabled = destinations.filter(
@@ -181,7 +183,7 @@ export default function Settings({
         />
 
         <DialogFooter className="flex justify-between pt-2 min-w-0">
-          <Button variant="ghost" onClick={onCancel} className="min-w-0">
+          <Button variant="secondary" onClick={onCancel} className="min-w-0">
             Cancel
           </Button>
           <Button onClick={onSaveAndClose} className="min-w-0">

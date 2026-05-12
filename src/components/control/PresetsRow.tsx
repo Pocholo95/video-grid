@@ -1,8 +1,13 @@
 import { useRef, useState } from "react";
-import { Save, Trash2, FolderOpen, Check, X } from "lucide-react";
+import { Save, Trash2, Check, X, ListRestart } from "lucide-react";
 import { DEFAULTS, PRESETS_DEFAULT_VALUE } from "../../constants";
 import { deletePreset, loadPresets, savePreset } from "../../presets";
 import { Button } from "@/components/ui/button";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -84,10 +89,14 @@ export default function PresetsRow({
   return (
     <div className="flex flex-col gap-2">
       <div className="flex items-center gap-2">
-        <FolderOpen
-          className="text-muted-foreground size-4 shrink-0"
-          aria-hidden="true"
-        />
+        <Popover>
+          <PopoverTrigger asChild>
+            <ListRestart className="size-4 shrink-0" />
+          </PopoverTrigger>
+          <PopoverContent sideOffset={6} side="top">
+            Presets: Shortcuts to set all the options below quickly
+          </PopoverContent>
+        </Popover>
         <Select value={selectedPreset} onValueChange={applyPreset}>
           <SelectTrigger className="w-full min-w-20 truncate">
             <SelectValue className="truncate" />
@@ -106,19 +115,19 @@ export default function PresetsRow({
         <Button
           variant="outline"
           size="icon"
+          title="Save / add preset"
+          onClick={openSave}
+        >
+          <Save className="size-4" />
+        </Button>
+        <Button
+          variant="destructive"
+          size="icon"
           title="Delete selected preset"
           disabled={!presets.lastUsed}
           onClick={handleDelete}
         >
           <Trash2 className="size-4" />
-        </Button>
-        <Button
-          variant="outline"
-          size="icon"
-          title="Save / add preset"
-          onClick={openSave}
-        >
-          <Save className="size-4" />
         </Button>
       </div>
 
@@ -141,20 +150,20 @@ export default function PresetsRow({
             className="flex-1"
           />
           <Button
-            variant="outline"
-            size="icon"
-            title="Cancel"
-            onClick={() => setNameVisible(false)}
-          >
-            <X className="size-4" />
-          </Button>
-          <Button
             size="icon"
             title="Confirm"
             onClick={confirmSave}
             disabled={!nameValue.trim()}
           >
             <Check className="size-4" />
+          </Button>
+          <Button
+            variant="outline"
+            size="icon"
+            title="Cancel"
+            onClick={() => setNameVisible(false)}
+          >
+            <X className="size-4" />
           </Button>
         </div>
       )}

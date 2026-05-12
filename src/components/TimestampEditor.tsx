@@ -408,7 +408,7 @@ export default function TimestampEditor({
       <DialogPortal>
         <DialogOverlay />
         <DialogPrimitive.Content
-          className="bg-background fixed top-1/2 left-1/2 z-50 flex max-h-[92vh] w-[min(96vw,1100px)] -translate-x-1/2 -translate-y-1/2 flex-col gap-4 rounded-lg border p-4 shadow-lg sm:p-6"
+          className="bg-background fixed top-1/2 left-1/2 z-50 flex max-h-[92vh] w-[min(96vw,1100px)] -translate-x-1/2 -translate-y-1/2 flex-col gap-4 rounded-lg border p-4 shadow-lg"
           onOpenAutoFocus={(e) => e.preventDefault()}
         >
           <DialogPrimitive.Title className="sr-only">
@@ -496,7 +496,7 @@ export default function TimestampEditor({
               {/* Transport controls */}
               <div className="flex items-center gap-3">
                 <Button
-                  variant="secondary"
+                  variant="outline"
                   size="icon"
                   onClick={togglePlay}
                   disabled={!videoReady && !videoError}
@@ -514,7 +514,7 @@ export default function TimestampEditor({
                   {fmtT(duration)}
                 </span>
                 <Button
-                  variant="secondary"
+                  variant="outline"
                   size="sm"
                   className="ml-auto"
                   onClick={addMarkerAtCurrentTime}
@@ -578,7 +578,7 @@ export default function TimestampEditor({
                 )}
               </div>
 
-              <div className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto">
+              <div className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto px-3">
                 {markers.length === 0 ? (
                   <p className="text-muted-foreground p-2 text-xs">
                     {isTouch ? (

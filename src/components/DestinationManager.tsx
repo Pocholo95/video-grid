@@ -321,7 +321,7 @@ export default function DestinationManager({
             )}
 
             <div className="flex justify-end gap-2">
-              <Button variant="ghost" onClick={cancelEdit}>
+              <Button variant="secondary" onClick={cancelEdit}>
                 Cancel
               </Button>
               <Button variant="default" onClick={confirmEdit}>
@@ -338,7 +338,7 @@ export default function DestinationManager({
         )}
 
         <DialogFooter>
-          <Button variant="ghost" onClick={handleDiscardAndClose}>
+          <Button variant="secondary" onClick={handleDiscardAndClose}>
             Discard changes
           </Button>
           <Button variant="default" onClick={handleSaveAndClose}>

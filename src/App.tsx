@@ -10,12 +10,12 @@ import { useProcessor } from "./hooks/useProcessor";
 import { useUpload } from "./hooks/useUpload";
 
 import ControlPanel from "./components/ControlPanel";
-import ProcessingPanel from "./components/ProcessingPanel";
 import TaskList from "./components/TaskList";
 import PreviewModal from "./components/PreviewModal";
 import Footer from "./components/Footer";
 import Settings from "./components/Settings";
 import { makeUniqueName } from "./utils";
+import { Button } from "./components/ui/button";
 
 export default function App() {
   const {
@@ -57,7 +57,7 @@ export default function App() {
   const [showSettingsDialog, setShowSettingsDialog] = useState(false);
 
   // Settings dialog handlers - preview mode changes don't persist to localStorage
-  const handleOpenThemeDialog = useCallback(() => {
+  const handleOpenSettingsDialog = useCallback(() => {
     if (!originalAppSettings) {
       setOriginalAppSettings(structuredClone(savedSettings));
     }
@@ -278,63 +278,45 @@ export default function App() {
   );
 
   return (
-    <div className="mx-auto flex max-w-6xl flex-col gap-5 p-6">
-      <header className="bg-card text-card-foreground flex items-center gap-4 rounded-xl border p-6 shadow-sm">
-        <a
-          href="/"
-          aria-label="Go to homepage"
-          className="focus-visible:ring-ring/50 inline-flex shrink-0 rounded-md focus-visible:ring-2 focus-visible:outline-none"
-        >
-          <img src="favicon.svg" alt="Logo" className="size-14 rounded-md" />
-        </a>
-        <div className="min-w-0 flex-1 flex flex-col gap-1">
-          <h1 className="text-2xl font-semibold leading-none tracking-tight">
-            {PROJECT_NAME}
-          </h1>
-          <p className="text-muted-foreground text-sm">
-            Thumbnail Grids Generator for videos. Client-side only processing,
-            no upload required!
-          </p>
+    <div className="mx-auto flex max-w-6xl flex-col gap-3 p-4">
+      <header className="bg-card text-card-foreground flex items-start justify-between gap-4 rounded-xl border p-4 shadow-sm">
+        <div className="flex items-center gap-4 flex-1">
+          <a
+            href="/"
+            aria-label="Go to homepage"
+            className="focus-visible:ring-ring/50 inline-flex shrink-0 rounded-md focus-visible:ring-2 focus-visible:outline-none"
+          >
+            <img src="favicon.svg" alt="Logo" className="size-14 rounded-md" />
+          </a>
+          <div className="min-w-0 flex flex-col gap-1">
+            <h1 className="text-base min-[360px]:text-xl font-semibold leading-none tracking-tight text-nowrap">
+              {PROJECT_NAME}
+            </h1>
+            <p className="text-muted-foreground text-sm hidden min-[360px]:block">
+              Thumbnail Grids for Videos
+            </p>
+            <p className="text-muted-foreground text-sm hidden sm:block">
+              Client-side only processing, no upload required!
+            </p>
+          </div>
         </div>
 
-        <button
-          onClick={handleOpenThemeDialog}
-          className="self-start bg-secondary hover:bg-secondary/80 text-secondary-foreground p-2 rounded-md transition-colors focus-visible:ring-ring/50 inline-flex items-center justify-center"
+        <Button
+          onClick={handleOpenSettingsDialog}
+          variant={"outline"}
+          size={"icon"}
           aria-label="Open settings"
         >
           <SettingsIcon className="size-4" />
-        </button>
+        </Button>
       </header>
-
-      {/* Control Panel - passes preset-related callbacks for save */}
-      <ControlPanel
-        opts={opts}
-        setOpts={setOptsState}
-        presets={getCurrentSettings().presets}
-        setPresets={(p: AppSettings["presets"]) => {
-          updateSettings({ presets: p as Partial<AppSettings>["presets"] });
-        }}
-        fileInputRef={fileInputRef}
-        onFilesChange={handleFilesChange}
-      />
-
-      <ProcessingPanel
-        status={status}
-        isProcessing={isProcessing}
-        hasFiles={hasQueuedFiles}
-        allMetadataReady={allMetaReady}
-        hasRequeuableItems={hasRequeuableItems}
-        onStart={handleStart}
-        onCancel={requestCancel}
-        onClear={handleClear}
-        onRequeueAll={handleRequeueAll}
-      />
 
       <TaskList
         items={items}
         totalCells={totalCells}
         showPreview={getCurrentSettings().showPreview}
         destinations={destinations}
+        onFilesChange={handleFilesChange}
         isUploadingAll={isUploadingAll}
         uploadProgress={uploadProgress}
         isZipping={isZipping}
@@ -346,6 +328,25 @@ export default function App() {
         onRemove={handleRemoveItem}
         onRequeue={handleRequeueItem}
         handleEnablePreviews={handleEnablePreviews}
+        status={status}
+        isProcessing={isProcessing}
+        hasFiles={hasQueuedFiles}
+        allMetadataReady={allMetaReady}
+        hasRequeuableItems={hasRequeuableItems}
+        onStart={handleStart}
+        onCancel={requestCancel}
+        onClear={handleClear}
+        onRequeueAll={handleRequeueAll}
+      />
+
+      <ControlPanel
+        opts={opts}
+        setOpts={setOptsState}
+        presets={getCurrentSettings().presets}
+        setPresets={(p: AppSettings["presets"]) => {
+          updateSettings({ presets: p as Partial<AppSettings>["presets"] });
+        }}
+        fileInputRef={fileInputRef}
       />
 
       {previewUrl && (

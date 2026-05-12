@@ -9,7 +9,7 @@ import {
   Loader2,
   RotateCcw,
   Target,
-  X,
+  Trash2,
 } from "lucide-react";
 import type { TaskItem, UploadDestination } from "../types";
 import { formatElapsed, humanSize } from "../utils";
@@ -133,9 +133,14 @@ export default function TaskCard({
   } else {
     const used = Math.min(markerCount, totalCells);
     const fallback = Math.max(0, totalCells - markerCount);
-    tsLabel =
-      `Custom — ${used} marker${used !== 1 ? "s" : ""}` +
-      (fallback > 0 ? ` + ${fallback} auto` : "");
+    const ignored = markerCount - totalCells;
+    if (ignored > 0) {
+      tsLabel = `Custom — ${used} marker${used !== 1 ? "s" : ""} (${ignored} ignored)`;
+    } else {
+      tsLabel =
+        `Custom — ${used} marker${used !== 1 ? "s" : ""}` +
+        (fallback > 0 ? ` + ${fallback} auto` : "");
+    }
   }
 
   const applyMarkers = (markers: number[]) => {
@@ -207,13 +212,14 @@ export default function TaskCard({
                 {item.status}
               </Badge>
               <Button
-                variant="ghost"
+                variant="destructive"
                 size="icon"
                 onClick={() => onRemove(item.id)}
                 disabled={item.status === "processing"}
                 title="Remove this task"
+                className="h-4 w-4 p-3"
               >
-                <X className="size-4" />
+                <Trash2 className="size-3" />
               </Button>
             </div>
           </div>
@@ -265,12 +271,14 @@ export default function TaskCard({
           <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
             <div className="bg-muted/30 flex min-h-35 items-center justify-center overflow-hidden rounded-md">
               {blobUrl ? (
-                <img
-                  src={blobUrl}
-                  alt={`Preview for ${item.file.name}`}
-                  onClick={() => onPreview(blobUrl)}
-                  className="max-h-65 w-full cursor-zoom-in object-contain"
-                />
+                <div className="max-h-65 overflow-hidden rounded-md m-2">
+                  <img
+                    src={blobUrl}
+                    alt={`Preview for ${item.file.name}`}
+                    onClick={() => onPreview(blobUrl)}
+                    className="max-h-65 cursor-zoom-in object-contain"
+                  />
+                </div>
               ) : (
                 <div
                   className="flex flex-col items-center justify-center gap-2 p-4 text-center text-xs"
@@ -344,7 +352,7 @@ export default function TaskCard({
               </p>
               <div className="mt-1 flex flex-wrap gap-2">
                 {isDone && item.outputBlob && item.outputName && (
-                  <Button asChild variant="secondary" size="sm">
+                  <Button asChild variant="outline" size="sm">
                     <a href={blobUrl || "#"} download={item.outputName}>
                       <Download className="size-4" />
                       Download{" "}
@@ -369,7 +377,7 @@ export default function TaskCard({
                 )}
                 {canRequeue && (
                   <Button
-                    variant="secondary"
+                    variant="outline"
                     size="sm"
                     onClick={() => onRequeue(item.id)}
                     title="Requeue this task to process it again"

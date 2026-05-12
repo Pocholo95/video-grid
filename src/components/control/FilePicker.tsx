@@ -63,13 +63,11 @@ export default function FilePicker({ onFilesChange }: Props) {
   };
 
   return (
-    <Field>
+    <Field className="h-full flex flex-col">
       <FieldLabel>Drop or click to add video files</FieldLabel>
       <div
-        // ... all unchanged except the div className ternary:
-
         className={`
-  relative w-full cursor-pointer rounded-md border-2 border-dashed p-0 transition-all duration-300
+  relative w-full flex-1 cursor-pointer rounded-md border-2 border-dashed p-0 transition-all duration-300
   ${
     isDragOver
       ? "border-primary bg-primary/10 ring-2 ring-primary/30 shadow-lg"
@@ -95,7 +93,7 @@ export default function FilePicker({ onFilesChange }: Props) {
         <Button
           type="button"
           variant="ghost"
-          className="h-full w-full justify-start gap-2 border-none bg-transparent p-2 shadow-none hover:bg-transparent"
+          className="h-full w-full justify-center gap-2 border-none bg-transparent p-2 shadow-none hover:bg-transparent"
           onClick={handleButtonClick}
         >
           <Upload className="h-4 w-4 shrink-0" />

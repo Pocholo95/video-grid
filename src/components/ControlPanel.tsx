@@ -1,7 +1,6 @@
 import * as React from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import PresetsRow from "./control/PresetsRow";
-import FilePicker from "./control/FilePicker";
 import GridSection from "./control/GridSection";
 import OutputModesSection from "./control/OutputModesSection";
 import StyleSection from "./control/StyleSection";
@@ -13,7 +12,6 @@ interface Props {
   presets: AppSettings["presets"];
   setPresets: (p: AppSettings["presets"]) => void;
   fileInputRef: React.RefObject<HTMLInputElement | null>;
-  onFilesChange: (files: File[]) => void;
 }
 
 /**
@@ -29,7 +27,6 @@ export default function ControlPanel({
   setOpts,
   presets,
   setPresets,
-  onFilesChange,
 }: Props) {
   // Section states are derived from opts so they are saved/restored with presets.
   // Falls back to all expanded when the key is absent (e.g. older stored presets).
@@ -49,8 +46,6 @@ export default function ControlPanel({
   return (
     <Card>
       <CardContent className="flex flex-col gap-4">
-        <FilePicker onFilesChange={onFilesChange} />
-        <hr />
         <PresetsRow
           opts={opts}
           setOpts={setOpts}

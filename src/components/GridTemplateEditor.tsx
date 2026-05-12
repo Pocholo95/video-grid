@@ -269,7 +269,7 @@ export default function GridTemplateEditor({
       <DialogPortal>
         <DialogOverlay />
         <DialogPrimitive.Content
-          className="bg-background fixed top-1/2 left-1/2 z-50 flex max-h-[92vh] w-[min(96vw,900px)] -translate-x-1/2 -translate-y-1/2 flex-col gap-4 rounded-lg border p-4 shadow-lg sm:p-6"
+          className="bg-background fixed top-1/2 left-1/2 z-50 flex max-h-[92vh] w-[min(96vw,900px)] -translate-x-1/2 -translate-y-1/2 flex-col gap-4 rounded-lg border p-4 shadow-lg"
           onOpenAutoFocus={(e) => e.preventDefault()}
         >
           <DialogPrimitive.Title className="sr-only">

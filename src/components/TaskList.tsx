@@ -1,10 +1,13 @@
 import { useMemo } from "react";
 import { Download, Loader2, Upload } from "lucide-react";
 import type { TaskItem, UploadDestination } from "../types";
+import type { ProcessorStatus } from "../hooks/useProcessor";
 import TaskCard from "./TaskCard";
 import CopyAllPanel from "./CopyAllPanel";
+import ProcessingPanel from "./ProcessingPanel";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import FilePicker from "./control/FilePicker";
 
 interface Props {
   items: TaskItem[];
@@ -14,6 +17,7 @@ interface Props {
   isUploadingAll: boolean;
   uploadProgress: { attempted: number; total: number };
   isZipping: boolean;
+  onFilesChange: (files: File[]) => void;
   onUploadAll: () => void;
   onDownloadAll: () => void;
   onPreview: (url: string) => void;
@@ -26,6 +30,16 @@ interface Props {
   onRemove: (id: string) => void;
   onRequeue: (id: string) => void;
   handleEnablePreviews: () => void;
+  // ProcessingPanel props
+  status: ProcessorStatus;
+  isProcessing: boolean;
+  hasFiles: boolean;
+  allMetadataReady: boolean;
+  hasRequeuableItems: boolean;
+  onStart: () => void;
+  onCancel: () => void;
+  onClear: () => void;
+  onRequeueAll: () => void;
 }
 
 /**
@@ -59,6 +73,7 @@ export default function TaskList({
   isUploadingAll,
   uploadProgress,
   isZipping,
+  onFilesChange,
   onUploadAll,
   onDownloadAll,
   onPreview,
@@ -67,6 +82,15 @@ export default function TaskList({
   onRemove,
   onRequeue,
   handleEnablePreviews,
+  status,
+  isProcessing,
+  hasFiles,
+  allMetadataReady,
+  hasRequeuableItems,
+  onStart,
+  onCancel,
+  onClear,
+  onRequeueAll,
 }: Props) {
   const enabledDests = useMemo(
     () => destinations.filter((d) => d.enabled),
@@ -101,8 +125,28 @@ export default function TaskList({
   return (
     <Card>
       <CardContent className="flex flex-col gap-4">
-        <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-start justify-between gap-3">
           <h2 className="text-lg font-semibold">Tasks ({items.length})</h2>
+
+          <div className="flex flex-col sm:flex-row gap-4 w-full">
+            <div className="w-full sm:w-1/3">
+              <FilePicker onFilesChange={onFilesChange} />
+            </div>
+            <div className="w-full sm:w-2/3">
+              <ProcessingPanel
+                status={status}
+                isProcessing={isProcessing}
+                hasFiles={hasFiles}
+                allMetadataReady={allMetadataReady}
+                hasRequeuableItems={hasRequeuableItems}
+                onStart={onStart}
+                onCancel={onCancel}
+                onClear={onClear}
+                onRequeueAll={onRequeueAll}
+              />
+            </div>
+          </div>
+
           <div className="flex flex-wrap items-center gap-2">
             {enabledDests.length > 0 && doneItems.length > 0 && (
               <Button
