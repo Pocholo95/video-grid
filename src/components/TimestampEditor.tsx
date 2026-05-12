@@ -434,7 +434,7 @@ export default function TimestampEditor({
 
           <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto md:grid md:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)] md:overflow-hidden">
             {/* Left: video + controls */}
-            <div className="flex flex-col gap-3 md:min-h-0">
+            <div className="flex flex-col gap-3 overflow-y-auto">
               {videoError ? (
                 <Alert>
                   <AlertTriangle />
@@ -446,8 +446,8 @@ export default function TimestampEditor({
               ) : (
                 <video
                   ref={videoRef}
-                  className="bg-muted/30 max-h-[55vh] w-full rounded-md object-contain"
                   src={blobUrl ?? undefined}
+                  className="max-h-[23vh] md:max-h-9/12"
                   muted
                   playsInline
                   preload="metadata"
@@ -559,7 +559,7 @@ export default function TimestampEditor({
             </div>
 
             {/* Right: marker list */}
-            <div className="bg-muted/30 flex h-[40vh] shrink-0 flex-col gap-2 rounded-md border p-3 md:h-auto md:min-h-0 md:shrink">
+            <div className="bg-muted/30 flex h-[30vh] shrink-0 flex-col gap-2 rounded-md border p-3 md:h-auto md:min-h-0 md:shrink">
               <div className="flex items-center justify-between gap-2">
                 <span className="text-sm font-semibold">
                   Markers ({markers.length})
