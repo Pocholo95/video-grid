@@ -11,6 +11,8 @@ export type VideoMetadata = {
   width: number;
   height: number;
   bitrate: number;
+  fps?: number;
+  codec?: string;
 };
 
 // - VR video

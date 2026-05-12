@@ -33,7 +33,7 @@ interface Props {
  * @param t - Time in seconds.
  */
 const fmtT = (t: number) =>
-  Number.isFinite(t) && t >= 0 ? formatTimeExact(t) : "00:00:00.0";
+  Number.isFinite(t) && t >= 0 ? formatTimeExact(t) : "00:00:00.000";
 
 interface MarkerPinProps {
   t: number;
@@ -131,6 +131,8 @@ export default function TimestampEditor({
   onClose,
 }: Props) {
   const duration = item.metadata?.duration ?? 0;
+  // Use actual FPS from metadata for precise frame-stepping; fallback to 30.
+  const fps = item.metadata?.fps ?? 30;
   const videoRef = useRef<HTMLVideoElement>(null);
   const seekbarRef = useRef<HTMLDivElement>(null);
   const clickTimerRef = useRef<number | null>(null);
@@ -353,9 +355,9 @@ export default function TimestampEditor({
         addMarkerAtCurrentTime();
       } else if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
         e.preventDefault();
-        seekBy(
-          e.key === "ArrowLeft" ? -(e.shiftKey ? 5 : 1) : e.shiftKey ? 5 : 1,
-        );
+        // Ctrl: frame-by-frame (1/fps), Shift: 5s, default: 1s
+        const delta = e.ctrlKey ? 1 / fps : e.shiftKey ? 5 : 1;
+        seekBy(e.key === "ArrowLeft" ? -delta : delta);
       }
     };
     window.addEventListener("keydown", handler);
@@ -659,8 +661,12 @@ export default function TimestampEditor({
                   <kbd className="bg-muted rounded border px-1 py-0.5 font-mono text-xs">
                     M
                   </kbd>{" "}
-                  Add Marker &nbsp;·&nbsp; Double-click seekbar to add marker
-                  &nbsp;·&nbsp; Right-click marker to remove
+                  Add Marker &nbsp;·&nbsp;
+                  <kbd className="bg-muted rounded border px-1 py-0.5 font-mono text-xs">
+                    Ctrl
+                  </kbd>
+                  +Arrow for frame-step &nbsp;·&nbsp; Double-click seekbar to
+                  add marker &nbsp;·&nbsp; Right-click marker to remove
                 </>
               )}
             </p>

@@ -79,9 +79,45 @@ export const readMetadataMediaInfo = async (
     const height = parseInt(video?.Height ?? "0", 10) || 0;
     const bitrate = parseInt(general?.OverallBitRate ?? "0", 10) || 0;
 
-    log(`MediaInfo: duration=${duration}s, ${width}x${height}, ${bitrate}bps`);
+    // Extract frame rate from the video track.
+    const rawFps = video?.["FrameRate"] ?? video?.["Frame rate"];
+    const fps = rawFps
+      ? parseFloat(typeof rawFps === "string" ? rawFps : String(rawFps))
+      : undefined;
+
+    // Build a consolidated codec/quality profile string.
+    // E.g. "H.264 / High Profile / 8-bit / SDR" or "HEVC / Main 10 / 10-bit / HDR"
+    const parts: string[] = [];
+
+    // 1. Codec family name
+    const format = video?.Format ?? video?.Codec_ID ?? null;
+    if (format) parts.push(format);
+
+    // 2. Profile (e.g. "High", "Main 10", "Constrained Baseline")
+    const profile = video?.Format_Profile ?? null;
+    if (profile) parts.push(`${profile} Profile`);
+
+    // 3. Bit depth (e.g. "8", "10")
+    const bitDepth = video?.BitDepth ?? video?.["Bit depth"] ?? null;
+    if (bitDepth) parts.push(`${bitDepth}-bit`);
+
+    // 4. HDR / SDR indicator
+    const dynamicRange =
+      video?.Dynamic_Range ?? video?.["Dynamic range"] ?? null;
+    if (dynamicRange) parts.push(dynamicRange);
+
+    // 5. Scan order (VFR flag — useful quality indicator)
+    const scanOrder = video?.ScanOrder ?? video?.Scan_Type ?? null;
+    if (scanOrder && scanOrder !== "Progressive") parts.push(scanOrder);
+
+    const codec = parts.length > 0 ? parts.join(" / ") : undefined;
+
+    log(
+      `MediaInfo: duration=${duration}s, ${width}x${height}, ` +
+        `${bitrate}bps, ${fps ?? "N/A"}fps, codec=${codec ?? "N/A"}`,
+    );
     onProgress?.(100, "Metadata ready");
-    return { duration, width, height, bitrate };
+    return { duration, width, height, bitrate, fps, codec };
   } catch (e) {
     errlog("MediaInfo analysis failed:", e);
     onProgress?.(100, "Metadata extraction failed");

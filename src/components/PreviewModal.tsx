@@ -38,6 +38,9 @@ export default function PreviewModal({ url, onClose }: Props) {
           <DialogPrimitive.Title className="sr-only">
             Image preview
           </DialogPrimitive.Title>
+          <DialogPrimitive.Description className="sr-only">
+            Full‑screen image preview dialog. Click or press Escape to close.
+          </DialogPrimitive.Description>
           <DialogPrimitive.Close
             className="bg-secondary text-secondary-foreground hover:bg-secondary/80 ring-offset-background focus-visible:ring-ring absolute top-4 right-4 inline-flex size-9 items-center justify-center rounded-md transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
             aria-label="Close preview"

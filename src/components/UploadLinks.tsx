@@ -49,24 +49,23 @@ function CopyField({ value, fieldType, rows = 3 }: CopyFieldProps) {
     value,
     onFocus: (e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement>) =>
       e.target.select(),
-    className: "font-mono text-xs flex-1",
+    className: "font-mono text-xs flex-1 pr-12",
   };
 
   return (
     <ItemGroup className="w-full">
-      <Item className="relative">
+      <Item className="relative border-0">
         {fieldType === "textarea" ? (
           <Textarea {...commonProps} rows={rows} />
         ) : (
           <Input type="text" {...commonProps} />
         )}
         <Button
-          type="button"
-          variant="ghost"
-          size="sm"
+          variant="outline"
+          size="icon"
           onClick={handleCopy}
           title={copied ? "Copied!" : "Copy to clipboard"}
-          className="absolute right-2 top-1/2 -translate-y-1/2 h-6 w-16 border-0 bg-background/80 hover:bg-background text-xs shadow-sm transition-all group-hover/item:bg-accent/50"
+          className="absolute right-0 top-1/2 -translate-y-1/2 h-full w-10 z-50 border-0 bg-background/80 hover:bg-background text-xs shadow-sm transition-all group-hover/item:bg-accent/50"
         >
           {copied ? <Check className="size-3" /> : <Copy className="size-3" />}
         </Button>

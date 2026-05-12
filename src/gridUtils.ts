@@ -183,7 +183,7 @@ export const createHeaderCanvas = (
     `Size: ${humanSize(file.size)}`,
     `Resolution: ${meta.width > 0 ? `${meta.width}x${meta.height}` : "Unknown"}`,
     `Duration: ${formatTime(meta.duration)}`,
-    `Bitrate: ${meta.bitrate ? `${Math.round(meta.bitrate / 1000)} kbps` : "Unknown"}`,
+    `Bitrate: ${meta.bitrate ? `${Math.round(meta.bitrate / 1000)} kbps` : "Unknown"} @ ${meta.fps ?? "Unknown "}fps - Codec: ${meta.codec ?? "Unknown"}`,
   ];
   if (vrHeaderNote) infoLines.push(vrHeaderNote);
 

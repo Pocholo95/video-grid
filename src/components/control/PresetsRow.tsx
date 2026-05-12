@@ -93,7 +93,7 @@ export default function PresetsRow({
           <PopoverTrigger asChild>
             <ListRestart className="size-4 shrink-0" />
           </PopoverTrigger>
-          <PopoverContent sideOffset={6} side="top">
+          <PopoverContent sideOffset={6} side="top" className="p-2 text-sm">
             Presets: Shortcuts to set all the options below quickly
           </PopoverContent>
         </Popover>

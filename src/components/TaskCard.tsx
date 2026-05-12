@@ -350,6 +350,19 @@ export default function TaskCard({
                   {statusText}
                 </span>
               </p>
+              {item.metadata && (
+                <p>
+                  <span className="text-muted-foreground">Bitrate: </span>
+                  {item.metadata.bitrate
+                    ? `${(item.metadata.bitrate / 1_000_000).toFixed(2)} Mbps`
+                    : "Unknown"}{" "}
+                  <span className="text-muted-foreground">@</span>{" "}
+                  {item.metadata.fps ?? "Unknown "}fps{" "}
+                  <span className="text-muted-foreground">-</span>{" "}
+                  <span className="text-muted-foreground">Codec: </span>
+                  {item.metadata.codec ?? "Unknown"}
+                </p>
+              )}
               <div className="mt-1 flex flex-wrap gap-2">
                 {isDone && item.outputBlob && item.outputName && (
                   <Button asChild variant="outline" size="sm">

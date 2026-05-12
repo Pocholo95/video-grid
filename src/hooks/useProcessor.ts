@@ -233,6 +233,7 @@ export function useProcessor(updateItem: Updater) {
 
           try {
             let meta = item.metadata;
+            // Re-read meta data if somehow it isn't present
             if (!meta) {
               meta = await readMetadataMediaInfo(item.file, (pct, msg) => {
                 setStatus((prev) => ({

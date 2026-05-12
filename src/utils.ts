@@ -40,18 +40,18 @@ export const formatTime = (seconds: number): string => {
 };
 
 /**
- * Formats a duration in seconds as `HH:MM:SS.f` (one decimal for tenths).
- * Useful for marker labels where sub-second precision matters.
+ * Formats a duration in seconds as `HH:MM:SS.mmm` (millisecond precision).
+ * Useful for marker labels where frame-level precision matters (up to 1000fps).
  *
  * @param seconds - Duration in seconds.
  */
 export const formatTimeExact = (seconds: number): string => {
-  if (!Number.isFinite(seconds) || seconds < 0) return "00:00:00.0";
+  if (!Number.isFinite(seconds) || seconds < 0) return "00:00:00.000";
   const h = Math.floor(seconds / 3600);
   const m = Math.floor((seconds % 3600) / 60);
   const s = seconds % 60;
   const pad = (n: number) => String(n).padStart(2, "0");
-  return `${pad(h)}:${pad(m)}:${s.toFixed(1).padStart(4, "0")}`;
+  return `${pad(h)}:${pad(m)}:${s.toFixed(3).padStart(6, "0")}`;
 };
 
 /**
