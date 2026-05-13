@@ -85,6 +85,11 @@ export default function App() {
 
   const [items, setItems] = useState<TaskItem[]>([]);
 
+  // Ref to the current items list, used by the processor to check if a task
+  // was removed mid-batch (closures capture stale state in async loops).
+  const itemsRef = useRef(items);
+  itemsRef.current = items;
+
   const updateItem = useCallback((id: string, patch: Partial<TaskItem>) => {
     setItems((prev) =>
       prev.map((it) => (it.id === id ? { ...it, ...patch } : it)),
@@ -157,10 +162,13 @@ export default function App() {
   // Processing
   const {
     isProcessing,
+    isStale,
+    staleTaskId,
     status,
     analyzeFiles: analyzeFiles,
     processAll,
     requestCancel,
+    forceCancel,
     resetState,
   } = useProcessor(updateItem);
 
@@ -182,6 +190,9 @@ export default function App() {
       processAll(
         items.filter((it) => it.status === "queued"),
         opts,
+        // Check if a task is still in the current items list (not removed).
+        // Uses a ref so the async loop always reads the latest state.
+        (id) => itemsRef.current.some((it) => it.id === id),
       ),
     [items, opts, processAll],
   );
@@ -277,6 +288,18 @@ export default function App() {
     [items],
   );
 
+  // All batch progress stats derived from items state so removed tasks are
+  // reflected correctly at every stage (during processing, after, and on requeue).
+  const effectiveBatchDone = items.filter(
+    (i) =>
+      i.status === "done" || i.status === "error" || i.status === "cancelled",
+  ).length;
+  const effectiveBatchTotal = isProcessing
+    ? effectiveBatchDone +
+      items.filter((i) => i.status === "queued" || i.status === "processing")
+        .length
+    : effectiveBatchDone;
+
   return (
     <div className="mx-auto flex max-w-6xl flex-col gap-3 p-4">
       <header className="bg-card text-card-foreground flex items-start justify-between gap-4 rounded-xl border p-4 shadow-sm">
@@ -330,11 +353,16 @@ export default function App() {
         handleEnablePreviews={handleEnablePreviews}
         status={status}
         isProcessing={isProcessing}
+        isStale={isStale}
+        staleTaskId={staleTaskId}
         hasFiles={hasQueuedFiles}
         allMetadataReady={allMetaReady}
         hasRequeuableItems={hasRequeuableItems}
+        effectiveBatchTotal={effectiveBatchTotal}
+        effectiveBatchDone={effectiveBatchDone}
         onStart={handleStart}
         onCancel={requestCancel}
+        onForceCancel={forceCancel}
         onClear={handleClear}
         onRequeueAll={handleRequeueAll}
       />

@@ -1,7 +1,5 @@
-import { encodeAnimatedWebP, resetFFmpeg } from "./ffmpeg";
+import { encodeAnimatedWebP } from "./ffmpeg";
 import type { GridOptions, GridResult } from "./grid";
-import { seekVideo } from "./grid";
-import { canNativelyPlay } from "./mediainfo";
 import type { VideoMetadata, VrMode } from "./types";
 import {
   calculateSampleTimes,
@@ -11,8 +9,10 @@ import {
   getVrCropRect,
   prepareHeader,
   resolveTimestamps,
+  seekVideo,
+  setupVideoDecoder,
 } from "./gridUtils";
-import { errlog, log } from "./utils";
+import { errlog, formatTime, log } from "./utils";
 
 /** Animated grid options, extending the static grid options with animation parameters. */
 export type AnimatedGridOptions = GridOptions & {
@@ -70,12 +70,6 @@ export const createAnimatedGridWebP = async (
   onEncodeProgress: (ratio: number) => void,
   onWarning: (message: string) => void,
 ): Promise<GridResult> => {
-  if (!canNativelyPlay(file)) {
-    throw new Error(
-      "Animated WebP output requires native browser video decoding. FFmpeg fallback is unavailable in animated mode.",
-    );
-  }
-
   const duration = Math.max(1, meta.duration || 1);
   const vrActive = opts.vrMode !== "disabled";
 
@@ -102,42 +96,19 @@ export const createAnimatedGridWebP = async (
       ? resolveTimestamps(opts.customTimestamps, totalCells, duration)
       : calculateSampleTimes(totalCells, duration);
 
-  // Open a <video> element for native seeking.
-  const videoUrl = URL.createObjectURL(file);
-  const video = document.createElement("video");
-  video.muted = true;
-  video.playsInline = true;
-  video.preload = "metadata";
-  video.src = videoUrl;
+  // Setup a <video> element to capture frames
+  const decoder = await setupVideoDecoder(file, meta, onWarning);
+  const video = decoder.video;
+  const videoCleanup = decoder.videoCleanup;
 
-  await new Promise<void>((resolve, reject) => {
-    const tid = setTimeout(
-      () => reject(new Error("Video open timeout")),
-      15_000,
+  if (!decoder.canNativelyPlay) {
+    videoCleanup();
+    throw new Error(
+      "Animated WebP mode requires native browser video support. " +
+        "This format is not natively decodable — FFmpeg fallback is unavailable for animated output. " +
+        "Disable animated mode to use the FFmpeg fallback for static JPEG generation.",
     );
-    video.addEventListener(
-      "loadedmetadata",
-      () => {
-        clearTimeout(tid);
-        resolve();
-      },
-      { once: true },
-    );
-    video.addEventListener(
-      "error",
-      () => {
-        clearTimeout(tid);
-        reject(new Error("Video failed to open"));
-      },
-      { once: true },
-    );
-  });
-
-  const videoCleanup = () => {
-    video.removeAttribute("src");
-    video.load();
-    URL.revokeObjectURL(videoUrl);
-  };
+  }
 
   // Setup <canvas> elements to capture frames
   const canvas = document.createElement("canvas");
@@ -165,7 +136,7 @@ export const createAnimatedGridWebP = async (
         const { x, y, cellW, cellH } = frameSlots[i];
 
         log(
-          `  [AnimWebP] anim frame ${f + 1}/${totalAnimFrames}, cell ${i + 1}/${totalCells} @ t=${tSec.toFixed(3)}s`,
+          `  [AnimWebP] Anim frame ${f + 1}/${totalAnimFrames}, cell ${i + 1}/${totalCells} @ t=${formatTime(tSec)}s`,
         );
 
         try {
@@ -238,16 +209,15 @@ export const createAnimatedGridWebP = async (
   // Signal that the encode phase is starting (ratio = 0).
   onEncodeProgress(0);
 
-  // Encode via FFmpeg, forwarding real-time progress, then release WASM.
+  // Encode via FFmpeg, forwarding real-time progress.
   const webpBlob = await encodeAnimatedWebP(
     composedFrames,
     opts.animFps,
     opts.webpQuality,
     opts.webpMethod,
+    isCancelled,
     onEncodeProgress,
-  ).finally(() => {
-    resetFFmpeg();
-  });
+  );
 
   const outputName = `${file.name}.webp`;
   return { outputName, outputSize: webpBlob.size, outputBlob: webpBlob };

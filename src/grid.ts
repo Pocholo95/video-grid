@@ -1,9 +1,8 @@
-import { SEEK_TIMEOUT_MS } from "./constants";
 import {
   cleanupFFmpeg,
   extractFramesFFmpegBatch,
+  isAbortError,
   isMemoryError,
-  resetFFmpeg,
 } from "./ffmpeg";
 import type { GridTemplate, Position, VideoMetadata, VrMode } from "./types";
 import { errlog, formatTime, log, warn } from "./utils";
@@ -15,6 +14,8 @@ import {
   getVrCropRect,
   prepareHeader,
   resolveTimestamps,
+  seekVideo,
+  setupVideoDecoder,
 } from "./gridUtils";
 
 export type GridOptions = {
@@ -50,28 +51,6 @@ export type GridResult = {
   outputSize: number;
   outputBlob: Blob;
 };
-
-// Seek helper
-/**
- * Seeks a video element to the given time and resolves when the seek completes.
- * Rejects with a timeout error if the seek takes longer than SEEK_TIMEOUT_MS.
- *
- * @param video - The HTMLVideoElement to seek.
- * @param t - Target time in seconds.
- */
-export const seekVideo = (video: HTMLVideoElement, t: number): Promise<void> =>
-  new Promise((resolve, reject) => {
-    const tid = setTimeout(() => {
-      video.removeEventListener("seeked", onSeeked);
-      reject(new Error(`Seek timeout at ${t.toFixed(3)}s`));
-    }, SEEK_TIMEOUT_MS);
-    const onSeeked = () => {
-      clearTimeout(tid);
-      resolve();
-    };
-    video.addEventListener("seeked", onSeeked, { once: true });
-    video.currentTime = t;
-  });
 
 /**
  * Build a JPEG contact sheet for a single video file.
@@ -142,49 +121,11 @@ export const createGridJpg = async (
     ctx.drawImage(headerCanvas, 0, 0);
   }
 
-  // Setup <video> elements to capture frames
-  const videoUrl = URL.createObjectURL(file);
-  const video = document.createElement("video");
-  video.muted = true;
-  video.playsInline = true;
-  video.preload = "metadata";
-  video.src = videoUrl;
-  const videoCleanup = () => {
-    video.removeAttribute("src");
-    video.load();
-    URL.revokeObjectURL(videoUrl);
-  };
-
-  let videoUsable = true;
-  try {
-    await new Promise<void>((resolve, reject) => {
-      const tid = setTimeout(
-        () => reject(new Error("Video open timeout")),
-        15_000,
-      );
-      video.addEventListener(
-        "loadedmetadata",
-        () => {
-          clearTimeout(tid);
-          resolve();
-        },
-        { once: true },
-      );
-      video.addEventListener(
-        "error",
-        () => {
-          clearTimeout(tid);
-          reject(new Error("Video failed to open"));
-        },
-        { once: true },
-      );
-    });
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e);
-    warn(`Native video failed (${msg}), switching to FFmpeg`);
-    onWarning(`Native decoder unavailable (${msg}) — using FFmpeg fallback`);
-    videoUsable = false;
-  }
+  // Setup a <video> element to capture frames
+  const decoder = await setupVideoDecoder(file, meta, onWarning);
+  const video = decoder.video;
+  const videoCleanup = decoder.videoCleanup;
+  let canNativelyPlay = decoder.canNativelyPlay;
 
   // FFmpeg batch results - lazily populated on first need.
   let ffmpegBitmaps: (ImageBitmap | null)[] | null = null;
@@ -195,8 +136,16 @@ export const createGridJpg = async (
     ffmpegBitmaps = await extractFramesFFmpegBatch(
       file,
       times,
+      isCancelled,
       (idx, _total, err) => {
         if (err) {
+          // Re-throw abort errors immediately so they propagate to useProcessor
+          // and clear the forceCancelCurrentRef flag. Without this, the error
+          // is swallowed here, the flag stays true, and a re-queued file will
+          // have isCancelled() return true on every frame.
+          if (isAbortError(err)) {
+            throw new Error(`FFmpeg operation aborted: ${err}`);
+          }
           ffmpegFailedFrames++;
           onWarning(`FFmpeg frame ${idx + 1}/${totalCells} failed: ${err}`);
           if (ffmpegFailedFrames > 2) {
@@ -222,7 +171,7 @@ export const createGridJpg = async (
     let frameDrawn = false;
 
     // Native path
-    if (videoUsable) {
+    if (canNativelyPlay) {
       try {
         await seekVideo(video, tSec);
         if (vrActive) {
@@ -245,12 +194,12 @@ export const createGridJpg = async (
         onWarning(
           `Native seek failed at frame ${i + 1} (${msg}) — switching to FFmpeg`,
         );
-        videoUsable = false;
+        canNativelyPlay = false;
       }
     }
 
     // FFmpeg fallback path
-    if (!videoUsable) {
+    if (!canNativelyPlay) {
       try {
         await ensureFFmpegBitmaps();
         const bitmap = ffmpegBitmaps![i];
@@ -274,6 +223,13 @@ export const createGridJpg = async (
           );
         }
       } catch (ffErr) {
+        // Re-throw abort errors so they propagate to useProcessor which clears
+        // the forceCancelCurrentRef flag. Without this, the flag stays true
+        // and a re-queued file will have isCancelled() return true on every frame.
+        if (isAbortError(ffErr)) {
+          errlog(`  FFmpeg frame ${i + 1} aborted (propagating):`, ffErr);
+          throw ffErr;
+        }
         const msg = ffErr instanceof Error ? ffErr.message : String(ffErr);
         errlog(`  FFmpeg frame ${i + 1} error:`, msg);
         onWarning(`FFmpeg error at frame ${i + 1}: ${msg}`);
@@ -311,7 +267,6 @@ export const createGridJpg = async (
 
   videoCleanup();
   await cleanupFFmpeg();
-  resetFFmpeg();
 
   const outputName = `${file.name}.jpg`;
   const jpgBlob = await new Promise<Blob>((resolve) => {

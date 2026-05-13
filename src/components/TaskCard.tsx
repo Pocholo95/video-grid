@@ -1,6 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import {
   AlertTriangle,
+  Ban,
+  ChevronDown,
+  ChevronUp,
   CircleAlert,
   Clock,
   Cloud,
@@ -9,6 +12,7 @@ import {
   Loader2,
   RotateCcw,
   Target,
+  Terminal,
   Trash2,
 } from "lucide-react";
 import type { TaskItem, UploadDestination } from "../types";
@@ -48,6 +52,10 @@ interface Props {
   onRemove: (id: string) => void;
   onRequeue: (id: string) => void;
   handleEnablePreviews: () => void;
+  /** True when this specific task is detected as stale (stuck FFmpeg). */
+  isStale?: boolean;
+  /** Callback to force-kill FFmpeg for this task only. */
+  onForceCancel?: () => void;
 }
 
 export default function TaskCard({
@@ -61,15 +69,18 @@ export default function TaskCard({
   onRemove,
   onRequeue,
   handleEnablePreviews,
+  isStale,
+  onForceCancel,
 }: Props) {
   const urlRef = useRef<string | null>(null);
   const [blobUrl, setBlobUrl] = useState<string | null>(null);
   const [showEditor, setShowEditor] = useState(false);
   const [pendingMarkers, setPendingMarkers] = useState<number[] | null>(null);
   const [showPreviewDialog, setShowPreviewDialog] = useState(false);
+  const [showFfmpegLogs, setShowFfmpegLogs] = useState(false);
 
   useEffect(() => {
-    if (!item.outputBlob || !showPreview) {
+    if (!item.outputBlob) {
       if (urlRef.current) {
         URL.revokeObjectURL(urlRef.current);
         urlRef.current = null;
@@ -85,7 +96,7 @@ export default function TaskCard({
         urlRef.current = null;
       }
     };
-  }, [item.outputBlob, showPreview]);
+  }, [item.outputBlob]);
 
   // Live tick to refresh the elapsed display while this item is processing.
   const [, forceUpdate] = useState(0);
@@ -187,6 +198,17 @@ export default function TaskCard({
     item.status === "error" ||
     item.status === "cancelled";
 
+  // Format memory stats for display
+  const formatMemoryStats = () => {
+    if (!item.memoryStats) return null;
+    const { usedMB, limitMB, accurate } = item.memoryStats;
+    const pct = limitMB > 0 ? Math.round((usedMB / limitMB) * 100) : 0;
+    const accuracyLabel = accurate ? "" : " (est.)";
+    return { usedMB, limitMB, pct, accuracyLabel };
+  };
+
+  const memoryInfo = formatMemoryStats();
+
   return (
     <>
       <Card
@@ -240,6 +262,79 @@ export default function TaskCard({
             </Alert>
           )}
 
+          {/* Stale warning (no Force Kill button here anymore) */}
+          {isStale && (
+            <Alert variant="destructive" className="py-2">
+              <AlertTriangle />
+              <AlertDescription>
+                FFmpeg processing might be stuck, if you don't see any progress
+                in the FFmpeg log after some time you can press the "Kill"
+                button to proceed.
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {/* Collapsible FFmpeg logs */}
+          {item.ffmpegLogs && item.ffmpegLogs.length > 0 && (
+            <div className="border rounded-md">
+              <div className="flex items-center justify-between gap-2 px-3 py-2 text-xs font-medium">
+                <button
+                  type="button"
+                  className="flex items-center gap-2 hover:text-foreground flex-1"
+                  onClick={() => setShowFfmpegLogs((s) => !s)}
+                >
+                  <Terminal className="size-3" />
+                  FFmpeg Logs ({item.ffmpegLogs.length} lines)
+                  {showFfmpegLogs ? (
+                    <ChevronUp className="size-4" />
+                  ) : (
+                    <ChevronDown className="size-4" />
+                  )}
+                </button>
+                {/* Memory stats in header bar */}
+                {memoryInfo && (
+                  <div className="flex items-center gap-2 text-[10px] text-muted-foreground shrink-0">
+                    <span className="font-medium">
+                      {memoryInfo.usedMB} / {memoryInfo.limitMB} MB
+                      {memoryInfo.accuracyLabel}
+                    </span>
+                    <div className="w-16 h-1.5 bg-muted rounded-full overflow-hidden">
+                      <div
+                        className={cn(
+                          "h-full rounded-full transition-all",
+                          memoryInfo.pct > 80
+                            ? "bg-destructive"
+                            : memoryInfo.pct > 60
+                              ? "bg-yellow-500"
+                              : "bg-primary",
+                        )}
+                        style={{ width: `${Math.min(memoryInfo.pct, 100)}%` }}
+                      />
+                    </div>
+                  </div>
+                )}
+                {/* Force Kill button - shown during processing */}
+                {item.status === "processing" && onForceCancel && (
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={onForceCancel}
+                    title="Force-kill FFmpeg for this file and move on"
+                    className={cn("shrink-0", isStale && "animate-pulse")}
+                  >
+                    <Ban className="size-3" />
+                    Kill
+                  </Button>
+                )}
+              </div>
+              {showFfmpegLogs && (
+                <div className="max-h-48 overflow-auto bg-muted/30 px-3 py-2 font-mono text-[10px] leading-relaxed text-muted-foreground whitespace-pre">
+                  {item.ffmpegLogs.join("\n")}
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Timestamp row */}
           <div className="bg-muted/30 flex flex-wrap items-center justify-between gap-2 rounded-md px-3 py-2">
             <span
@@ -270,7 +365,7 @@ export default function TaskCard({
           {/* Preview + info grid */}
           <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
             <div className="bg-muted/30 flex min-h-35 items-center justify-center overflow-hidden rounded-md">
-              {blobUrl ? (
+              {blobUrl && showPreview ? (
                 <div className="max-h-65 overflow-hidden rounded-md m-2">
                   <img
                     src={blobUrl}

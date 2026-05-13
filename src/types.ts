@@ -1,4 +1,15 @@
 // - Grid / Video
+
+/** Result of setting up a native video decoder for frame capture. */
+export type VideoDecoderSetup = {
+  /** The configured HTMLVideoElement ready for seeking/frame capture. */
+  video: HTMLVideoElement;
+  /** Cleanup function to release the ObjectURL and reset the video element. */
+  videoCleanup: () => void;
+  /** Whether the browser can natively decode this video file. */
+  canNativelyPlay: boolean;
+};
+
 export type Position =
   | "top-left"
   | "top-right"
@@ -120,6 +131,18 @@ export type UploadDestination = {
   enabled: boolean;
 };
 
+// - FFmpeg WASM memory tracking
+export type FfmpegMemoryStats = {
+  /** Memory currently in use (MB) */
+  usedMB: number;
+  /** Total heap allocated (MB) */
+  totalMB: number;
+  /** Maximum heap size (MB) */
+  limitMB: number;
+  /** true = from performance.memory (Chrome/Edge), false = estimated (Firefox/Safari) */
+  accurate: boolean;
+};
+
 // - Per-destination upload state on an TaskItem
 export type DestinationUploadState = {
   status: UploadStatus;
@@ -157,6 +180,16 @@ export type TaskItem = {
    * Cells beyond the length of this array fall back to auto-calculated times.
    */
   customTimestamps?: number[];
+  /**
+   * Accumulated FFmpeg WASM log lines for this task.
+   * Populated when FFmpeg is used for frame extraction or encoding.
+   */
+  ffmpegLogs?: string[];
+  /**
+   * Live memory stats while FFmpeg is processing this task.
+   * Cleared once processing completes.
+   */
+  memoryStats?: FfmpegMemoryStats;
 };
 
 // - Settings / Options

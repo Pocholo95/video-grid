@@ -33,13 +33,20 @@ interface Props {
   // ProcessingPanel props
   status: ProcessorStatus;
   isProcessing: boolean;
+  isStale: boolean;
+  staleTaskId: string | null;
   hasFiles: boolean;
   allMetadataReady: boolean;
   hasRequeuableItems: boolean;
   onStart: () => void;
   onCancel: () => void;
+  onForceCancel: () => void;
   onClear: () => void;
   onRequeueAll: () => void;
+  /** Effective batch total computed from items state for dynamic progress. */
+  effectiveBatchTotal: number;
+  /** Number of items that reached a terminal state (done/error/cancelled). */
+  effectiveBatchDone: number;
 }
 
 /**
@@ -84,13 +91,18 @@ export default function TaskList({
   handleEnablePreviews,
   status,
   isProcessing,
+  isStale,
+  staleTaskId,
   hasFiles,
   allMetadataReady,
   hasRequeuableItems,
   onStart,
   onCancel,
+  onForceCancel,
   onClear,
   onRequeueAll,
+  effectiveBatchTotal,
+  effectiveBatchDone,
 }: Props) {
   const enabledDests = useMemo(
     () => destinations.filter((d) => d.enabled),
@@ -139,6 +151,8 @@ export default function TaskList({
                 hasFiles={hasFiles}
                 allMetadataReady={allMetadataReady}
                 hasRequeuableItems={hasRequeuableItems}
+                effectiveBatchTotal={effectiveBatchTotal}
+                effectiveBatchDone={effectiveBatchDone}
                 onStart={onStart}
                 onCancel={onCancel}
                 onClear={onClear}
@@ -195,7 +209,7 @@ export default function TaskList({
         {doneItems.length > 0 && <CopyAllPanel items={doneItems} />}
         <div className="flex flex-col gap-3">
           {items.length === 0 ? (
-            <div className="text-muted-foreground py-8 text-center text-sm">
+            <div className="text-muted-foreground py-2 text-center text-sm">
               No tasks yet. Add video files to get started.
             </div>
           ) : (
@@ -212,6 +226,10 @@ export default function TaskList({
                 onRemove={onRemove}
                 onRequeue={onRequeue}
                 handleEnablePreviews={handleEnablePreviews}
+                isStale={isStale && item.id === staleTaskId}
+                onForceCancel={
+                  isStale && item.id === staleTaskId ? onForceCancel : undefined
+                }
               />
             ))
           )}

@@ -87,7 +87,7 @@ export default function FilePicker({ onFilesChange }: Props) {
           type="file"
           accept="video/*"
           multiple
-          className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+          className="absolute inset-0 h-full w-full cursor-pointer opacity-0 pointer-events-none"
           onChange={handleInputChange}
         />
         <Button

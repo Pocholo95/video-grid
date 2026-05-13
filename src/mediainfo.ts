@@ -51,7 +51,7 @@ export const readMetadataMediaInfo = async (
 ): Promise<VideoMetadata> => {
   onProgress?.(5, "Loading MediaInfo…");
   const mi = await getMediaInfo();
-  onProgress?.(20, "Analysing container…");
+  onProgress?.(20, "Analyzing container…");
 
   const readChunk = async (
     chunkSize: number,
@@ -123,16 +123,4 @@ export const readMetadataMediaInfo = async (
     onProgress?.(100, "Metadata extraction failed");
     return { duration: 0, width: 0, height: 0, bitrate: 0 };
   }
-};
-
-/**
- * Returns true if the browser can decode the given file natively.
- * Files with no MIME type are assumed playable to avoid false negatives.
- *
- * @param file - The video file to check.
- */
-export const canNativelyPlay = (file: File): boolean => {
-  const mime = file.type;
-  if (!mime) return true;
-  return document.createElement("video").canPlayType(mime) !== "";
 };

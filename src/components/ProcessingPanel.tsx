@@ -33,6 +33,10 @@ interface Props {
   hasFiles: boolean;
   allMetadataReady: boolean;
   hasRequeuableItems: boolean;
+  /** Effective batch total computed from items state for dynamic progress. */
+  effectiveBatchTotal: number;
+  /** Number of items that reached a terminal state (done/error/cancelled). */
+  effectiveBatchDone: number;
   onStart: () => void;
   onCancel: () => void;
   onClear: () => void;
@@ -59,6 +63,8 @@ export default function ProcessingPanel({
   hasFiles,
   allMetadataReady,
   hasRequeuableItems,
+  effectiveBatchTotal,
+  effectiveBatchDone,
   onStart,
   onCancel,
   onClear,
@@ -72,10 +78,11 @@ export default function ProcessingPanel({
     return () => clearInterval(id);
   }, [status.batchStartTime]);
 
+  const effectiveTotal = effectiveBatchTotal;
+  const effectiveDone = effectiveBatchDone;
+
   const batchPct =
-    status.batchTotal > 0
-      ? Math.round((status.batchDone / status.batchTotal) * 100)
-      : 0;
+    effectiveTotal > 0 ? Math.round((effectiveDone / effectiveTotal) * 100) : 0;
 
   // Live elapsed string shown in the batch progress label while processing.
   const batchElapsedStr = status.batchStartTime
@@ -133,8 +140,8 @@ export default function ProcessingPanel({
           <Field>
             <FieldLabel className="text-muted-foreground flex w-full justify-between text-xs font-normal">
               <span>
-                {status.batchTotal > 0
-                  ? `Batch progress (${status.batchDone}/${status.batchTotal})${batchElapsedStr}`
+                {effectiveTotal > 0
+                  ? `Batch progress (${effectiveDone}/${effectiveTotal})${batchElapsedStr}`
                   : "Batch progress"}
               </span>
               <span>{batchPct}%</span>

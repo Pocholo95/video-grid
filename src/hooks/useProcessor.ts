@@ -1,12 +1,22 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { FFMPEG_STALE_THRESHOLD_MS } from "../constants";
 import { DEFAULTS } from "../constants";
 import { createGridJpg } from "../grid";
+import { closeMediaInfo, readMetadataMediaInfo } from "../mediainfo";
 import {
-  canNativelyPlay,
-  closeMediaInfo,
-  readMetadataMediaInfo,
-} from "../mediainfo";
-import { resetFFmpeg } from "../ffmpeg";
+  getAndClearTaskLogs,
+  getIsFFmpegBusy,
+  isAbortError,
+  reinitFFmpeg,
+  resetFFmpeg,
+  setCurrentFileContext,
+  setCurrentLogTaskId,
+  setOnLogsChanged,
+  setOnMemoryChanged,
+  setTaskAbortController,
+  startMemoryPolling,
+  stopMemoryPolling,
+} from "../ffmpeg";
 import { createAnimatedGridWebP } from "../animatedGrid";
 import type { AnimatedGridOptions } from "../animatedGrid";
 import type { TaskItem, SavedOptions } from "../types";
@@ -52,6 +62,8 @@ const ANIMATED_ENCODE_PCT = 100 - ANIMATED_COMPOSE_PCT;
  */
 export function useProcessor(updateItem: Updater) {
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isStale, setIsStale] = useState(false);
+  const [staleTaskId, setStaleTaskId] = useState<string | null>(null);
   const [status, setStatus] = useState<ProcessorStatus>({
     text: "Select one or more videos to begin.",
     currentPct: 0,
@@ -62,6 +74,43 @@ export function useProcessor(updateItem: Updater) {
   });
 
   const cancelRef = useRef(false);
+  /**
+   * Separate flag for force-killing only the current item's FFmpeg process
+   * without stopping the entire batch. Checked alongside cancelRef in the
+   * isCancelled callback, then cleared after the item fails so the loop
+   * continues to the next file.
+   */
+  const forceCancelCurrentRef = useRef(false);
+  const lastProgressTimeRef = useRef<number>(Date.now());
+  const staleIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const currentTaskIdRef = useRef<string | null>(null);
+
+  /**
+   * Register a live-log callback so that whenever FFmpeg appends a log line,
+   * the processor updates the current task's ffmpegLogs array immediately
+   * (not just at task completion).
+   */
+  useEffect(() => {
+    setOnLogsChanged((taskId, logs) => {
+      updateItem(taskId, { ffmpegLogs: [...logs] });
+    });
+    return () => {
+      setOnLogsChanged(null);
+    };
+  }, [updateItem]);
+
+  /**
+   * Register a memory-stats callback so that whenever FFmpeg memory polling
+   * fires, the processor updates the current task's memoryStats immediately.
+   */
+  useEffect(() => {
+    setOnMemoryChanged((taskId, stats) => {
+      updateItem(taskId, { memoryStats: stats });
+    });
+    return () => {
+      setOnMemoryChanged(null);
+    };
+  }, [updateItem]);
 
   /**
    * Analyze newly selected files with MediaInfo to populate metadata.
@@ -73,7 +122,7 @@ export function useProcessor(updateItem: Updater) {
   const analyzeFiles = useCallback(
     async (files: File[]): Promise<TaskItem[]> => {
       setStatus({
-        text: `Analysing ${files.length} file(s)…`,
+        text: `Analyzing ${files.length} file(s)…`,
         currentPct: 0,
         batchDone: 0,
         batchTotal: files.length,
@@ -91,7 +140,7 @@ export function useProcessor(updateItem: Updater) {
         const item = items[i];
         const progress = ((i + 1) / files.length) * 100;
         setStatus({
-          text: `Analysing "${item.file.name}"…`,
+          text: `Analyzing "${item.file.name}"…`,
           currentPct: progress,
           batchDone: i + 1,
           batchTotal: files.length,
@@ -102,11 +151,7 @@ export function useProcessor(updateItem: Updater) {
         try {
           const meta = await readMetadataMediaInfo(item.file);
           item.metadata = meta;
-          if (!canNativelyPlay(item.file)) {
-            item.warning =
-              "Browser cannot decode this format natively — FFmpeg WASM will be used " +
-              "for frame extraction (expect slower processing and higher memory usage for large files).";
-          } else if (!hasUsableMetadata(meta)) {
+          if (!hasUsableMetadata(meta)) {
             item.warning =
               "Could not read metadata from this file. Processing may fail or produce incorrect output.";
           }
@@ -141,9 +186,15 @@ export function useProcessor(updateItem: Updater) {
    *
    * @param items - The TaskItem list to process.
    * @param opts  - Current SavedOptions controlling grid layout and appearance.
+   * @param isTaskActive - Optional callback to check if a task is still active (not removed).
+   *                       If the task has been removed from the list, processing is skipped.
    */
   const processAll = useCallback(
-    async (items: TaskItem[], opts: SavedOptions) => {
+    async (
+      items: TaskItem[],
+      opts: SavedOptions,
+      isTaskActive?: (id: string) => boolean,
+    ) => {
       if (isProcessing || !items.length) return;
       setIsProcessing(true);
       cancelRef.current = false;
@@ -167,6 +218,11 @@ export function useProcessor(updateItem: Updater) {
 
       const isAnimated = opts.animated ?? false;
 
+      // Reset stale state when starting a new batch
+      setIsStale(false);
+      setStaleTaskId(null);
+      lastProgressTimeRef.current = Date.now();
+
       let done = 0;
       const batchStartTime = Date.now();
 
@@ -181,6 +237,13 @@ export function useProcessor(updateItem: Updater) {
 
       try {
         for (const item of items) {
+          // Skip tasks that have been removed from the list — do NOT
+          // increment done, so the final status message only counts files
+          // that were actually processed.
+          if (isTaskActive && !isTaskActive(item.id)) {
+            continue;
+          }
+
           if (cancelRef.current) {
             updateItem(item.id, { status: "cancelled" });
             done++;
@@ -189,10 +252,22 @@ export function useProcessor(updateItem: Updater) {
           }
 
           const itemStartTime = Date.now();
+          currentTaskIdRef.current = item.id;
+          setCurrentLogTaskId(item.id);
+          // Create a fresh AbortController so all FFmpeg calls for this file
+          // can be cancelled together when forceCancel is triggered.
+          setTaskAbortController();
+          // Start memory tracking for this file
+          const totalFrames = baseGridOpts.cols * baseGridOpts.rows;
+          setCurrentFileContext(item.file.size, totalFrames);
+          startMemoryPolling();
+          lastProgressTimeRef.current = Date.now();
           updateItem(item.id, {
             status: "processing",
             error: undefined,
             processingStartedAt: itemStartTime,
+            ffmpegLogs: [],
+            memoryStats: undefined,
           });
 
           setStatus({
@@ -205,26 +280,6 @@ export function useProcessor(updateItem: Updater) {
           });
 
           log(`Starting "${item.file.name}"`);
-
-          // For animated mode, non-natively-playable files cannot be processed.
-          if (isAnimated && !canNativelyPlay(item.file)) {
-            updateItem(item.id, {
-              status: "error",
-              error:
-                "Animated WebP mode requires native browser video support. " +
-                "This format is not natively decodable — FFmpeg fallback is unavailable for animated output. " +
-                "Disable animated mode to use the FFmpeg fallback for static JPEG generation.",
-              warning: undefined,
-              processingDurationMs: Date.now() - itemStartTime,
-            });
-            done++;
-            setStatus((prev) => ({
-              ...prev,
-              batchDone: done,
-              text: `"${item.file.name}" — skipped (format unsupported in animated mode)`,
-            }));
-            continue;
-          }
 
           const onWarning = (message: string) => {
             updateItem(item.id, { warning: message });
@@ -295,6 +350,7 @@ export function useProcessor(updateItem: Updater) {
                 composedFrame: number,
                 totalFrames: number,
               ) => {
+                lastProgressTimeRef.current = Date.now();
                 setStatus((prev) => ({
                   ...prev,
                   text: `"${item.file.name}" — composing frame ${composedFrame}/${totalFrames}`,
@@ -306,6 +362,7 @@ export function useProcessor(updateItem: Updater) {
               };
 
               const onEncodeProgress = (ratio: number) => {
+                lastProgressTimeRef.current = Date.now();
                 const pct = ANIMATED_COMPOSE_PCT + ratio * ANIMATED_ENCODE_PCT;
                 const phaseLabel =
                   ratio < 0.5
@@ -324,7 +381,7 @@ export function useProcessor(updateItem: Updater) {
                 item.file,
                 meta,
                 animGridOpts,
-                () => cancelRef.current,
+                () => cancelRef.current || forceCancelCurrentRef.current,
                 onAnimFrameDone,
                 onEncodeProgress,
                 onWarning,
@@ -335,6 +392,7 @@ export function useProcessor(updateItem: Updater) {
                 totalFrames: number,
                 tSec: number,
               ) => {
+                lastProgressTimeRef.current = Date.now();
                 setStatus((prev) => ({
                   ...prev,
                   text: `"${item.file.name}" — frame ${frameIdx}/${totalFrames} @ ${formatTime(tSec)}`,
@@ -348,12 +406,15 @@ export function useProcessor(updateItem: Updater) {
                 item.file,
                 meta,
                 gridOpts,
-                () => cancelRef.current,
+                () => cancelRef.current || forceCancelCurrentRef.current,
                 onFrameDone,
                 onWarning,
               );
             }
 
+            // Stop memory tracking when item completes
+            stopMemoryPolling();
+            const ffmpegLogs = getAndClearTaskLogs(item.id);
             updateItem(item.id, {
               outputName: res.outputName,
               outputSize: res.outputSize,
@@ -361,21 +422,38 @@ export function useProcessor(updateItem: Updater) {
               status: cancelRef.current ? "cancelled" : "done",
               error: undefined,
               processingDurationMs: Date.now() - itemStartTime,
+              ffmpegLogs,
+              memoryStats: undefined,
             });
 
             log(`Finished "${item.file.name}"`);
             setStatus((prev) => ({ ...prev, currentPct: 100 }));
           } catch (e) {
+            // Stop memory tracking on error too
+            stopMemoryPolling();
+            // Clear force-cancel flag so the batch continues to the next item
+            forceCancelCurrentRef.current = false;
             const msg = e instanceof Error ? e.message : "Unknown error";
+            const ffmpegLogs = getAndClearTaskLogs(item.id);
+            // Distinguish between user-initiated force cancel (abort error) and
+            // genuine processing errors so the task shows the correct status.
+            const wasForceCancelled =
+              isAbortError(e) &&
+              forceCancelCurrentRef.current === false &&
+              cancelRef.current === false;
+            const wasUserCancelled = cancelRef.current;
             updateItem(item.id, {
-              status: cancelRef.current ? "cancelled" : "error",
+              status: wasUserCancelled ? "cancelled" : "error",
               error: msg,
               processingDurationMs: Date.now() - itemStartTime,
+              ffmpegLogs,
+              memoryStats: undefined,
             });
             errlog(`Failed "${item.file.name}":`, e);
             setStatus((prev) => ({
               ...prev,
               text: `Error on "${item.file.name}": ${msg}`,
+              textKind: wasForceCancelled ? "cancelled" : undefined,
             }));
           }
 
@@ -384,7 +462,16 @@ export function useProcessor(updateItem: Updater) {
         }
       } finally {
         const batchDurationMs = Date.now() - batchStartTime;
+        // Stop memory polling when batch completes
+        stopMemoryPolling();
+        // Clean up stale detection interval
+        if (staleIntervalRef.current) {
+          clearInterval(staleIntervalRef.current);
+          staleIntervalRef.current = null;
+        }
         setIsProcessing(false);
+        setIsStale(false);
+        setStaleTaskId(null);
         setStatus((prev) => ({
           ...prev,
           currentPct: 0,
@@ -408,6 +495,40 @@ export function useProcessor(updateItem: Updater) {
     warn("Cancel requested by user");
   }, []);
 
+  /**
+   * Force-kill the FFmpeg WASM instance for the current item only,
+   * then re-initialize it so subsequent files can be processed.
+   * Does NOT set cancelRef so the batch continues to the next file.
+   */
+  const forceCancel = useCallback(async () => {
+    forceCancelCurrentRef.current = true;
+    resetFFmpeg();
+    setIsStale(false);
+    setStaleTaskId(null);
+    setStatus((prev) => ({
+      ...prev,
+      text: "Force-killing FFmpeg… re-initializing for next file.",
+      textKind: "warning",
+    }));
+    warn("Force cancel: terminating FFmpeg WASM for current item only");
+    try {
+      await reinitFFmpeg();
+      setStatus((prev) => ({
+        ...prev,
+        text: "FFmpeg restored — continuing to next file.",
+        textKind: "info",
+      }));
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      errlog("FFmpeg re-initialization failed:", msg);
+      setStatus((prev) => ({
+        ...prev,
+        text: `FFmpeg restore failed: ${msg}. Subsequent files will be skipped.`,
+        textKind: "warning",
+      }));
+    }
+  }, []);
+
   /** Reset processing state and release WASM resources. */
   const resetState = useCallback(() => {
     resetFFmpeg();
@@ -422,12 +543,45 @@ export function useProcessor(updateItem: Updater) {
     });
   }, []);
 
+  /**
+   * Stale detection: periodically check if progress has stalled while FFmpeg
+   * is busy. If progress hasn't advanced for FFMPEG_STALE_THRESHOLD_MS and
+   * FFmpeg is still busy, mark the operation as stale.
+   */
+  useEffect(() => {
+    if (!isProcessing) return;
+
+    staleIntervalRef.current = setInterval(() => {
+      const elapsedSinceProgress = Date.now() - lastProgressTimeRef.current;
+      if (
+        elapsedSinceProgress > FFMPEG_STALE_THRESHOLD_MS &&
+        getIsFFmpegBusy()
+      ) {
+        warn(
+          `[Stale Detection] Progress stalled for ${elapsedSinceProgress}ms while FFmpeg is busy.`,
+        );
+        setIsStale(true);
+        setStaleTaskId(currentTaskIdRef.current);
+      }
+    }, 5000);
+
+    return () => {
+      if (staleIntervalRef.current) {
+        clearInterval(staleIntervalRef.current);
+        staleIntervalRef.current = null;
+      }
+    };
+  }, [isProcessing]);
+
   return {
     isProcessing,
+    isStale,
+    staleTaskId,
     status,
     analyzeFiles,
     processAll,
     requestCancel,
+    forceCancel,
     resetState,
   };
 }

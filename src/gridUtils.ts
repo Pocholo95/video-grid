@@ -2,10 +2,18 @@ import {
   HEADER_LINE_SPACING,
   HEADER_PADDING_LEFT,
   HEADER_TEXT_SIZE,
+  SEEK_TIMEOUT_MS,
+  VIDEO_OPEN_TIMEOUT_MS,
 } from "./constants";
 import { computeTemplatePixelRects, templateFromUniform } from "./gridTemplate";
-import type { GridTemplate, Position, VideoMetadata, VrMode } from "./types";
-import { formatTime, hexToRgba, humanSize } from "./utils";
+import type {
+  GridTemplate,
+  Position,
+  VideoDecoderSetup,
+  VideoMetadata,
+  VrMode,
+} from "./types";
+import { errlog, formatTime, hexToRgba, humanSize, warn } from "./utils";
 
 export type FrameSlot = { x: number; y: number; cellW: number; cellH: number };
 
@@ -356,4 +364,120 @@ export const resolveTimestamps = (
   }
 
   return result.sort((a, b) => a - b);
+};
+
+/**
+ * Seeks a video element to the given time and resolves when the seek completes.
+ * Rejects with a timeout error if the seek takes longer than SEEK_TIMEOUT_MS.
+ *
+ * @param video - The HTMLVideoElement to seek.
+ * @param t - Target time in seconds.
+ */
+export const seekVideo = (video: HTMLVideoElement, t: number): Promise<void> =>
+  new Promise((resolve, reject) => {
+    const tid = setTimeout(() => {
+      video.removeEventListener("seeked", onSeeked);
+      reject(new Error(`Seek timeout at ${t.toFixed(3)}s`));
+    }, SEEK_TIMEOUT_MS);
+    const onSeeked = () => {
+      clearTimeout(tid);
+      resolve();
+    };
+    video.addEventListener("seeked", onSeeked, { once: true });
+    video.currentTime = t;
+  });
+
+/**
+ * Creates and validates a native `<video>` element for frame capture.
+ *
+ * Builds a video element backed by an ObjectURL, waits for the browser to
+ * decode enough data to confirm the codec is supported (`canplay`), performs
+ * a test seek, and verifies the decoded frame contains actual pixel data.
+ *
+ * On failure it logs a warning (when `onWarning` is provided) and returns
+ * with `canNativelyPlay = false` so the caller can decide whether to fall
+ * back to FFmpeg (static JPEG grid) or abort (animated WebP mode).
+ *
+ * @param file - The video File to decode.
+ * @param meta - Pre-read metadata (duration, dimensions).
+ * @param onWarning - Optional callback for non-fatal warnings.
+ * @returns VideoDecoderSetup with the video element, cleanup, and capability flag.
+ */
+export const setupVideoDecoder = async (
+  file: File,
+  meta: VideoMetadata,
+  onWarning?: (message: string) => void,
+): Promise<VideoDecoderSetup> => {
+  const videoUrl = URL.createObjectURL(file);
+  const video = document.createElement("video");
+  video.muted = true;
+  video.playsInline = true;
+  video.preload = "metadata";
+  video.src = videoUrl;
+
+  const videoCleanup = () => {
+    video.removeAttribute("src");
+    video.load();
+    URL.revokeObjectURL(videoUrl);
+  };
+
+  let canNativelyPlay = true;
+  try {
+    // Step 1: Wait for 'canplay' — proves the codec is actually supported
+    await new Promise<void>((resolve, reject) => {
+      const tid = setTimeout(
+        () => reject(new Error("Video canplay timeout")),
+        VIDEO_OPEN_TIMEOUT_MS,
+      );
+      video.addEventListener(
+        "canplay",
+        () => {
+          clearTimeout(tid);
+          resolve();
+        },
+        { once: true },
+      );
+      video.addEventListener(
+        "error",
+        () => {
+          clearTimeout(tid);
+          reject(new Error("Video failed to load"));
+        },
+        { once: true },
+      );
+    });
+
+    // Step 2: Test seek to verify seeking works (not just initial decode)
+    const testTime = Math.min(0.5, (meta.duration || 10) * 0.1);
+    await seekVideo(video, testTime);
+
+    // Step 3: Verify we have a decoded frame ready after seek
+    // HAVE_CURRENT_FRAME = 2
+    if (video.readyState < 2) {
+      throw new Error("No frame available after seek");
+    }
+
+    // Step 4: Draw to offscreen canvas and verify pixels aren't empty
+    const testCanvas = document.createElement("canvas");
+    testCanvas.width = 16;
+    testCanvas.height = 16;
+    const testCtx = testCanvas.getContext("2d", { willReadFrequently: true })!;
+    testCtx.drawImage(video, 0, 0, 16, 16);
+    const imageData = testCtx.getImageData(0, 0, 16, 16);
+    const hasPixelData = imageData.data.some((ch, i) => i % 4 === 3 && ch > 0);
+    if (!hasPixelData) {
+      throw new Error("Decoded frame is empty");
+    }
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    warn(`Native video failed (${msg}), switching to FFmpeg`);
+    errlog(`setupVideoDecoder error:`, e);
+    onWarning?.(`Native decoder unavailable (${msg}) — using FFmpeg fallback`);
+    canNativelyPlay = false;
+  }
+
+  // Reset to beginning for actual grid processing
+  video.currentTime = 0;
+
+  return { video, videoCleanup, canNativelyPlay };
 };
