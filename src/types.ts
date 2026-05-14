@@ -49,8 +49,8 @@ export type ItemTimestampMode = "auto" | "custom";
 // - Custom grid templates
 
 /**
- * A single cell in a custom grid template within a schmatic representation of the
- * grid. Not to be mixed up with FrameSlot which describe theses cells but
+ * A single cell in a custom grid template within a schematic representation of the
+ * grid. Not to be mixed up with FrameSlot which describes these cells but
  * geometrically (to be able to draw them).
  *
  * `y` groups cells into rows - all cells sharing a `y` value form one row.

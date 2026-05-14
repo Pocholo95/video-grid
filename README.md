@@ -11,9 +11,9 @@ each video. No upload, no server processing, no account required.
 VidGrid-HTML analyzes each video, samples frames at evenly-spaced timestamps
 or custom timestamps per file across the duration, and assembles them into
 a configurable grid. Each cell can be annotated with a timecode overlay. An
-optional header row shows the filename, resolution, duration, bitrate, and file
-size. The result is saved as a high-quality JPEG or animated WebP you can
-preview, download, and/or upload to an image host.
+optional header row shows the filename, resolution, duration, bitrate, FPS,
+codec, and file size. The result is saved as a high-quality JPEG or animated
+WebP you can preview, download, and/or upload to an image host.
 
 ---
 
@@ -29,46 +29,67 @@ trigger an upload.
 
 ## Features
 
-- **In-browser preview** — thumbnail previews of completed grids with a
+- **In-browser preview:** thumbnail previews of completed grids with a
   full-size modal viewer.
-- **Universal metadata reading** — MediaInfo.js (WASM) accurately reads
-  duration, resolution, and bitrate from virtually any container format (MP4,
-  MKV, AVI, MOV, WMV, WebM, TS, and many more) without decoding frames.
+- **Universal metadata reading:** MediaInfo.js (WASM) accurately reads
+  duration, resolution, bitrate, FPS, and codec from virtually any container
+  format (MP4, MKV, AVI, MOV, WMV, WebM, TS, and many more) without decoding
+  frames.
 - **Native frame extraction** using the browser's built-in video decoder for
   all formats the browser supports — fast, with no extra memory overhead.
-- **FFmpeg WASM fallback** — formats the browser cannot decode natively
+- **FFmpeg WASM fallback:** formats the browser cannot decode natively
   (e.g. AVI, WMV, certain MKV/H.265 files). A warning is shown on the file
   card during the analysis phase when this path will be taken.
-- **Animated WebP output** — generate an animated thumbnail grid where each
+- **Animated WebP output:** generate an animated thumbnail grid where each
   cell plays a short clip from its sampled timestamp. See
   [Animated Thumbnail Grids](#animated-thumbnail-grids).
-- **VR Video support** — crop one eye from Side-by-Side or Top-Bottom stereo
+- **VR Video support:** crop one eye from Side-by-Side or Top-Bottom stereo
   VR video so thumbnails show a single, undoubled image. See
   [VR Video](#vr-video).
-- **Custom grid templates** — design a free-form layout with any number of
+- **Custom grid templates:** design a free-form layout with any number of
   rows and any number of cells per row, instead of a uniform columns × rows
   grid. See [Custom Grid Templates](#custom-grid-templates).
-- **Custom timestamps per file** — click **Edit Timestamps** on any task item
+- **Custom timestamps per file:** click **Edit Timestamps** on any task item
   to set exact frame positions using a built-in video player with marker pins. See
   [Custom Timestamps](#custom-timestamps).
-- **Batch processing** — queue multiple files and process them one after
+- **Batch processing:** queue multiple tasks by adding video files and process
+  them one after.
   another with combined progress tracking.
-- **Batch download** — completed tasks can be downloaded together as a
+- **Batch download:** completed tasks can be downloaded together as a
   ZIP archive.
-- **Upload to image hosts** — upload generated grids to one or more configured
+- **Upload to image hosts:** upload generated grids to one or more configured
   Chevereto-compatible image hosts (e.g. ImgBB). See [Upload Destinations](#upload-destinations).
-- **Copy links** — after uploading, copy links in multiple formats per task
+- **Copy links:** after uploading, copy links in multiple formats per task
   or for all tasks at once. See [Copying Links](#copying-links).
-- **Configurable grid** — choose columns, rows, output width, frame spacing,
+- **Configurable grid:** choose columns, rows, output width, frame spacing,
   and timecode position (or disable the overlay entirely).
-- **Custom colors** — set the background and text color for the header and
+- **Custom colors:** set the background and text color for the header and
   timecode overlays.
-- **Optional metadata header** — toggle a header row showing file info above
+- **Optional metadata header:** toggle a header row showing file info above
   the grid.
-- **Presets** — save and switch between named option sets stored in
+- **Presets:** save and switch between named option sets stored in
   localStorage. See [Presets](#presets).
-- **Cancel at any time** — interrupt a running batch cleanly after the current
+- **Cancel at any time:** interrupt a running batch cleanly after the current
   frame.
+
+---
+
+## Basic Usage
+
+1. **Add videos:** Drag and drop video files into the drop zone, or click it
+   to select files from your filesystem.
+2. **Review analysis:** Each video is immediately analyzed and added to the
+   "Tasks" list with its detected properties. Add more files at any time.
+3. **Customize options** _(optional)_ — Adjust grid size, style, animation,
+   or VR settings as described in [Generation Options](#generation-options).
+4. **Start processing:** Click "▶️ Start Processing" to generate thumbnail
+   grids sequentially for all queued tasks.
+5. **Download/Upload/Requeue:** After processing, use the "Download JPG" (or
+   WebP) button to save the grid, the "Copy" button to grab a formatted
+   BBCode title, or "Requeue" to process the same video again with different
+   settings.
+   If you have configured one or more [Upload destinations](#upload-destinations),
+   a third button captioned "Upload" will appear.
 
 ---
 
@@ -161,19 +182,20 @@ specific video.
 - **Video player** with seekbar, play/pause (⏸️/▶️), and current time display
 - **Visual marker pins** on the seekbar — green (used in grid), orange (extra)
 - **Keyboard shortcuts**: `Space` (play/pause), `M` (add marker), `Esc` (close)
-- **Live marker list** — click to seek, ✕ to delete individual markers
-- **Smart counting** — shows how many markers fit your grid (total cell count
+- **Live marker list:** click to seek, ✕ to delete individual markers
+- **Smart counting:** shows how many markers fit your grid (total cell count
   from the active layout, uniform or custom), extras ignored, shortages use
   auto fallback
-- **Reset** — restore evenly-spaced timestamps
-- **Save Markers** — apply custom timestamps
+- **Reset:** restore evenly-spaced timestamps
+- **Save Markers:** apply custom timestamps
 
 ### Smart behaviors
 
-- **Auto seeding** — opens with evenly-spaced timestamps as starting point
-- **Zero markers = auto** — saving empty list reverts to automatic mode
-- **Works with animation** — custom timestamps apply to both static JPEG and animated WebP modes
-- **Per-file** — each video keeps its own custom markers independently
+- **Auto seeding:** opens with evenly-spaced timestamps as starting point
+- **Zero markers = auto:** saving empty list reverts to automatic mode
+- **Works with animation:** custom timestamps apply to both static JPEG
+  and animated WebP modes
+- **Per-file:** each video keeps its own custom markers independently
 
 ---
 
@@ -186,11 +208,11 @@ of the entire video in motion.
 
 ### How animated grids works
 
-1. **Frame composition** — for each animation frame the app seeks the source
+1. **Frame composition:** for each animation frame the app seeks the source
    video to the appropriate timestamp for every cell, draws it onto a canvas,
    and exports the result as a PNG. This phase is driven entirely by the
    browser's native video decoder.
-2. **WebP encoding** — once all canvas frames are composed, they are passed to
+2. **WebP encoding:** once all canvas frames are composed, they are passed to
    FFmpeg WASM which assembles them into a single animated WebP file using
    libwebp.
 
@@ -210,18 +232,18 @@ These appear only when **Animated output** is enabled.
 
 ### Requirements and limitations
 
-- **Native browser decoding only.** Animated mode uses the browser's built-in
+- **Native browser decoding only:** Animated mode uses the browser's built-in
   `<video>` element to seek frames. Files that require the FFmpeg fallback
   (AVI, WMV, some MKV) are incompatible with animated mode. Disable animated
   mode and regenerate as a static JPEG if you need to cover those formats.
-- **Large output files.** Animated WebPs are significantly larger than static
+- **Large output files:** Animated WebPs are significantly larger than static
   JPEGs. A 3×4 grid at 3 s / 10 fps will composite 30 PNG frames before
   encoding. Reduce FPS, duration, or quality and increase the WebP method to
   keep file sizes manageable.
-- **Encoding time.** libwebp encoding through FFmpeg WASM is single-threaded.
+- **Encoding time:** libwebp encoding through FFmpeg WASM is single-threaded.
   High method values (5–6) combined with large frame counts can take many
   seconds or minutes.
-- **Memory.** All composed PNG frames are held in browser memory before being
+- **Memory:** All composed PNG frames are held in browser memory before being
   handed to FFmpeg. Very high frame counts (long duration × high FPS) can
   exhaust available RAM.
 
@@ -241,10 +263,10 @@ header row (when visible) explaining that the screenshots were modified.
 
 VR video is recorded in one of two stereo layouts:
 
-- **SBS (Side-by-Side)** — the left and right eye views are placed next to each
+- **SBS (Side-by-Side):** the left and right eye views are placed next to each
   other horizontally. Each eye occupies half the frame width. Common in VR 180°
   content.
-- **TB (Top-Bottom)** — the left and right eye views are stacked vertically.
+- **TB (Top-Bottom):** the left and right eye views are stacked vertically.
   Each eye occupies half the frame height. Common in VR 360° content.
 
 ### VR Video options
@@ -257,26 +279,13 @@ VR video is recorded in one of two stereo layouts:
 | **TB - Crop Top (Left Eye)**     | Crops the top half of a Top-Bottom frame                 |
 | **TB - Crop Bottom (Right Eye)** | Crops the bottom half of a Top-Bottom frame              |
 
-### How cropping works
-
-The crop is applied directly inside the canvas `drawImage` call using the
-9-argument form `drawImage(source, sx, sy, sw, sh, dx, dy, dw, dh)`, which
-selects a source rectangle from the decoded frame without any additional
-processing step. This means:
-
-- There is no performance overhead compared to non-VR processing.
-- It works on both the native browser decoder path and the FFmpeg WASM fallback
-  path, so all formats are supported.
-- Cell aspect ratio is automatically corrected — an SBS frame that is 16:9
-  overall produces cells that are 8:9 (portrait), as expected for a single eye.
-
 ### Limitations
 
-- **Crop only, no projection correction.** The tool isolates one eye from the
+- **Crop only, no projection correction:** The tool isolates one eye from the
   stereo pair but does not reproject the image (e.g. equirectangular to flat
   perspective). Thumbnails from 180° or 360° content will retain the
   characteristic barrel distortion of those formats.
-- **Manual format selection.** VidGrid-HTML does not attempt to auto-detect
+- **Manual format selection:** VidGrid-HTML does not attempt to auto-detect
   whether a file is VR or which stereo layout it uses. Select the correct mode
   for your content.
 
@@ -289,10 +298,10 @@ The 🗂️ dropdown at the top of the options panel lets you manage named prese
 - **Select a preset** from the dropdown to instantly apply its settings.
 - **`<Default Preset>`** is a permanent, undeletable entry that resets all
   settings to the factory defaults.
-- **💾 Save / Add preset** — opens an inline name field pre-filled with the current
+- **💾 Save / Add preset:** opens an inline name field pre-filled with the current
   preset name (or blank when `<Default Preset>` is selected). Enter a name and
   confirm to create a new preset or overwrite an existing one with the same name.
-- **🗑️ Delete preset** — removes the currently selected preset. Disabled when
+- **🗑️ Delete preset:** removes the currently selected preset. Disabled when
   `<Default Preset>` is selected.
 
 Presets are stored in the browser's `localStorage` and persist between sessions.
@@ -318,8 +327,9 @@ These settings are independent of presets, they persist separately and affect on
 ### Upload Destinations
 
 VidGrid-HTML can upload completed grids to one or more image hosts compatible
-with the Chevereto v1 API (including [ImgBB](https://imgbb.com)) as long as they
-have enabled API uploads and provide you with an API key (often under "Settings" in the hosting website dashboard).
+with the Chevereto v1 API (including [ImgBB](https://imgbb.com)) as long as
+they have enabled API uploads and provide you with an API key (often under
+"Settings" in the hosting website dashboard).
 
 #### Managing destinations
 
@@ -339,7 +349,8 @@ manager. From there you can:
 
 ### Uploading
 
-Once one or more destinations are added and enabled (see [Settings](#settings)) and processing is complete:
+Once one or more destinations are added and enabled (see [Settings](#settings))
+and processing is complete:
 
 - Each task card shows a **☁️ Upload** button. Clicking it uploads that grid
   to all enabled destinations.
@@ -389,20 +400,29 @@ When a video cannot be decoded natively by the browser, VidGrid-HTML falls
 back to **FFmpeg compiled to WebAssembly**. This is powerful but comes with
 real trade-offs:
 
-- **The entire file must be copied into the WASM memory heap.** For files
-  larger than ~500 MB, this can consume several gigabytes of RAM and may
-  cause the tab to crash on memory-constrained devices.
-- **Frame extraction is sequential and slow.** Each seek-and-decode operation
+- **The entire file must be copied into the WASM memory heap:** For very large
+  files this can be memory-intensive, though frames are processed
+  individually (one at a time) to minimize peak memory usage.
+- **Frame extraction is sequential and slow:** Each seek-and-decode operation
   runs single-threaded inside the WASM sandbox. A 12-frame grid from a large
   file can take several minutes.
-- **Some codecs are not supported.** The bundled FFmpeg build covers common
-  codecs (H.264, H.265/HEVC, VP8/VP9, AV1) but exotic or proprietary codecs
-  may fail silently or produce corrupted frames.
-- **Out-of-memory errors are unrecoverable.** If the WASM heap runs out, the
+- **Some codecs are not supported:** The bundled FFmpeg build covers common
+  codecs (H.264, H.265/HEVC, VP8/VP9, AV1) but exotic, old, or proprietary
+  codecs may fail silently or produce corrupted frames.
+- **Out-of-memory errors are unrecoverable:** If the WASM heap runs out, the
   current file is skipped with an error. Reducing output width, columns, or
-  rows lowers peak memory usage.
-  If you regularly work with formats that require FFmpeg (AVI, WMV, older MKV),
-  consider re-muxing them to MP4/H.264 beforehand for the best experience.
+  rows lowers peak memory usage. Some browsers restrict the heap size
+  heavily at first and will allocate more memory if you use it reasonably first,
+  so the trick sometimes is to first process a 1x1 grid with success and then
+  queue a larger grid.
+- **Stalled processing:** In some cases FFmpeg can hang during frame
+  extraction. When this happens, a **Kill** button appears in the
+  collapsible "FFmpeg Logs" container on the task card. Clicking it
+  terminates the current FFmpeg process immediately and moves on to the next
+  file in the queue, or ends the batch if the queue is empty.
+
+If you regularly work with formats that require FFmpeg (AVI, WMV, older MKV),
+consider re-muxing them to MP4/H.264 beforehand for the best experience.
 
 ---
 
