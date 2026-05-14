@@ -6,16 +6,11 @@ import { closeMediaInfo, readMetadataMediaInfo } from "../mediainfo";
 import {
   getAndClearTaskLogs,
   getIsFFmpegBusy,
-  isAbortError,
   reinitFFmpeg,
   resetFFmpeg,
-  setCurrentFileContext,
   setCurrentLogTaskId,
   setOnLogsChanged,
-  setOnMemoryChanged,
   setTaskAbortController,
-  startMemoryPolling,
-  stopMemoryPolling,
 } from "../ffmpeg";
 import { createAnimatedGridWebP } from "../animatedGrid";
 import type { AnimatedGridOptions } from "../animatedGrid";
@@ -96,19 +91,6 @@ export function useProcessor(updateItem: Updater) {
     });
     return () => {
       setOnLogsChanged(null);
-    };
-  }, [updateItem]);
-
-  /**
-   * Register a memory-stats callback so that whenever FFmpeg memory polling
-   * fires, the processor updates the current task's memoryStats immediately.
-   */
-  useEffect(() => {
-    setOnMemoryChanged((taskId, stats) => {
-      updateItem(taskId, { memoryStats: stats });
-    });
-    return () => {
-      setOnMemoryChanged(null);
     };
   }, [updateItem]);
 
@@ -223,7 +205,11 @@ export function useProcessor(updateItem: Updater) {
       setStaleTaskId(null);
       lastProgressTimeRef.current = Date.now();
 
-      let done = 0;
+      // Separate counters for each terminal state so the final message can
+      // show a detailed breakdown.
+      let succeeded = 0;
+      let errored = 0;
+      let cancelled = 0;
       const batchStartTime = Date.now();
 
       setStatus({
@@ -238,7 +224,7 @@ export function useProcessor(updateItem: Updater) {
       try {
         for (const item of items) {
           // Skip tasks that have been removed from the list — do NOT
-          // increment done, so the final status message only counts files
+          // increment processed, so the final status message only counts files
           // that were actually processed.
           if (isTaskActive && !isTaskActive(item.id)) {
             continue;
@@ -246,8 +232,7 @@ export function useProcessor(updateItem: Updater) {
 
           if (cancelRef.current) {
             updateItem(item.id, { status: "cancelled" });
-            done++;
-            setStatus((prev) => ({ ...prev, batchDone: done }));
+            cancelled++;
             continue;
           }
 
@@ -257,23 +242,19 @@ export function useProcessor(updateItem: Updater) {
           // Create a fresh AbortController so all FFmpeg calls for this file
           // can be cancelled together when forceCancel is triggered.
           setTaskAbortController();
-          // Start memory tracking for this file
-          const totalFrames = baseGridOpts.cols * baseGridOpts.rows;
-          setCurrentFileContext(item.file.size, totalFrames);
-          startMemoryPolling();
           lastProgressTimeRef.current = Date.now();
           updateItem(item.id, {
             status: "processing",
             error: undefined,
             processingStartedAt: itemStartTime,
             ffmpegLogs: [],
-            memoryStats: undefined,
           });
 
+          const batchProcessed = succeeded + errored;
           setStatus({
             text: `"${item.file.name}" — opening…`,
             currentPct: 0,
-            batchDone: done,
+            batchDone: batchProcessed,
             batchTotal: items.length,
             batchStartTime,
             batchDurationMs: null,
@@ -356,7 +337,7 @@ export function useProcessor(updateItem: Updater) {
                   text: `"${item.file.name}" — composing frame ${composedFrame}/${totalFrames}`,
                   currentPct:
                     (composedFrame / totalFrames) * ANIMATED_COMPOSE_PCT,
-                  batchDone: done,
+                  batchDone: succeeded + errored,
                   batchTotal: items.length,
                 }));
               };
@@ -372,7 +353,7 @@ export function useProcessor(updateItem: Updater) {
                   ...prev,
                   text: `"${item.file.name}" — ${phaseLabel}`,
                   currentPct: pct,
-                  batchDone: done,
+                  batchDone: succeeded + errored,
                   batchTotal: items.length,
                 }));
               };
@@ -397,7 +378,7 @@ export function useProcessor(updateItem: Updater) {
                   ...prev,
                   text: `"${item.file.name}" — frame ${frameIdx}/${totalFrames} @ ${formatTime(tSec)}`,
                   currentPct: (frameIdx / totalFrames) * 100,
-                  batchDone: done,
+                  batchDone: succeeded + errored,
                   batchTotal: items.length,
                 }));
               };
@@ -412,58 +393,89 @@ export function useProcessor(updateItem: Updater) {
               );
             }
 
-            // Stop memory tracking when item completes
-            stopMemoryPolling();
             const ffmpegLogs = getAndClearTaskLogs(item.id);
+            const itemCancelledMidProcessing = cancelRef.current;
             updateItem(item.id, {
               outputName: res.outputName,
               outputSize: res.outputSize,
               outputBlob: res.outputBlob,
-              status: cancelRef.current ? "cancelled" : "done",
+              status: itemCancelledMidProcessing ? "cancelled" : "done",
               error: undefined,
               processingDurationMs: Date.now() - itemStartTime,
               ffmpegLogs,
-              memoryStats: undefined,
             });
 
+            // Task went through processing successfully
+            if (!itemCancelledMidProcessing) {
+              succeeded++;
+            } else {
+              cancelled++;
+            }
+
             log(`Finished "${item.file.name}"`);
-            setStatus((prev) => ({ ...prev, currentPct: 100 }));
+            setStatus((prev) => ({
+              ...prev,
+              currentPct: 100,
+              batchDone: succeeded + errored,
+            }));
           } catch (e) {
-            // Stop memory tracking on error too
-            stopMemoryPolling();
-            // Clear force-cancel flag so the batch continues to the next item
-            forceCancelCurrentRef.current = false;
             const msg = e instanceof Error ? e.message : "Unknown error";
             const ffmpegLogs = getAndClearTaskLogs(item.id);
-            // Distinguish between user-initiated force cancel (abort error) and
-            // genuine processing errors so the task shows the correct status.
-            const wasForceCancelled =
-              isAbortError(e) &&
-              forceCancelCurrentRef.current === false &&
-              cancelRef.current === false;
+            // Distinguish between user-initiated force cancel, normal user
+            // cancel, and genuine processing errors so the task shows the
+            // correct status. Evaluate BEFORE clearing flags.
+            // Note: forceCancelCurrentRef is trusted on its own — when the
+            // user clicks Kill we set the flag AND call resetFFmpeg(). The
+            // resulting exception may be an AbortError or any other error
+            // (depends on whether FFmpeg.terminate() rejects before/after the
+            // frame loop's isCancelled() check), so we must NOT require
+            // isAbortError(e) for force-cancel detection.
+            const wasForceCancelled = forceCancelCurrentRef.current === true;
             const wasUserCancelled = cancelRef.current;
+            // Clear force-cancel flag so the batch continues to the next item
+            forceCancelCurrentRef.current = false;
+            const itemErrored = !(wasUserCancelled || wasForceCancelled);
             updateItem(item.id, {
-              status: wasUserCancelled ? "cancelled" : "error",
+              status:
+                wasUserCancelled || wasForceCancelled ? "cancelled" : "error",
               error: msg,
               processingDurationMs: Date.now() - itemStartTime,
               ffmpegLogs,
-              memoryStats: undefined,
             });
+            // Task went through processing and failed with a genuine error – count it
+            if (itemErrored) {
+              errored++;
+            } else {
+              cancelled++;
+            }
             errlog(`Failed "${item.file.name}":`, e);
+            const batchProcessed = succeeded + errored;
             setStatus((prev) => ({
               ...prev,
               text: `Error on "${item.file.name}": ${msg}`,
               textKind: wasForceCancelled ? "cancelled" : undefined,
+              batchDone: batchProcessed,
             }));
+          } finally {
+            // Clear the force-cancel flag and capture whether forceCancel was
+            // called for this task. When forceCancel runs it already calls
+            // resetFFmpeg() + reinitFFmpeg(), so calling resetFFmpeg() again
+            // here would terminate the freshly reinitialized instance.
+            const wasForceCancelledThisTask =
+              forceCancelCurrentRef.current === true;
+            forceCancelCurrentRef.current = false;
+            // Reset FFmpeg WASM between tasks to release the WASM heap memory.
+            // WASM heaps grow monotonically and never shrink, so after several
+            // large files the heap becomes enormous and the next operation fails.
+            // Terminating the instance releases all memory back to the browser.
+            // Skip when forceCancel already handled the reset + reinit cycle.
+            if (!wasForceCancelledThisTask) {
+              resetFFmpeg();
+            }
           }
-
-          done++;
-          setStatus((prev) => ({ ...prev, batchDone: done }));
         }
       } finally {
         const batchDurationMs = Date.now() - batchStartTime;
-        // Stop memory polling when batch completes
-        stopMemoryPolling();
         // Clean up stale detection interval
         if (staleIntervalRef.current) {
           clearInterval(staleIntervalRef.current);
@@ -472,15 +484,23 @@ export function useProcessor(updateItem: Updater) {
         setIsProcessing(false);
         setIsStale(false);
         setStaleTaskId(null);
+        const total = items.length;
+        // Build detailed breakdown: "Done. 8 succeeded, 2 failed. (10 total) 2.3s"
+        // or "Cancelled. 3 succeeded, 1 failed, 6 cancelled. (10 total) 1.5s"
+        const parts = [`${succeeded} succeeded`, `${errored} failed`];
+        if (cancelled > 0) {
+          parts.push(`${cancelled} cancelled`);
+        }
+        const breakdown = parts.join(", ");
+        const label = cancelRef.current ? "Cancelled" : "Done";
+
         setStatus((prev) => ({
           ...prev,
           currentPct: 0,
-          batchDone: done,
+          batchDone: succeeded + errored,
           batchStartTime: null,
           batchDurationMs,
-          text: cancelRef.current
-            ? `Cancelled after ${done} file(s) processed in ${formatElapsed(batchDurationMs)}.`
-            : `Done. ${done} file(s) processed in ${formatElapsed(batchDurationMs)}.`,
+          text: `${label}. ${breakdown}. (${total} total, ${formatElapsed(batchDurationMs)})`,
           textKind: cancelRef.current ? "cancelled" : "success",
         }));
       }
@@ -496,21 +516,34 @@ export function useProcessor(updateItem: Updater) {
   }, []);
 
   /**
-   * Force-kill the FFmpeg WASM instance for the current item only,
-   * then re-initialize it so subsequent files can be processed.
+   * Force-kill the FFmpeg WASM instance for the current item only.
+   * Sets the force-cancel flag so the frame loop detects it via
+   * isCancelled(), then terminates the FFmpeg worker. Re-initialization
+   * happens in the per-item finally block (resetFFmpeg + the next task's
+   * setTaskAbortController / prepareFFmpegInput will trigger a fresh load),
+   * avoiding a race where forceCancel's reinitFFmpeg loads a new instance
+   * while the frame loop is still unwinding on the old one.
+   *
    * Does NOT set cancelRef so the batch continues to the next file.
    */
   const forceCancel = useCallback(async () => {
     forceCancelCurrentRef.current = true;
-    resetFFmpeg();
     setIsStale(false);
     setStaleTaskId(null);
     setStatus((prev) => ({
       ...prev,
-      text: "Force-killing FFmpeg… re-initializing for next file.",
+      text: "Force-killing FFmpeg…",
       textKind: "warning",
     }));
     warn("Force cancel: terminating FFmpeg WASM for current item only");
+    // Terminate the FFmpeg worker so any in-flight ff.exec() rejects.
+    // The frame loop's isCancelled() check will also catch the flag and
+    // throw, propagating to the catch block below which clears the flag.
+    resetFFmpeg();
+    // Re-initialize AFTER the terminate — the frame loop should have
+    // already exited by now (exec rejected or isCancelled threw).
+    // If not, the next call to prepareFFmpegInput will get the new
+    // instance and immediately hit isCancelled() again.
     try {
       await reinitFFmpeg();
       setStatus((prev) => ({

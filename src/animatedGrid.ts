@@ -1,4 +1,4 @@
-import { encodeAnimatedWebP } from "./ffmpeg";
+import { encodeAnimatedWebPFromFS, getFFmpeg } from "./ffmpeg";
 import type { GridOptions, GridResult } from "./grid";
 import type { VideoMetadata, VrMode } from "./types";
 import {
@@ -113,11 +113,19 @@ export const createAnimatedGridWebP = async (
   // Setup <canvas> elements to capture frames
   const canvas = document.createElement("canvas");
   const ctx = canvas.getContext("2d")!;
-  const composedFrames: Blob[] = [];
+
+  // Write PNG frames directly to FFmpeg's virtual filesystem as they are
+  // composed — this avoids holding all composed PNG blobs in JS memory
+  // simultaneously. Frames are cleaned up after encoding completes.
+  const ff = await getFFmpeg();
+  const frameNames: string[] = [];
+  let framesWritten = 0;
 
   try {
     for (let f = 0; f < totalAnimFrames; f++) {
-      if (isCancelled()) break;
+      if (isCancelled()) {
+        throw new DOMException("Processing cancelled", "AbortError");
+      }
 
       // Clear the canvas
       canvas.width = canvasWidth;
@@ -181,10 +189,16 @@ export const createAnimatedGridWebP = async (
         );
       }
 
+      // Export canvas as PNG and write directly to FFmpeg FS
       const frameBlob = await new Promise<Blob>((resolve) => {
         canvas.toBlob((b) => resolve(b ?? new Blob()), "image/png");
       });
-      composedFrames.push(frameBlob);
+      const name = `anim_${String(f).padStart(5, "0")}.png`;
+      frameNames.push(name);
+      await ff.writeFile(name, new Uint8Array(await frameBlob.arrayBuffer()));
+      framesWritten++;
+
+      // Release the blob and canvas immediately — no accumulation
       canvas.width = 0;
       canvas.height = 0;
 
@@ -196,22 +210,32 @@ export const createAnimatedGridWebP = async (
     videoCleanup();
   }
 
-  if (isCancelled() || composedFrames.length === 0) {
-    throw new Error(
-      "Processing was cancelled before any frames were composed.",
+  if (isCancelled() || framesWritten === 0) {
+    // Clean up any frames written before cancellation
+    for (const name of frameNames) {
+      try {
+        await ff.deleteFile(name);
+      } catch {
+        /* ignore cleanup errors */
+      }
+    }
+    throw new DOMException(
+      "Processing cancelled before any frames were composed.",
+      "AbortError",
     );
   }
 
   log(
-    `  [AnimWebP] Compositing done (${composedFrames.length} frames). Starting FFmpeg WebP encode…`,
+    `  [AnimWebP] Compositing done (${framesWritten} frames written to FS). Starting FFmpeg WebP encode…`,
   );
 
   // Signal that the encode phase is starting (ratio = 0).
   onEncodeProgress(0);
 
-  // Encode via FFmpeg, forwarding real-time progress.
-  const webpBlob = await encodeAnimatedWebP(
-    composedFrames,
+  // Encode via FFmpeg — frames are already in the virtual filesystem.
+  const webpBlob = await encodeAnimatedWebPFromFS(
+    frameNames,
+    framesWritten,
     opts.animFps,
     opts.webpQuality,
     opts.webpMethod,

@@ -1,70 +1,7 @@
 import { FFmpeg } from "@ffmpeg/ffmpeg";
 import { fetchFile } from "@ffmpeg/util";
 import { FFMPEG_EXEC_TIMEOUT_MS } from "./constants";
-import type { FfmpegMemoryStats } from "./types";
 import { errlog, humanSize, log } from "./utils";
-
-// Extend Performance interface for Chrome/Edge memory extension
-interface PerformanceMemory {
-  jsHeapSizeLimit: number;
-  usedJSHeapSize: number;
-  totalJSHeapSize: number;
-}
-
-const hasPerformanceMemory =
-  typeof performance !== "undefined" && "memory" in performance;
-
-/**
- * Read memory stats from performance.memory (Chrome/Edge) or return null.
- */
-function readPerformanceMemory(): FfmpegMemoryStats | null {
-  if (!hasPerformanceMemory) return null;
-  const mem = (performance as unknown as { memory: PerformanceMemory }).memory;
-  return {
-    usedMB: Math.round(mem.usedJSHeapSize / 1048576),
-    totalMB: Math.round(mem.totalJSHeapSize / 1048576),
-    limitMB: Math.round(mem.jsHeapSizeLimit / 1048576),
-    accurate: true,
-  };
-}
-
-/**
- * Estimate memory pressure when performance.memory is unavailable.
- * Based on input file size + frames processed + overhead.
- */
-function estimateMemory(
-  fileSizeBytes: number,
-  framesProcessed: number,
-  totalFrames: number,
-): FfmpegMemoryStats {
-  // WASM needs to hold the input file in its virtual FS
-  const fileMB = fileSizeBytes / 1048576;
-
-  // Each decoded frame is roughly (width * height * 3) for YUV420 or RGB
-  // We estimate ~2MB per frame as a safe upper bound for typical 1080p content
-  const frameOverheadMB = framesProcessed * 2;
-
-  // FFmpeg WASM base overhead (runtime, buffers, etc)
-  const baseOverheadMB = 30;
-
-  // Encoding phase uses additional memory proportional to remaining frames
-  const encodeOverheadMB =
-    totalFrames > 0 ? (framesProcessed / totalFrames) * fileMB * 0.5 : 0;
-
-  const estimatedUsed =
-    baseOverheadMB + fileMB + frameOverheadMB + encodeOverheadMB;
-  // Total heap is typically 1.5-2x the used amount for WASM
-  const estimatedTotal = estimatedUsed * 1.5;
-  // Browser heap limits are typically 2GB for single tabs
-  const estimatedLimit = 2048;
-
-  return {
-    usedMB: Math.round(estimatedUsed),
-    totalMB: Math.round(estimatedTotal),
-    limitMB: estimatedLimit,
-    accurate: false,
-  };
-}
 
 // Singleton instance and load promise, shared across the module.
 let ffmpeg: FFmpeg | null = null;
@@ -110,88 +47,6 @@ export const setOnLogsChanged = (
 ) => {
   onLogsChanged = cb;
 };
-
-/**
- * React-style subscriber callback invoked whenever memory stats change while
- * FFmpeg is processing. The processor hook sets this so it can trigger a
- * React re-render with live memory data.
- */
-let onMemoryChanged: ((id: string, stats: FfmpegMemoryStats) => void) | null =
-  null;
-
-/** Register a callback that fires whenever memory stats are updated. */
-export const setOnMemoryChanged = (
-  cb: ((id: string, stats: FfmpegMemoryStats) => void) | null,
-) => {
-  onMemoryChanged = cb;
-};
-
-/** Current memory stats snapshot (or null if not tracking). */
-export const getMemoryStats = (): FfmpegMemoryStats | null =>
-  currentMemoryStats;
-
-/**
- * Memory polling interval ID. Started when FFmpeg becomes busy, stopped when idle.
- */
-let memoryPollInterval: ReturnType<typeof setInterval> | null = null;
-let currentMemoryStats: FfmpegMemoryStats | null = null;
-
-/**
- * Track the current file being processed for memory estimation fallback.
- */
-let currentFileBytes: number = 0;
-let currentFramesProcessed: number = 0;
-let currentTotalFrames: number = 0;
-
-/**
- * Set the current file context for memory estimation. Call this when starting
- * processing of a new file so the fallback estimator has accurate input.
- */
-export const setCurrentFileContext = (
-  fileSizeBytes: number,
-  totalFrames: number,
-): void => {
-  currentFileBytes = fileSizeBytes;
-  currentTotalFrames = totalFrames;
-  currentFramesProcessed = 0;
-};
-
-/**
- * Increment the frames-processed counter. Call after each frame is extracted.
- */
-export const incrementFramesProcessed = (): void => {
-  currentFramesProcessed++;
-};
-
-/**
- * Start periodic memory polling. Reads performance.memory (Chrome/Edge) or
- * falls back to estimation based on file size + frames processed.
- */
-export function startMemoryPolling(): void {
-  if (memoryPollInterval) return; // already running
-  memoryPollInterval = setInterval(() => {
-    const stats =
-      readPerformanceMemory() ??
-      estimateMemory(
-        currentFileBytes,
-        currentFramesProcessed,
-        currentTotalFrames,
-      );
-    currentMemoryStats = stats;
-    if (currentLogTaskId && onMemoryChanged) {
-      onMemoryChanged(currentLogTaskId, stats);
-    }
-  }, 500);
-}
-
-/** Stop the memory polling interval and clear stats. */
-export function stopMemoryPolling(): void {
-  if (memoryPollInterval) {
-    clearInterval(memoryPollInterval);
-    memoryPollInterval = null;
-  }
-  currentMemoryStats = null;
-}
 
 /** Set the current task id so FFmpeg logs are routed to the right TaskItem. */
 export const setCurrentLogTaskId = (id: string | null) => {
@@ -259,7 +114,7 @@ async function healthCheckFFmpeg(ff: FFmpeg): Promise<boolean> {
 }
 
 /** Returns the shared FFmpeg instance, initialising it on first call. */
-const getFFmpeg = async (): Promise<FFmpeg> => {
+export const getFFmpeg = async (): Promise<FFmpeg> => {
   if (isFFmpegBroken) {
     throw new Error(
       "FFmpeg is in a broken state and cannot be used. " +
@@ -298,6 +153,7 @@ const getFFmpeg = async (): Promise<FFmpeg> => {
 /** Terminates the FFmpeg instance and clears all cached state. */
 export const resetFFmpeg = (): void => {
   isFFmpegBusy = false;
+  isFFmpegBroken = false;
 
   // First, abort any in-flight operations so their promises reject cleanly
   // with an AbortError instead of dying silently when the worker is killed.
@@ -479,9 +335,285 @@ export const isAbortError = (e: unknown): boolean => {
 };
 
 /**
+ * Extracts a single frame from a video file using FFmpeg WASM.
+ * The frame is decoded at the given timestamp and returned as an ImageBitmap.
+ * The extracted frame file is cleaned up from the virtual filesystem immediately.
+ *
+ * This is the memory-efficient alternative to extractFramesFFmpegBatch: it
+ * processes one frame at a time so the JS heap never holds more than one
+ * ImageBitmap from FFmpeg at a time.
+ *
+ * Uses fast keyframe seeking (-ss before -i) for performance, and scales
+ * the output to the target dimensions to minimize memory usage.
+ *
+ * @param file         - The source video file.
+ * @param timestamp    - Timestamp (seconds) at which to extract the frame.
+ * @param isCancelled  - Optional pollable callback; if it returns true, extraction aborts.
+ * @param targetWidth  - Optional target width; if provided, frame is scaled to fit.
+ * @param targetHeight - Optional target height; if provided, frame is scaled to fit.
+ * @returns ImageBitmap for the extracted frame, or null on failure.
+ */
+export const extractFrameFFmpeg = async (
+  file: File,
+  timestamp: number,
+  isCancelled?: () => boolean,
+  targetWidth?: number,
+  targetHeight?: number,
+): Promise<ImageBitmap | null> => {
+  if (isCancelled?.()) return null;
+
+  const ff = await prepareFFmpegInput(file);
+  const signal = getCurrentAbortSignal();
+  const name = "frame_temp.jpg";
+
+  // -ss BEFORE -i for fast keyframe seek (precise seek after -i is extremely
+  // slow for long videos in WASM because it must decode from the start).
+  // For a contact sheet, keyframe-level imprecision (±1–2s) is acceptable.
+  const args: string[] = ["-ss", String(timestamp), "-i", "input.mp4"];
+
+  // Scale to target cell dimensions to minimize memory
+  if (targetWidth && targetHeight) {
+    args.push("-vf", `scale=${targetWidth}:${targetHeight}`);
+  }
+
+  args.push(
+    "-update",
+    "1", // Allow overwriting the output file on repeated extractions
+    "-frames:v",
+    "1",
+    "-q:v",
+    "3", // Good quality (1-31 scale) — 3 is visually identical at thumbnail size
+    "-loglevel",
+    "info",
+    name,
+  );
+
+  log(
+    `  [FFmpeg] Single frame at t=${timestamp.toFixed(3)}s` +
+      (targetWidth ? ` → ${targetWidth}x${targetHeight}` : ""),
+  );
+  isFFmpegBusy = true;
+  let execDone = false;
+  try {
+    await withTimeout(
+      ff.exec(args, undefined, { signal }),
+      FFMPEG_EXEC_TIMEOUT_MS,
+      `frame extraction at t=${timestamp.toFixed(3)}s`,
+    );
+    execDone = true;
+    /*
+     * Check cancellation *after* exec completes (success or not).
+     * When forceCancel() calls resetFFmpeg() the in-flight exec may not
+     * reject with an AbortError (it depends on whether the WASM worker
+     * streams the abort before / after the terminate).  By also checking
+     * isCancelled here we guarantee the frame loop is stopped regardless
+     * of how the underlying exec promise settles.
+     */
+    if (isCancelled?.()) {
+      throw new DOMException("Processing cancelled", "AbortError");
+    }
+    const data = await ff.readFile(name, undefined, { signal });
+    const arrayBuffer = new Uint8Array(
+      typeof data === "string" ? new TextEncoder().encode(data) : data,
+    ).buffer;
+    const blob = new Blob([arrayBuffer], { type: "image/jpeg" });
+    return await createImageBitmap(blob);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    errlog(`  [FFmpeg] Single frame extraction failed:`, msg);
+
+    if (isAbortError(e)) {
+      throw new Error(`FFmpeg operation aborted: ${msg}`);
+    }
+
+    if (isMemoryError(e)) {
+      errlog(
+        `  [FFmpeg] OOM / abort condition. Consider reducing grid size or output resolution.`,
+      );
+    }
+    return null;
+  } finally {
+    isFFmpegBusy = false;
+    /*
+     * Only try to clean up the temp file if exec actually ran to
+     * completion — after resetFFmpeg() the ff instance is terminated
+     * and any call on it throws.  We also guard against the case where
+     * forceCancel() has already nulled the global `ffmpeg` reference but
+     * this local `ff` variable still holds the dead instance.
+     */
+    if (execDone && ffmpeg !== null) {
+      try {
+        await ff.deleteFile(name, { signal });
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        if (!isAbortError(e)) {
+          errlog(`  [FFmpeg] cleanup deleteFile(${name}) failed:`, msg);
+        }
+      }
+    }
+  }
+};
+
+/**
+ * Encodes animated WebP from PNG frames that are already written to FFmpeg's
+ * virtual filesystem. This avoids the double-memory hit of holding PNG blobs
+ * in JS memory AND writing them to the FS.
+ *
+ * @param frameNames     - Array of PNG filenames already in FFmpeg FS.
+ * @param totalFrames    - Number of frames to encode.
+ * @param fps            - Target frame rate.
+ * @param quality        - WebP quality (0-100).
+ * @param method         - WebP compression method (0-6).
+ * @param isCancelled    - Optional pollable callback.
+ * @param onProgress     - Optional callback receiving 0-1 ratio.
+ * @returns The encoded animated WebP as a Blob.
+ */
+export const encodeAnimatedWebPFromFS = async (
+  frameNames: string[],
+  totalFrames: number,
+  fps: number,
+  quality: number,
+  method: number,
+  isCancelled?: () => boolean,
+  onProgress?: (ratio: number) => void,
+): Promise<Blob> => {
+  const ff = await getFFmpeg();
+  const signal = getCurrentAbortSignal();
+
+  // Final cancel check before encoding
+  if (isCancelled?.()) {
+    log(`  [FFmpeg/AnimWebP] Cancel requested before encoding. Cleaning up.`);
+    for (const name of frameNames) {
+      try {
+        await ff.deleteFile(name, { signal });
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        if (!isAbortError(e)) {
+          errlog(
+            `  [FFmpeg/AnimWebP] cleanup deleteFile(${name}) failed:`,
+            msg,
+          );
+        }
+      }
+    }
+    isFFmpegBusy = false;
+    throw new Error("Encoding cancelled by user before encode phase.");
+  }
+
+  const outputName = "anim_output.webp";
+
+  // Determine the input pattern from the frame names.
+  // Frame names are like "anim_00000.png", "anim_00001.png", etc.
+  // We extract the base pattern: prefix + zero-padded width + extension.
+  const firstFrame = frameNames[0]; // e.g. "anim_00000.png"
+  const padWidth = firstFrame.match(/_(\d+)\./)?.[1]?.length || 5;
+  const prefix = firstFrame.substring(
+    0,
+    firstFrame.indexOf(`_${"0".repeat(padWidth)}`),
+  );
+  const ext = firstFrame.substring(firstFrame.lastIndexOf("."));
+  const inputPattern = `${prefix}_%0${padWidth}d${ext}`;
+
+  // FFmpeg encoding progress events map to the 0.0–1.0 range.
+  const progressHandler = ({ progress }: { progress: number }) => {
+    onProgress?.(Math.min(Math.max(progress, 0), 1));
+  };
+  ff.on("progress", progressHandler);
+  try {
+    log(
+      `  [FFmpeg/AnimWebP] Encoding ${totalFrames} frames at ${fps} fps, quality=${quality}, method=${method}…`,
+    );
+    log(`  [FFmpeg/AnimWebP] Input pattern: ${inputPattern}`);
+    isFFmpegBusy = true;
+    try {
+      await withTimeout(
+        ff.exec(
+          [
+            "-framerate",
+            String(fps),
+            "-i",
+            inputPattern,
+            "-c:v",
+            "libwebp",
+            "-lossless",
+            "0",
+            "-quality",
+            String(quality),
+            "-method",
+            String(method),
+            "-loop",
+            "0",
+            "-an",
+            outputName,
+          ],
+          undefined,
+          { signal },
+        ),
+        FFMPEG_EXEC_TIMEOUT_MS,
+        "animated WebP encoding",
+      );
+    } catch (e) {
+      isFFmpegBusy = false;
+      const msg = e instanceof Error ? e.message : String(e);
+      errlog(`  [FFmpeg/AnimWebP] encode failed:`, msg);
+      if (isAbortError(e)) {
+        throw new Error(`FFmpeg operation aborted: ${msg}`);
+      }
+      throw new Error(`FFmpeg WebP encoding failed: ${msg}`);
+    }
+
+    const data = await ff.readFile(outputName, undefined, { signal });
+    const buffer = new Uint8Array(
+      typeof data === "string" ? new TextEncoder().encode(data) : data,
+    ).buffer;
+    log(`  [FFmpeg/AnimWebP] Encoding complete.`);
+    onProgress?.(1.0);
+    return new Blob([buffer], { type: "image/webp" });
+  } finally {
+    isFFmpegBusy = false;
+    ff.off("progress", progressHandler);
+    /*
+     * After forceCancel() the global ffmpeg reference is null and the local
+     * `ff` variable points to a dead (terminated) instance.  Any method call
+     * on it will throw, so guard the cleanup.
+     */
+    if (ffmpeg !== null) {
+      for (const name of frameNames) {
+        try {
+          await ff.deleteFile(name, { signal });
+        } catch (e) {
+          const msg = e instanceof Error ? e.message : String(e);
+          if (!isAbortError(e)) {
+            errlog(
+              `  [FFmpeg/AnimWebP] cleanup deleteFile(${name}) failed:`,
+              msg,
+            );
+          }
+        }
+      }
+      try {
+        await ff.deleteFile(outputName, { signal });
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        if (!isAbortError(e)) {
+          errlog(
+            `  [FFmpeg/AnimWebP] cleanup deleteFile(${outputName}) failed:`,
+            msg,
+          );
+        }
+      }
+    }
+  }
+};
+
+/**
  * Extracts a batch of frames from a video file using FFmpeg WASM.
  * Each frame is decoded at the given timestamp and returned as an ImageBitmap.
  * Failed frames are returned as null and reported via `onFrameExtracted`.
+ *
+ * NOTE: This function holds all extracted ImageBitmaps in memory
+ * simultaneously. For large frame counts, prefer extractFrameFFmpeg
+ * (single-frame, on-demand extraction) to reduce peak memory usage.
  *
  * @param file             - The source video file.
  * @param times            - Array of timestamps (seconds) at which to extract frames.
@@ -562,12 +694,18 @@ export const extractFramesFFmpegBatch = async (
       onFrameExtracted?.(i, times.length, msg);
     } finally {
       isFFmpegBusy = false;
-      try {
-        await ff.deleteFile(name, { signal });
-      } catch (e) {
-        const msg = e instanceof Error ? e.message : String(e);
-        if (!isAbortError(e)) {
-          errlog(`  [FFmpeg] cleanup deleteFile(${name}) failed:`, msg);
+      /*
+       * After forceCancel() the global ffmpeg reference is null and the local
+       * `ff` variable points to a dead (terminated) instance.  Guard cleanup.
+       */
+      if (ffmpeg !== null) {
+        try {
+          await ff.deleteFile(name, { signal });
+        } catch (e) {
+          const msg = e instanceof Error ? e.message : String(e);
+          if (!isAbortError(e)) {
+            errlog(`  [FFmpeg] cleanup deleteFile(${name}) failed:`, msg);
+          }
         }
       }
     }
@@ -743,28 +881,34 @@ export const encodeAnimatedWebP = async (
   } finally {
     isFFmpegBusy = false;
     ff.off("progress", progressHandler);
-    for (const name of frameNames) {
+    /*
+     * After forceCancel() the global ffmpeg reference is null and the local
+     * `ff` variable points to a dead (terminated) instance.  Guard cleanup.
+     */
+    if (ffmpeg !== null) {
+      for (const name of frameNames) {
+        try {
+          await ff.deleteFile(name, { signal });
+        } catch (e) {
+          const msg = e instanceof Error ? e.message : String(e);
+          if (!isAbortError(e)) {
+            errlog(
+              `  [FFmpeg/AnimWebP] cleanup deleteFile(${name}) failed:`,
+              msg,
+            );
+          }
+        }
+      }
       try {
-        await ff.deleteFile(name, { signal });
+        await ff.deleteFile(outputName, { signal });
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
         if (!isAbortError(e)) {
           errlog(
-            `  [FFmpeg/AnimWebP] cleanup deleteFile(${name}) failed:`,
+            `  [FFmpeg/AnimWebP] cleanup deleteFile(${outputName}) failed:`,
             msg,
           );
         }
-      }
-    }
-    try {
-      await ff.deleteFile(outputName, { signal });
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
-      if (!isAbortError(e)) {
-        errlog(
-          `  [FFmpeg/AnimWebP] cleanup deleteFile(${outputName}) failed:`,
-          msg,
-        );
       }
     }
   }

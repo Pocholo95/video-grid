@@ -131,18 +131,6 @@ export type UploadDestination = {
   enabled: boolean;
 };
 
-// - FFmpeg WASM memory tracking
-export type FfmpegMemoryStats = {
-  /** Memory currently in use (MB) */
-  usedMB: number;
-  /** Total heap allocated (MB) */
-  totalMB: number;
-  /** Maximum heap size (MB) */
-  limitMB: number;
-  /** true = from performance.memory (Chrome/Edge), false = estimated (Firefox/Safari) */
-  accurate: boolean;
-};
-
 // - Per-destination upload state on an TaskItem
 export type DestinationUploadState = {
   status: UploadStatus;
@@ -185,11 +173,6 @@ export type TaskItem = {
    * Populated when FFmpeg is used for frame extraction or encoding.
    */
   ffmpegLogs?: string[];
-  /**
-   * Live memory stats while FFmpeg is processing this task.
-   * Cleared once processing completes.
-   */
-  memoryStats?: FfmpegMemoryStats;
 };
 
 // - Settings / Options

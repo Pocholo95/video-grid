@@ -228,7 +228,7 @@ export default function TaskList({
                 handleEnablePreviews={handleEnablePreviews}
                 isStale={isStale && item.id === staleTaskId}
                 onForceCancel={
-                  isStale && item.id === staleTaskId ? onForceCancel : undefined
+                  item.status === "processing" ? onForceCancel : undefined
                 }
               />
             ))

@@ -1,6 +1,6 @@
 import {
   cleanupFFmpeg,
-  extractFramesFFmpegBatch,
+  extractFrameFFmpeg,
   isAbortError,
   isMemoryError,
 } from "./ffmpeg";
@@ -127,40 +127,42 @@ export const createGridJpg = async (
   const videoCleanup = decoder.videoCleanup;
   let canNativelyPlay = decoder.canNativelyPlay;
 
-  // FFmpeg batch results - lazily populated on first need.
-  let ffmpegBitmaps: (ImageBitmap | null)[] | null = null;
+  // FFmpeg frame-by-frame extraction — extracts one frame at a time on-demand
+  // to minimize peak memory usage (no batch bitmap array held in JS heap).
   let ffmpegFailedFrames = 0;
-  const ensureFFmpegBitmaps = async (): Promise<void> => {
-    if (ffmpegBitmaps !== null) return;
-    log(`  Switching to FFmpeg batch extraction for all ${totalCells} frames…`);
-    ffmpegBitmaps = await extractFramesFFmpegBatch(
-      file,
-      times,
-      isCancelled,
-      (idx, _total, err) => {
-        if (err) {
-          // Re-throw abort errors immediately so they propagate to useProcessor
-          // and clear the forceCancelCurrentRef flag. Without this, the error
-          // is swallowed here, the flag stays true, and a re-queued file will
-          // have isCancelled() return true on every frame.
-          if (isAbortError(err)) {
-            throw new Error(`FFmpeg operation aborted: ${err}`);
-          }
-          ffmpegFailedFrames++;
-          onWarning(`FFmpeg frame ${idx + 1}/${totalCells} failed: ${err}`);
-          if (ffmpegFailedFrames > 2) {
-            throw new Error(
-              "FFmpeg decoding failed repeatedly — likely OOM or unsupported codec.",
-            );
-          }
-        }
-      },
+  const extractOneFFmpegFrame = async (
+    index: number,
+    timestamp: number,
+    targetW: number,
+    targetH: number,
+  ): Promise<ImageBitmap | null> => {
+    log(
+      `  Switching to FFmpeg frame-by-frame extraction for frame ${index + 1}/${totalCells}…`,
     );
+    const bitmap = await extractFrameFFmpeg(
+      file,
+      timestamp,
+      isCancelled,
+      targetW,
+      targetH,
+    );
+    if (!bitmap) {
+      ffmpegFailedFrames++;
+      onWarning(`FFmpeg frame ${index + 1}/${totalCells} failed to decode`);
+      if (ffmpegFailedFrames > 2) {
+        throw new Error(
+          "FFmpeg decoding failed repeatedly — likely OOM or unsupported codec.",
+        );
+      }
+    }
+    return bitmap;
   };
 
   // Frame loop
   for (let i = 0; i < times.length; i++) {
-    if (isCancelled()) break;
+    if (isCancelled()) {
+      throw new DOMException("Processing cancelled", "AbortError");
+    }
     const tSec = times[i];
     const { x, y, cellW, cellH } = frameSlots[i];
 
@@ -198,11 +200,10 @@ export const createGridJpg = async (
       }
     }
 
-    // FFmpeg fallback path
+    // FFmpeg fallback path - extract one frame at a time to minimize memory
     if (!canNativelyPlay) {
       try {
-        await ensureFFmpegBitmaps();
-        const bitmap = ffmpegBitmaps![i];
+        const bitmap = await extractOneFFmpegFrame(i, tSec, cellW, cellH);
         if (bitmap) {
           if (vrActive) {
             const { sx, sy, sw, sh } = getVrCropRect(
@@ -215,7 +216,6 @@ export const createGridJpg = async (
             ctx.drawImage(bitmap, x, y, cellW, cellH);
           }
           bitmap.close();
-          ffmpegBitmaps![i] = null;
           frameDrawn = true;
         } else {
           onWarning(

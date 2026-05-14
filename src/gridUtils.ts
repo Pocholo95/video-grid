@@ -472,7 +472,9 @@ export const setupVideoDecoder = async (
     const msg = e instanceof Error ? e.message : String(e);
     warn(`Native video failed (${msg}), switching to FFmpeg`);
     errlog(`setupVideoDecoder error:`, e);
-    onWarning?.(`Native decoder unavailable (${msg}) — using FFmpeg fallback`);
+    onWarning?.(
+      `Native decoder unavailable (${msg}) — using FFmpeg fallback (slower, more unreliable, and subject to memory limits)`,
+    );
     canNativelyPlay = false;
   }
 

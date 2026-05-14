@@ -290,15 +290,20 @@ export default function App() {
 
   // All batch progress stats derived from items state so removed tasks are
   // reflected correctly at every stage (during processing, after, and on requeue).
+  // Only "done" and "error" count as processed (actual work was performed).
+  // "cancelled" tasks are excluded from the done count since no real work was done.
   const effectiveBatchDone = items.filter(
-    (i) =>
-      i.status === "done" || i.status === "error" || i.status === "cancelled",
+    (i) => i.status === "done" || i.status === "error",
+  ).length;
+  // Total includes all terminal states plus in-flight tasks, so cancelled tasks
+  // still count toward the batch denominator (they were part of the original batch).
+  const cancelledCount = items.filter((i) => i.status === "cancelled").length;
+  const inFlight = items.filter(
+    (i) => i.status === "queued" || i.status === "processing",
   ).length;
   const effectiveBatchTotal = isProcessing
-    ? effectiveBatchDone +
-      items.filter((i) => i.status === "queued" || i.status === "processing")
-        .length
-    : effectiveBatchDone;
+    ? effectiveBatchDone + cancelledCount + inFlight
+    : effectiveBatchDone + cancelledCount;
 
   return (
     <div className="mx-auto flex max-w-6xl flex-col gap-3 p-4">

@@ -198,17 +198,6 @@ export default function TaskCard({
     item.status === "error" ||
     item.status === "cancelled";
 
-  // Format memory stats for display
-  const formatMemoryStats = () => {
-    if (!item.memoryStats) return null;
-    const { usedMB, limitMB, accurate } = item.memoryStats;
-    const pct = limitMB > 0 ? Math.round((usedMB / limitMB) * 100) : 0;
-    const accuracyLabel = accurate ? "" : " (est.)";
-    return { usedMB, limitMB, pct, accuracyLabel };
-  };
-
-  const memoryInfo = formatMemoryStats();
-
   return (
     <>
       <Card
@@ -262,7 +251,7 @@ export default function TaskCard({
             </Alert>
           )}
 
-          {/* Stale warning (no Force Kill button here anymore) */}
+          {/* Stale warning */}
           {isStale && (
             <Alert variant="destructive" className="py-2">
               <AlertTriangle />
@@ -285,34 +274,7 @@ export default function TaskCard({
                 >
                   <Terminal className="size-3" />
                   FFmpeg Logs ({item.ffmpegLogs.length} lines)
-                  {showFfmpegLogs ? (
-                    <ChevronUp className="size-4" />
-                  ) : (
-                    <ChevronDown className="size-4" />
-                  )}
                 </button>
-                {/* Memory stats in header bar */}
-                {memoryInfo && (
-                  <div className="flex items-center gap-2 text-[10px] text-muted-foreground shrink-0">
-                    <span className="font-medium">
-                      {memoryInfo.usedMB} / {memoryInfo.limitMB} MB
-                      {memoryInfo.accuracyLabel}
-                    </span>
-                    <div className="w-16 h-1.5 bg-muted rounded-full overflow-hidden">
-                      <div
-                        className={cn(
-                          "h-full rounded-full transition-all",
-                          memoryInfo.pct > 80
-                            ? "bg-destructive"
-                            : memoryInfo.pct > 60
-                              ? "bg-yellow-500"
-                              : "bg-primary",
-                        )}
-                        style={{ width: `${Math.min(memoryInfo.pct, 100)}%` }}
-                      />
-                    </div>
-                  </div>
-                )}
                 {/* Force Kill button - shown during processing */}
                 {item.status === "processing" && onForceCancel && (
                   <Button
@@ -326,6 +288,18 @@ export default function TaskCard({
                     Kill
                   </Button>
                 )}
+                {/* Chevron toggle - always on the far right */}
+                <button
+                  type="button"
+                  className="shrink-0 hover:text-foreground"
+                  onClick={() => setShowFfmpegLogs((s) => !s)}
+                >
+                  {showFfmpegLogs ? (
+                    <ChevronUp className="size-4" />
+                  ) : (
+                    <ChevronDown className="size-4" />
+                  )}
+                </button>
               </div>
               {showFfmpegLogs && (
                 <div className="max-h-48 overflow-auto bg-muted/30 px-3 py-2 font-mono text-[10px] leading-relaxed text-muted-foreground whitespace-pre">
