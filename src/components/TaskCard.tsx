@@ -17,7 +17,9 @@ import {
 } from "lucide-react";
 import type { TaskItem, UploadDestination } from "../types";
 import { formatElapsed, humanSize } from "../utils";
+import { resolutionLabel } from "../uploadUtils";
 import UploadLinks from "./UploadLinks";
+import { CopyField } from "./CopyField";
 import TimestampEditor from "./TimestampEditor";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -197,6 +199,12 @@ export default function TaskCard({
     item.status === "done" ||
     item.status === "error" ||
     item.status === "cancelled";
+
+  // BBCode video title for copy (postTemplate-style, no URL since not uploaded yet)
+  const bbcodeVideoTitle =
+    isDone && item.outputName
+      ? `[b]${item.outputName.replace(/\.[^.]+$/, "").replace(/\.[^.]+$/, "")}${item.metadata ? ` ${resolutionLabel(item.metadata)}` : ""}[/b]`
+      : null;
 
   return (
     <>
@@ -431,6 +439,15 @@ export default function TaskCard({
                   <span className="text-muted-foreground">Codec: </span>
                   {item.metadata.codec ?? "Unknown"}
                 </p>
+              )}
+              {/* BBCode – video title + resolution */}
+              {bbcodeVideoTitle && (
+                <div className="flex flex-col gap-1">
+                  <span className="text-xs font-medium">
+                    BBCode – video title + resolution
+                  </span>
+                  <CopyField value={bbcodeVideoTitle} fieldType="input" />
+                </div>
               )}
               <div className="mt-1 flex flex-wrap gap-2">
                 {isDone && item.outputBlob && item.outputName && (
