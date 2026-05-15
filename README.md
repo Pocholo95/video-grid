@@ -181,7 +181,13 @@ specific video.
 
 - **Video player** with seekbar, play/pause (⏸️/▶️), and current time display
 - **Visual marker pins** on the seekbar — green (used in grid), orange (extra)
-- **Keyboard shortcuts**: `Space` (play/pause), `M` (add marker), `Esc` (close)
+- **Keyboard shortcuts**:
+  - `Space`: Play/Pause), `M`: Add Marker, `Esc`: Close
+  - `Arrow Left`/`Arrow Right`: Seek 1 second. `Ctrl` modifier to go frame by
+    frames, `Shift` to go by 5 seconds.
+- **Mobile shortcuts**:
+  - Double-tap seekbar: Add marker
+  - Long-press marker: Delete marker
 - **Live marker list:** click to seek, ✕ to delete individual markers
 - **Smart counting:** shows how many markers fit your grid (total cell count
   from the active layout, uniform or custom), extras ignored, shortages use
@@ -380,7 +386,7 @@ following link formats:
 | **Post Template**       | Forum-style BBCode block with title and thumbnail (see Copy All below) |
 
 Each row has an individual **Copy** button. You can also **delete the image**
-from the host using the 🗑 Delete link in the panel header — this opens the
+from the host using the **🗑 Delete** link in the panel header — this opens the
 host's delete URL in a new tab.
 
 ### Copy All
@@ -388,6 +394,7 @@ host's delete URL in a new tab.
 When at least one task output has been uploaded, a **Copy all links** bar appears
 above the tasks list. Use the dropdown to select a format and click **Copy All**
 to copy links for all uploaded outputs at once, one per line.
+
 The **Post Template** format produces a BBCode block per output: a bold title
 line (`[b]filename resolution[/b]`) followed by thumbnail links from every
 destination on the same line, ready to paste into a forum post.
@@ -420,6 +427,9 @@ real trade-offs:
   collapsible "FFmpeg Logs" container on the task card. Clicking it
   terminates the current FFmpeg process immediately and moves on to the next
   file in the queue, or ends the batch if the queue is empty.
+- **Reload the page:** Sometimes the last resort when your generations are failing
+  is to reload the page completely, unfortunatel WASM modules like FFmpeg can fail
+  in ways that are not recoverable otherwise, sorry for the inconvenience.
 
 If you regularly work with formats that require FFmpeg (AVI, WMV, older MKV),
 consider re-muxing them to MP4/H.264 beforehand for the best experience.

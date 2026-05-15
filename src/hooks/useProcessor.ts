@@ -79,6 +79,11 @@ export function useProcessor(updateItem: Updater) {
   const lastProgressTimeRef = useRef<number>(Date.now());
   const staleIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const currentTaskIdRef = useRef<string | null>(null);
+  /**
+   * Allow external callers (e.g. sequential file analysis in App) to update
+   * the processor status directly so the ProcessingPanel shows progress.
+   */
+  const setStatusRef = setStatus;
 
   /**
    * Register a live-log callback so that whenever FFmpeg appends a log line,
@@ -97,12 +102,18 @@ export function useProcessor(updateItem: Updater) {
   /**
    * Analyze newly selected files with MediaInfo to populate metadata.
    * Updates each item in-place and calls updateItem after each file.
+   * Calls onItemReady callback after each file is analyzed so the caller
+   * can add items one-by-one (triggering enter animations).
    *
    * @param files - The File objects selected by the user.
+   * @param onItemReady - Optional callback called after each file is analyzed.
    * @returns A fully-populated TaskItem array ready for processing.
    */
   const analyzeFiles = useCallback(
-    async (files: File[]): Promise<TaskItem[]> => {
+    async (
+      files: File[],
+      onItemReady?: (item: TaskItem) => void | Promise<void>,
+    ): Promise<TaskItem[]> => {
       setStatus({
         text: `Analyzing ${files.length} file(s)…`,
         currentPct: 0,
@@ -135,7 +146,7 @@ export function useProcessor(updateItem: Updater) {
           item.metadata = meta;
           if (!hasUsableMetadata(meta)) {
             item.warning =
-              "Could not read metadata from this file. Processing may fail or produce incorrect output.";
+              "Could not read required metadata from this file. Processing may fail or produce incorrect output.";
           }
           updateItem(item.id, {
             metadata: item.metadata,
@@ -146,6 +157,11 @@ export function useProcessor(updateItem: Updater) {
           item.warning = `Metadata analysis failed: ${msg}`;
           updateItem(item.id, { warning: item.warning });
           warn(`Metadata failed for "${item.file.name}":`, e);
+        }
+
+        // Notify caller so the item can be added to state one-by-one
+        if (onItemReady) {
+          await onItemReady(item);
         }
       }
 
@@ -611,6 +627,7 @@ export function useProcessor(updateItem: Updater) {
     isStale,
     staleTaskId,
     status,
+    setStatus: setStatusRef,
     analyzeFiles,
     processAll,
     requestCancel,

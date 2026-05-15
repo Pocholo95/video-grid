@@ -1,4 +1,5 @@
-import { useMemo } from "react";
+import { useMemo, useCallback } from "react";
+import { autoAnimate } from "@formkit/auto-animate";
 import { Download, Loader2, Upload } from "lucide-react";
 import type { TaskItem, UploadDestination } from "../types";
 import type { ProcessorStatus } from "../hooks/useProcessor";
@@ -134,9 +135,18 @@ export default function TaskList({
 
   const hasPendingUploads = completedUploads < totalPossibleUploads;
 
+  // auto-animate ref for smooth layout transitions when items are added/removed.
+  // Configured with duration so enter/exit animations are visible even when
+  // items are added quickly by the MutationObserver.
+  const listRef = useCallback((el: HTMLDivElement | null) => {
+    if (el) {
+      autoAnimate(el, { duration: 300 });
+    }
+  }, []);
+
   return (
-    <Card>
-      <CardContent className="flex flex-col gap-4">
+    <Card className="task-list-card overflow-hidden">
+      <CardContent className="flex flex-col gap-4 opacity-100">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <h2 className="text-lg font-semibold">Tasks ({items.length})</h2>
 
@@ -207,7 +217,8 @@ export default function TaskList({
           </div>
         </div>
         {doneItems.length > 0 && <CopyAllPanel items={doneItems} />}
-        <div className="flex flex-col gap-3">
+
+        <div ref={listRef} className="flex flex-col gap-3 overflow-hidden">
           {items.length === 0 ? (
             <div className="text-muted-foreground py-2 text-center text-sm">
               No tasks yet. Add video files to get started.

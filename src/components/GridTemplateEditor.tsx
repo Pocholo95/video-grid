@@ -1,4 +1,5 @@
 import { useCallback, useRef, useState } from "react";
+import { autoAnimate } from "@formkit/auto-animate";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import {
   Grid3x3,
@@ -104,32 +105,56 @@ export default function GridTemplateEditor({
   /** y index of the row currently being dragged, or null. */
   const [dragRowY, setDragRowY] = useState<number | null>(null);
   /**
-   * y index of the row that the dragged row will be inserted *before*.
-   * null = insert after the last row.
+   * Insert index into the filtered row list (excluding dragged row).
+   * undefined = not dragging, null = after last, 0..N = before that row.
    */
-  const [dropBeforeY, setDropBeforeY] = useState<number | null | undefined>(
+  const [dropIndex, setDropIndex] = useState<number | null | undefined>(
     undefined,
   );
 
   /** Refs to each rendered row element, keyed by row y index. */
   const rowRefs = useRef<Map<number, HTMLDivElement>>(new Map());
-  const canvasRef = useRef<HTMLDivElement>(null);
 
   /**
-   * Given a pointer clientY, determine which row the pointer is in the top
-   * half of (drop before that row) or the bottom half of (drop after it).
-   * Returns the y index to insert before, or null to insert at the end.
+   * Ref for the rows container. auto-animate smooths row reordering,
+   * addition, and removal. Paused during drag so drop indicators update
+   * instantly without animation interference.
    */
-  const computeDropTarget = useCallback(
-    (clientY: number): number | null => {
-      const rowIndices = getRowIndices(cells);
-      for (const y of rowIndices) {
-        const el = rowRefs.current.get(y);
+  const canvasRef = useCallback(
+    (el: HTMLDivElement | null) => {
+      if (el) {
+        autoAnimate(el, { duration: dragRowY !== null ? 0 : 200 });
+      }
+    },
+    [dragRowY],
+  );
+
+  /** Ref for each row's cells container so cells animate in/out smoothly. */
+  const cellsContainerRef = useCallback((el: HTMLDivElement | null) => {
+    if (el) {
+      autoAnimate(el, { duration: 200 });
+    }
+  }, []);
+
+  /**
+   * Given a pointer clientY and the dragged rowY, determine the insert
+   * position index into the **filtered** row list (dragged row excluded).
+   * Returns an index: 0 = before first, filtered.length = after last.
+   * The dragged row itself is skipped so its visual absence doesn't cause
+   * an off-by-one shift between what the indicator shows and where the row
+   * lands on drop.
+   */
+  const computeDropIndex = useCallback(
+    (clientY: number, draggedY: number | null): number | null => {
+      const allIndices = getRowIndices(cells);
+      const filtered = allIndices.filter((y) => y !== draggedY);
+      for (let i = 0; i < filtered.length; i++) {
+        const el = rowRefs.current.get(filtered[i]);
         if (!el) continue;
         const rect = el.getBoundingClientRect();
-        if (clientY < rect.top + rect.height / 2) return y;
+        if (clientY < rect.top + rect.height / 2) return i;
       }
-      return null; // after last row
+      return filtered.length;
     },
     [cells],
   );
@@ -138,23 +163,23 @@ export default function GridTemplateEditor({
     (e: React.PointerEvent, rowY: number) => {
       e.currentTarget.setPointerCapture(e.pointerId);
       setDragRowY(rowY);
-      setDropBeforeY(computeDropTarget(e.clientY));
+      setDropIndex(computeDropIndex(e.clientY, rowY));
     },
-    [computeDropTarget],
+    [computeDropIndex],
   );
 
   const handleRowDragMove = useCallback(
     (e: React.PointerEvent) => {
       if (dragRowY === null) return;
-      setDropBeforeY(computeDropTarget(e.clientY));
+      setDropIndex(computeDropIndex(e.clientY, dragRowY));
     },
-    [dragRowY, computeDropTarget],
+    [dragRowY, computeDropIndex],
   );
 
   const handleRowDragEnd = useCallback(() => {
     if (dragRowY === null) {
       setDragRowY(null);
-      setDropBeforeY(undefined);
+      setDropIndex(undefined);
       return;
     }
 
@@ -163,35 +188,30 @@ export default function GridTemplateEditor({
       if (rowIndices.length < 2) return prev;
 
       // Build ordered list of y values, remove dragged row, insert at target
-      const order = [...rowIndices];
-      const fromIdx = order.indexOf(dragRowY);
-      if (fromIdx === -1) return prev;
-      order.splice(fromIdx, 1);
+      const filtered = rowIndices.filter((y) => y !== dragRowY);
 
       let insertIdx: number;
-      if (dropBeforeY === null || dropBeforeY === undefined) {
-        insertIdx = order.length; // append at end
+      if (dropIndex === null || dropIndex === undefined) {
+        insertIdx = filtered.length; // append at end
       } else {
-        insertIdx = order.indexOf(dropBeforeY);
-        if (insertIdx === -1) insertIdx = order.length;
+        insertIdx = Math.max(0, Math.min(dropIndex, filtered.length));
       }
-      order.splice(insertIdx, 0, dragRowY);
+      filtered.splice(insertIdx, 0, dragRowY);
 
       // Remap each cell's y to its new position in the order
-      const remap = new Map(order.map((oldY, newY) => [oldY, newY]));
+      const remap = new Map(filtered.map((oldY, newY) => [oldY, newY]));
       return prev.map((c) => ({ ...c, y: remap.get(c.y) ?? c.y }));
     });
 
     setDragRowY(null);
-    setDropBeforeY(undefined);
-  }, [dragRowY, dropBeforeY]);
+    setDropIndex(undefined);
+  }, [dragRowY, dropIndex]);
 
-  // Add / Remove rows and cells
   /** Append a new row below all existing rows with one full-width cell. */
   const handleAddRow = useCallback(() => {
     setCells((prev) => {
-      const rows = getRowIndices(prev);
-      const nextY = rows.length > 0 ? Math.max(...rows) + 1 : 0;
+      const rowList = getRowIndices(prev);
+      const nextY = rowList.length > 0 ? Math.max(...rowList) + 1 : 0;
       return [
         ...prev,
         { id: crypto.randomUUID(), x: 0, y: nextY, w: EDITOR_COLS, h: 1 },
@@ -243,8 +263,6 @@ export default function GridTemplateEditor({
   }, []);
 
   // Reset
-
-  // Replace the existing `handleReset`
   const handleReset = useCallback(() => {
     setCells(templateFromUniform(cols, rows).cells);
   }, [cols, rows]);
@@ -259,6 +277,10 @@ export default function GridTemplateEditor({
   const sortedForLabels = sortCellsReadingOrder(cells);
   const cellOrder = new Map(sortedForLabels.map((c, idx) => [c.id, idx + 1]));
 
+  const dialogContentRef = useCallback((el: HTMLDivElement | null) => {
+    if (el) autoAnimate(el);
+  }, []);
+
   return (
     <Dialog
       open
@@ -269,7 +291,8 @@ export default function GridTemplateEditor({
       <DialogPortal>
         <DialogOverlay />
         <DialogPrimitive.Content
-          className="bg-background fixed top-1/2 left-1/2 z-50 flex max-h-[92vh] w-[min(96vw,900px)] -translate-x-1/2 -translate-y-1/2 flex-col gap-4 rounded-lg border p-4 shadow-lg"
+          ref={dialogContentRef}
+          className="bg-background fixed top-1/2 left-1/2 z-50 flex max-h-[92vh] w-[min(96vw,900px)] -translate-x-1/2 -translate-y-1/2 flex-col gap-4 overflow-hidden rounded-lg border p-4 shadow-lg"
           onOpenAutoFocus={(e) => e.preventDefault()}
         >
           <DialogPrimitive.Title className="sr-only">
@@ -328,7 +351,7 @@ export default function GridTemplateEditor({
           )}
 
           {/* Scrollable canvas */}
-          <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto">
+          <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-x-hidden overflow-y-auto">
             <div
               ref={canvasRef}
               className="flex flex-col gap-2"
@@ -339,80 +362,104 @@ export default function GridTemplateEditor({
               {rowIndices.map((rowY) => {
                 const rowCells = getRowCells(cells, rowY);
                 const isDraggingThis = dragRowY === rowY;
-                const isDropTarget =
-                  dropBeforeY === rowY &&
+
+                // Compute filtered index by counting how many
+                // non-dragged rows appear before this one.
+                const dropIdxBeforeThis = rowIndices.filter(
+                  (y) => y !== dragRowY && y < rowY,
+                ).length;
+
+                const showDropLineBefore =
                   dragRowY !== null &&
-                  dragRowY !== rowY;
-                const isDropTargetAfter =
-                  dropBeforeY === null &&
-                  rowY === rowIndices[rowIndices.length - 1] &&
-                  dragRowY !== null &&
-                  dragRowY !== rowY;
+                  !isDraggingThis &&
+                  dropIndex !== undefined &&
+                  dropIndex !== null &&
+                  dropIndex === dropIdxBeforeThis;
 
                 return (
-                  <div
-                    key={rowY}
-                    ref={(el) => {
-                      if (el) rowRefs.current.set(rowY, el);
-                      else rowRefs.current.delete(rowY);
-                    }}
-                    className={cn(
-                      "bg-muted/30 flex items-stretch gap-2 rounded-md border p-2 transition-all",
-                      isDraggingThis && "opacity-40",
-                      isDropTarget && "border-primary border-t-4",
-                      isDropTargetAfter && "border-primary border-b-4",
+                  <>
+                    {/* Thin drop-line indicator before this row */}
+                    {showDropLineBefore && (
+                      <div
+                        className="h-0.5 rounded-full bg-primary/70 transition-all duration-150"
+                        style={{ animation: "none" }}
+                      />
                     )}
-                  >
-                    {/* Row drag handle */}
+
                     <div
-                      className="text-muted-foreground hover:bg-accent flex w-8 shrink-0 cursor-grab items-center justify-center rounded touch-none active:cursor-grabbing"
-                      title="Drag to reorder row"
-                      onPointerDown={(e) => handleRowDragStart(e, rowY)}
+                      key={rowY}
+                      ref={(el) => {
+                        if (el) rowRefs.current.set(rowY, el);
+                        else rowRefs.current.delete(rowY);
+                      }}
+                      className={cn(
+                        "bg-muted/30 flex items-stretch gap-2 rounded-md border p-2 transition-none",
+                        isDraggingThis &&
+                          "bg-muted/60 opacity-50 pointer-events-none",
+                      )}
                     >
-                      <GripVertical className="size-4" />
-                    </div>
-
-                    {/* Cells + inline add button */}
-                    <div className="flex flex-1 items-stretch gap-2">
-                      {rowCells.map((cell) => {
-                        const num = cellOrder.get(cell.id) ?? "?";
-                        return (
-                          <div
-                            key={cell.id}
-                            className="bg-card group relative flex h-16 items-center justify-center rounded border"
-                            style={{ flex: `${cell.w} 0 0` }}
-                          >
-                            <span className="text-foreground font-mono text-base font-semibold tabular-nums">
-                              {num}
-                            </span>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="absolute top-1 right-1 size-6 opacity-75 lg:opacity-0 border lg:border-0 border-input/50 lg:transition-opacity group-hover:opacity-100"
-                              title="Remove this cell"
-                              onClick={() => handleRemoveCell(cell.id)}
-                            >
-                              <X className="size-3" />
-                            </Button>
-                          </div>
-                        );
-                      })}
-
-                      {/* Inline "+" add-cell button at the end of the row */}
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        className="h-16 w-12 shrink-0 border-dashed"
-                        onClick={() => handleAddCellToRow(rowY)}
-                        disabled={rowCells.length >= EDITOR_COLS}
-                        title="Add a cell to this row — all cells will share the width equally"
+                      {/* Row drag handle */}
+                      <div
+                        className="text-muted-foreground hover:bg-accent flex w-8 shrink-0 cursor-grab items-center justify-center rounded touch-none active:cursor-grabbing"
+                        title="Drag to reorder row"
+                        onPointerDown={(e) => handleRowDragStart(e, rowY)}
                       >
-                        <Plus className="size-4" />
-                      </Button>
+                        <GripVertical className="size-4" />
+                      </div>
+
+                      {/* Cells + inline add button */}
+                      <div
+                        className="flex flex-1 items-stretch gap-2 min-w-0"
+                        ref={cellsContainerRef}
+                      >
+                        {rowCells.map((cell) => {
+                          const num = cellOrder.get(cell.id) ?? "?";
+                          return (
+                            <div
+                              key={cell.id}
+                              className="bg-card group relative flex h-16 items-center justify-center rounded border"
+                              style={{ flex: `${cell.w} 0 0` }}
+                            >
+                              <span className="text-foreground font-mono text-base font-semibold tabular-nums">
+                                {num}
+                              </span>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="absolute top-1 right-1 size-6 opacity-75 lg:opacity-0 border lg:border-0 border-input/50 lg:transition-opacity group-hover:opacity-100"
+                                title="Remove this cell"
+                                onClick={() => handleRemoveCell(cell.id)}
+                              >
+                                <X className="size-3" />
+                              </Button>
+                            </div>
+                          );
+                        })}
+
+                        {/* Inline "+" add-cell button at the end of the row */}
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          className="h-16 w-12 shrink-0 border-dashed"
+                          onClick={() => handleAddCellToRow(rowY)}
+                          disabled={rowCells.length >= EDITOR_COLS}
+                          title="Add a cell to this row — all cells will share the width equally"
+                        >
+                          <Plus className="size-4" />
+                        </Button>
+                      </div>
                     </div>
-                  </div>
+                  </>
                 );
               })}
+
+              {/* Drop line after last row (in filtered list) */}
+              {dragRowY !== null &&
+                dropIndex !== undefined &&
+                dropIndex ===
+                  rowIndices.filter((y) => y !== dragRowY).length && (
+                  <div className="h-0.5 rounded-full bg-primary/70" />
+                )}
 
               {/* Empty state */}
               {rowIndices.length === 0 && (

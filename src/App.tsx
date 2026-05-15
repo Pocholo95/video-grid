@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { autoAnimate } from "@formkit/auto-animate";
 import { saveAs } from "file-saver";
 import JSZip from "jszip";
 import { Settings as SettingsIcon } from "lucide-react";
@@ -15,6 +16,7 @@ import PreviewModal from "./components/PreviewModal";
 import Footer from "./components/Footer";
 import Settings from "./components/Settings";
 import { makeUniqueName } from "./utils";
+import { yieldToBrowser } from "./lib/utils";
 import { Button } from "./components/ui/button";
 
 export default function App() {
@@ -165,7 +167,7 @@ export default function App() {
     isStale,
     staleTaskId,
     status,
-    analyzeFiles: analyzeFiles,
+    analyzeFiles,
     processAll,
     requestCancel,
     forceCancel,
@@ -175,11 +177,18 @@ export default function App() {
   // File input ref - lifted here so Clear All can reset it.
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Add new files as tasks - existing tasks are preserved.
+  // Add new files as tasks one-by-one: delegate analysis to useProcessor.analyzeFiles
+  // with an onItemReady callback so each item is added individually after its analysis
+  // completes, triggering a distinct enter animation per file.
+  // We yield to the browser after each addition so React commits in a separate render
+  // frame — this gives auto-animate time to detect the new DOM node and start its
+  // enter animation before the next item arrives.
   const handleFilesChange = useCallback(
     async (files: File[]) => {
-      const newItems = await analyzeFiles(files);
-      setItems((prev) => [...prev, ...newItems]);
+      await analyzeFiles(files, (item) => {
+        setItems((prev) => [...prev, item]);
+        return yieldToBrowser();
+      });
     },
     [analyzeFiles],
   );
@@ -192,7 +201,7 @@ export default function App() {
         opts,
         // Check if a task is still in the current items list (not removed).
         // Uses a ref so the async loop always reads the latest state.
-        (id) => itemsRef.current.some((it) => it.id === id),
+        (id: string) => itemsRef.current.some((it) => it.id === id),
       ),
     [items, opts, processAll],
   );
@@ -206,8 +215,15 @@ export default function App() {
     resetUploadState,
   } = useUpload(items, setItems);
 
-  const handleClear = useCallback(() => {
+  /**
+   * Clear all items. auto-animate handles the exit animation for items
+   * disappearing from the list and the layout shift for the container.
+   * We yield to the browser after clearing so auto-animate can detect the
+   * removed DOM nodes and play exit animations before other state resets.
+   */
+  const onClear = useCallback(async () => {
     setItems([]);
+    await yieldToBrowser();
     resetState();
     resetUploadState();
     if (fileInputRef.current) fileInputRef.current.value = "";
@@ -305,8 +321,16 @@ export default function App() {
     ? effectiveBatchDone + cancelledCount + inFlight
     : effectiveBatchDone + cancelledCount;
 
+  // auto-animate on the main container so sibling elements (TaskList, ControlPanel,
+  // Footer) shift smoothly when the TaskList card grows or shrinks.
+  const mainRef = useCallback((el: HTMLDivElement | null) => {
+    if (el) {
+      autoAnimate(el);
+    }
+  }, []);
+
   return (
-    <div className="mx-auto flex max-w-6xl flex-col gap-3 p-4">
+    <div ref={mainRef} className="mx-auto flex max-w-6xl flex-col gap-3 p-4">
       <header className="bg-card text-card-foreground flex items-start justify-between gap-4 rounded-xl border p-4 shadow-sm">
         <div className="flex items-center gap-4 flex-1">
           <a
@@ -368,7 +392,7 @@ export default function App() {
         onStart={handleStart}
         onCancel={requestCancel}
         onForceCancel={forceCancel}
-        onClear={handleClear}
+        onClear={onClear}
         onRequeueAll={handleRequeueAll}
       />
 

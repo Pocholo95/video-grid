@@ -52,7 +52,7 @@ export default function OutputModesSection({
               setOpts({ ...opts, position: v as SavedOptions["position"] })
             }
           >
-            <SelectTrigger id="cp-tc-pos">
+            <SelectTrigger id="cp-tc-pos" className="w-full">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -74,7 +74,7 @@ export default function OutputModesSection({
             value={opts.vrMode ?? DEFAULTS.vrMode}
             onValueChange={(v) => setOpts({ ...opts, vrMode: v as VrMode })}
           >
-            <SelectTrigger id="cp-vr">
+            <SelectTrigger id="cp-vr" className="w-full">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>

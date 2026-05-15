@@ -8,6 +8,7 @@ import {
   Clock,
   Cloud,
   EyeOff,
+  FileVideo,
   Download,
   Loader2,
   RotateCcw,
@@ -16,7 +17,7 @@ import {
   Trash2,
 } from "lucide-react";
 import type { TaskItem, UploadDestination } from "../types";
-import { formatElapsed, humanSize } from "../utils";
+import { formatElapsed, formatTime, humanSize } from "../utils";
 import { resolutionLabel } from "../uploadUtils";
 import UploadLinks from "./UploadLinks";
 import { CopyField } from "./CopyField";
@@ -80,6 +81,11 @@ export default function TaskCard({
   const [pendingMarkers, setPendingMarkers] = useState<number[] | null>(null);
   const [showPreviewDialog, setShowPreviewDialog] = useState(false);
   const [showFfmpegLogs, setShowFfmpegLogs] = useState(false);
+  const [showSourceInfo, setShowSourceInfo] = useState(false);
+  const [outputDimensions, setOutputDimensions] = useState<{
+    width: number;
+    height: number;
+  } | null>(null);
 
   useEffect(() => {
     if (!item.outputBlob) {
@@ -88,15 +94,27 @@ export default function TaskCard({
         urlRef.current = null;
       }
       setBlobUrl(null);
+      setOutputDimensions(null);
       return;
     }
     if (!urlRef.current) urlRef.current = URL.createObjectURL(item.outputBlob);
     setBlobUrl(urlRef.current);
+
+    // Read image dimensions from the blob
+    const img = new Image();
+    img.onload = () => {
+      setOutputDimensions({
+        width: img.naturalWidth,
+        height: img.naturalHeight,
+      });
+    };
+    img.src = urlRef.current;
     return () => {
       if (urlRef.current) {
         URL.revokeObjectURL(urlRef.current);
         urlRef.current = null;
       }
+      setOutputDimensions(null);
     };
   }, [item.outputBlob]);
 
@@ -140,15 +158,15 @@ export default function TaskCard({
   // Timestamp mode label shown in the card.
   let tsLabel: string;
   if (!isCustom) {
-    tsLabel = "Auto (evenly distributed)";
+    tsLabel = "Auto timestamps (evenly distributed)";
   } else if (markerCount === 0) {
-    tsLabel = "Custom — no markers (uses auto)";
+    tsLabel = "Custom timestamps — no markers (uses auto)";
   } else {
     const used = Math.min(markerCount, totalCells);
     const fallback = Math.max(0, totalCells - markerCount);
     const ignored = markerCount - totalCells;
     if (ignored > 0) {
-      tsLabel = `Custom — ${used} marker${used !== 1 ? "s" : ""} (${ignored} ignored)`;
+      tsLabel = `Custom timestamps — ${used} marker${used !== 1 ? "s" : ""} (${ignored} ignored)`;
     } else {
       tsLabel =
         `Custom — ${used} marker${used !== 1 ? "s" : ""}` +
@@ -200,6 +218,11 @@ export default function TaskCard({
     item.status === "error" ||
     item.status === "cancelled";
 
+  // Source video summary for collapsed state
+  const sourceSummary = item.metadata
+    ? `${item.metadata.width}×${item.metadata.height} · ${item.metadata.fps ?? "?"}fps · ${formatTime(item.metadata.duration)}`
+    : null;
+
   // BBCode video title for copy (postTemplate-style, no URL since not uploaded yet)
   const bbcodeVideoTitle =
     isDone && item.outputName
@@ -242,6 +265,50 @@ export default function TaskCard({
               </Button>
             </div>
           </div>
+
+          {/* Collapsible Source Info section */}
+          {item.metadata && (
+            <div className="border rounded-md">
+              <div className="flex items-center justify-between gap-2 px-3 py-2 text-xs">
+                <button
+                  type="button"
+                  className="flex items-center gap-2 hover:text-foreground flex-1 text-muted-foreground"
+                  onClick={() => setShowSourceInfo((s) => !s)}
+                >
+                  <FileVideo className="size-3" />
+                  <span className="font-medium">Source</span>
+                  <span className="text-muted-foreground">{sourceSummary}</span>
+                </button>
+                <button
+                  type="button"
+                  className="shrink-0 hover:text-foreground"
+                  onClick={() => setShowSourceInfo((s) => !s)}
+                >
+                  {showSourceInfo ? (
+                    <ChevronUp className="size-4" />
+                  ) : (
+                    <ChevronDown className="size-4" />
+                  )}
+                </button>
+              </div>
+              {showSourceInfo && (
+                <div className="px-3 pb-2 text-xs text-muted-foreground space-y-1">
+                  <div>
+                    Resolution: {item.metadata.width}×{item.metadata.height}
+                  </div>
+                  <div>Duration: {formatTime(item.metadata.duration)}</div>
+                  <div>
+                    Bitrate:{" "}
+                    {item.metadata.bitrate
+                      ? `${(item.metadata.bitrate / 1_000_000).toFixed(2)} Mbps`
+                      : "Unknown"}
+                  </div>
+                  <div>FPS: {item.metadata.fps ?? "Unknown"}</div>
+                  <div>Codec: {item.metadata.codec ?? "Unknown"}</div>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Warning row */}
           {item.warning && (
@@ -414,35 +481,27 @@ export default function TaskCard({
             </div>
             <div className="flex flex-col gap-2 text-sm">
               <p>
-                <span className="text-muted-foreground">Task: </span>
-                <span className="break-all">{item.outputName ?? "—"}</span>
-              </p>
-              <p>
-                <span className="text-muted-foreground">Size: </span>
-                {item.outputSize ? humanSize(item.outputSize) : "—"}
-              </p>
-              <p>
-                <span className="text-muted-foreground">Status: </span>
+                <span className="text-muted-foreground">Task status: </span>
                 <span className="inline-block first-letter-capitalize">
                   {statusText}
                 </span>
               </p>
-              {item.metadata && (
-                <p>
-                  <span className="text-muted-foreground">Bitrate: </span>
-                  {item.metadata.bitrate
-                    ? `${(item.metadata.bitrate / 1_000_000).toFixed(2)} Mbps`
-                    : "Unknown"}{" "}
-                  <span className="text-muted-foreground">@</span>{" "}
-                  {item.metadata.fps ?? "Unknown "}fps{" "}
-                  <span className="text-muted-foreground">-</span>{" "}
-                  <span className="text-muted-foreground">Codec: </span>
-                  {item.metadata.codec ?? "Unknown"}
-                </p>
-              )}
+              <p>
+                <span className="text-muted-foreground">Output name: </span>
+                <span className="break-all">{item.outputName ?? "—"}</span>
+              </p>
+              <p>
+                <span className="text-muted-foreground">Output size: </span>
+                {item.outputSize ? humanSize(item.outputSize) : "—"}
+                {outputDimensions && (
+                  <span className="text-muted-foreground">
+                    {` (${outputDimensions.width}×${outputDimensions.height})`}
+                  </span>
+                )}
+              </p>
               {/* BBCode – video title + resolution */}
               {bbcodeVideoTitle && (
-                <div className="flex flex-col gap-1">
+                <div className="flex flex-col gap-1 my-2">
                   <span className="text-xs font-medium">
                     BBCode – video title + resolution
                   </span>
