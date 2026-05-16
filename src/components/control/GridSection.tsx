@@ -15,8 +15,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Field, FieldLabel } from "@/components/ui/field";
-import { Input } from "@/components/ui/input";
 import Section from "./Section";
+import RangeNumberInput from "./RangeNumberInput";
 import type { AppSettings, GridTemplate, SavedOptions } from "../../types";
 
 interface Props {
@@ -36,32 +36,6 @@ export default function GridSection({
 }: Props) {
   const [showTemplateEditor, setShowTemplateEditor] = useState(false);
   const [confirmDiscardTemplate, setConfirmDiscardTemplate] = useState(false);
-
-  const numField = (
-    key: "width" | "cols" | "rows" | "spacing",
-    minVal: number = -Infinity,
-    maxVal: number = Infinity,
-  ) => {
-    const clamp = (num: number) => Math.max(minVal, Math.min(maxVal, num));
-
-    return {
-      // Display current raw/clamped state
-      value: String(opts[key]),
-      onChange: (e: React.ChangeEvent<HTMLInputElement>) => {
-        // Capture raw input freely - no clamping here
-        setOpts({ ...opts, [key]: Number(e.target.value) || 0 });
-      },
-      onBlur: () => {
-        // Clamp on blur, update state/display
-        setOpts({
-          ...opts,
-          [key]: clamp(opts[key]),
-        });
-      },
-      min: minVal,
-      max: maxVal,
-    };
-  };
 
   const hasTemplate = !!(
     opts.gridTemplate && opts.gridTemplate.cells.length > 0
@@ -121,45 +95,61 @@ export default function GridSection({
   return (
     <>
       <Section label="Grid" expanded={expanded} onToggle={onToggle}>
-        <Field>
-          <FieldLabel htmlFor="cp-width">Output width (px)</FieldLabel>
-          <Input
-            id="cp-width"
-            type="number"
-            step={1}
-            {...numField("width", 240)}
-          />
-        </Field>
-        <Field>
-          <FieldLabel htmlFor="cp-spacing">Frame spacing (px)</FieldLabel>
-          <Input
-            id="cp-spacing"
-            type="number"
-            step={1}
-            {...numField("spacing", 0)}
-          />
-        </Field>
+        <div className="grid grid-cols-2 gap-3">
+          <Field>
+            <FieldLabel htmlFor="cp-width">Output width (px)</FieldLabel>
+            <RangeNumberInput
+              id="cp-width"
+              value={opts.width}
+              min={240}
+              max={3840}
+              step={10}
+              onChange={(v) => setOpts({ ...opts, width: v })}
+              suffix="px"
+              unbounded
+              hardMin={240}
+              hardMax={16384}
+            />
+          </Field>
+          <Field>
+            <FieldLabel htmlFor="cp-spacing">Cell spacing (px)</FieldLabel>
+            <RangeNumberInput
+              id="cp-spacing"
+              value={opts.spacing}
+              min={0}
+              max={48}
+              onChange={(v) => setOpts({ ...opts, spacing: v })}
+              suffix="px"
+            />
+          </Field>
+        </div>
         {!isCustomTemplate && (
-          <>
+          <div className="grid grid-cols-2 gap-3">
             <Field>
               <FieldLabel htmlFor="cp-cols">Grid columns</FieldLabel>
-              <Input
+              <RangeNumberInput
                 id="cp-cols"
-                type="number"
-                step={1}
-                {...numField("cols", 1)}
+                value={opts.cols}
+                min={1}
+                max={12}
+                onChange={(v) => setOpts({ ...opts, cols: v })}
+                unbounded
+                hardMax={50}
               />
             </Field>
             <Field>
               <FieldLabel htmlFor="cp-rows">Grid rows</FieldLabel>
-              <Input
+              <RangeNumberInput
                 id="cp-rows"
-                type="number"
-                step={1}
-                {...numField("rows", 1)}
+                value={opts.rows}
+                min={1}
+                max={12}
+                onChange={(v) => setOpts({ ...opts, rows: v })}
+                unbounded
+                hardMax={50}
               />
             </Field>
-          </>
+          </div>
         )}
         <div className="bg-muted/30 flex flex-col gap-3 rounded-md border p-3 sm:col-span-2">
           <Field orientation="horizontal">

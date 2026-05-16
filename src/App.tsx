@@ -403,7 +403,6 @@ export default function App() {
         setPresets={(p: AppSettings["presets"]) => {
           updateSettings({ presets: p as Partial<AppSettings>["presets"] });
         }}
-        fileInputRef={fileInputRef}
       />
 
       {previewUrl && (

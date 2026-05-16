@@ -61,7 +61,7 @@ trigger an upload.
   Chevereto-compatible image hosts (e.g. ImgBB). See [Upload Destinations](#upload-destinations).
 - **Copy links:** after uploading, copy links in multiple formats per task
   or for all tasks at once. See [Copying Links](#copying-links).
-- **Configurable grid:** choose columns, rows, output width, frame spacing,
+- **Configurable grid:** choose columns, rows, output width, cell spacing,
   and timecode position (or disable the overlay entirely).
 - **Custom colors:** set the background and text color for the header and
   timecode overlays.
@@ -102,7 +102,7 @@ The controls are grouped into three fieldsets: **Grid**, **Style**, and **Output
 | Option                   | Description                                                                            | Default |
 | ------------------------ | -------------------------------------------------------------------------------------- | ------- |
 | **Output width**         | Total pixel width of the generated image.                                              | 1920 px |
-| **Frame spacing**        | Gap in pixels between cells.                                                           | 0       |
+| **Cell spacing**         | Gap in pixels between cells.                                                           | 0       |
 | **Grid columns**         | Number of columns in the uniform grid. Hidden when a custom template is active.        | 3       |
 | **Grid rows**            | Number of rows in the uniform grid. Hidden when a custom template is active.           | 4       |
 | **Custom grid template** | Enable a free-form layout editor. See [Custom Grid Templates](#custom-grid-templates). | Off     |

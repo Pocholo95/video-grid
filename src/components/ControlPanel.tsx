@@ -1,4 +1,3 @@
-import * as React from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import PresetsRow from "./control/PresetsRow";
 import GridSection from "./control/GridSection";
@@ -11,7 +10,6 @@ interface Props {
   setOpts: (o: SavedOptions) => void;
   presets: AppSettings["presets"];
   setPresets: (p: AppSettings["presets"]) => void;
-  fileInputRef: React.RefObject<HTMLInputElement | null>;
 }
 
 /**

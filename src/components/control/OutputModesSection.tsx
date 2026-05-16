@@ -1,7 +1,6 @@
 import { DEFAULTS } from "../../constants";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Field, FieldLabel } from "@/components/ui/field";
-import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -10,6 +9,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import Section from "./Section";
+import RangeNumberInput from "./RangeNumberInput";
 import type { SavedOptions, VrMode } from "../../types";
 
 interface Props {
@@ -44,6 +44,10 @@ export default function OutputModesSection({
     >
       {/* Left column: Timecode / Header / Preview / VR */}
       <div className="flex flex-col gap-3">
+        <Field orientation="horizontal">
+          <Checkbox id="cp-chk-header" {...checkField("header")} />
+          <FieldLabel htmlFor="cp-chk-header">Show header metadata</FieldLabel>
+        </Field>
         <Field>
           <FieldLabel htmlFor="cp-tc-pos">Timecode position</FieldLabel>
           <Select
@@ -63,10 +67,6 @@ export default function OutputModesSection({
               <SelectItem value="bottom-right">Bottom-Right</SelectItem>
             </SelectContent>
           </Select>
-        </Field>
-        <Field orientation="horizontal">
-          <Checkbox id="cp-chk-header" {...checkField("header")} />
-          <FieldLabel htmlFor="cp-chk-header">Show header metadata</FieldLabel>
         </Field>
         <Field>
           <FieldLabel htmlFor="cp-vr">VR Video</FieldLabel>
@@ -101,79 +101,52 @@ export default function OutputModesSection({
         {isAnimated && (
           <div className="bg-muted/30 grid grid-cols-2 gap-3 rounded-md border p-3">
             <Field>
-              <FieldLabel htmlFor="cp-anim-duration">Duration (s)</FieldLabel>
-              <Input
+              <FieldLabel htmlFor="cp-anim-duration">Duration</FieldLabel>
+              <RangeNumberInput
                 id="cp-anim-duration"
-                type="number"
+                value={opts.animDuration ?? DEFAULTS.animDuration}
                 min={1}
-                step={1}
-                value={String(opts.animDuration ?? DEFAULTS.animDuration)}
-                onChange={(e) =>
-                  setOpts({
-                    ...opts,
-                    animDuration: Math.max(1, Number(e.target.value) || 1),
-                  })
-                }
+                max={10}
+                onChange={(v) => setOpts({ ...opts, animDuration: v })}
+                suffix="s"
+                unbounded
+                hardMin={1}
+                hardMax={3600}
               />
             </Field>
             <Field>
               <FieldLabel htmlFor="cp-anim-fps">FPS</FieldLabel>
-              <Input
+              <RangeNumberInput
                 id="cp-anim-fps"
-                type="number"
+                value={opts.animFps ?? DEFAULTS.animFps}
                 min={1}
-                step={1}
-                value={String(opts.animFps ?? DEFAULTS.animFps)}
-                onChange={(e) =>
-                  setOpts({
-                    ...opts,
-                    animFps: Math.max(1, Number(e.target.value) || 1),
-                  })
-                }
+                max={60}
+                onChange={(v) => setOpts({ ...opts, animFps: v })}
+                suffix="fps"
+                unbounded
+                hardMin={1}
+                hardMax={60}
               />
             </Field>
             <Field>
-              <FieldLabel htmlFor="cp-anim-method">
-                WebP method (0-6)
-              </FieldLabel>
-              <Input
+              <FieldLabel htmlFor="cp-anim-method">WebP method</FieldLabel>
+              <RangeNumberInput
                 id="cp-anim-method"
-                type="number"
+                value={opts.webpMethod ?? DEFAULTS.webpMethod}
                 min={0}
                 max={6}
-                step={1}
-                value={String(opts.webpMethod ?? DEFAULTS.webpMethod)}
-                onChange={(e) =>
-                  setOpts({
-                    ...opts,
-                    webpMethod: Math.min(
-                      6,
-                      Math.max(0, Number(e.target.value) || 0),
-                    ),
-                  })
-                }
+                onChange={(v) => setOpts({ ...opts, webpMethod: v })}
               />
             </Field>
             <Field>
-              <FieldLabel htmlFor="cp-anim-quality">
-                WebP quality (5-100)
-              </FieldLabel>
-              <Input
+              <FieldLabel htmlFor="cp-anim-quality">WebP quality</FieldLabel>
+              <RangeNumberInput
                 id="cp-anim-quality"
-                type="number"
+                value={opts.webpQuality ?? DEFAULTS.webpQuality}
                 min={5}
                 max={100}
-                step={1}
-                value={String(opts.webpQuality ?? DEFAULTS.webpQuality)}
-                onChange={(e) =>
-                  setOpts({
-                    ...opts,
-                    webpQuality: Math.min(
-                      100,
-                      Math.max(5, Number(e.target.value) || 5),
-                    ),
-                  })
-                }
+                onChange={(v) => setOpts({ ...opts, webpQuality: v })}
+                suffix="%"
               />
             </Field>
           </div>

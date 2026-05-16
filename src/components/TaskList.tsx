@@ -158,8 +158,8 @@ export default function TaskList({
         setIsCompact(!entry.isIntersecting);
       },
       {
-        rootMargin: "-15px",
-        threshold: 0,
+        rootMargin: "0px",
+        threshold: 0.25,
       },
     );
 
@@ -189,17 +189,14 @@ export default function TaskList({
 
       <Card className="task-list-card overflow-hidden">
         <CardContent className="flex flex-col gap-4 opacity-100">
-          <div
-            ref={headerRef}
-            className="flex flex-wrap items-start justify-between gap-3"
-          >
+          <div className="flex flex-wrap items-start justify-between gap-3">
             <h2 className="text-lg font-semibold">Tasks ({items.length})</h2>
 
             <div className="flex flex-col sm:flex-row gap-4 w-full">
               <div className="w-full sm:w-1/3">
                 <FilePicker onFilesChange={onFilesChange} />
               </div>
-              <div className="w-full sm:w-2/3">
+              <div className="w-full sm:w-2/3" ref={headerRef}>
                 <ProcessingPanel
                   status={status}
                   isProcessing={isProcessing}
@@ -216,7 +213,7 @@ export default function TaskList({
               </div>
             </div>
 
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="flex items-center gap-2 justify-end w-full">
               {enabledDests.length > 0 && doneItems.length > 0 && (
                 <Button
                   variant="default"

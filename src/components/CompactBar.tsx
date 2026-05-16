@@ -5,6 +5,7 @@ import {
   ChevronUp,
   CircleCheck,
   Info,
+  Loader2,
   Play,
   RotateCcw,
   Square,
@@ -146,12 +147,15 @@ export default function CompactBar({
               value={batchPct}
               className="h-1.5 flex-1 md:w-24 md:flex-none"
             />
-            <span className="text-xs font-medium shrink-0 whitespace-nowrap">
+            <span className="text-xs font-medium shrink-0 whitespace-nowrap flex items-center gap-1">
+              {isProcessing && (
+                <Loader2 className="size-3 animate-spin text-muted-foreground" />
+              )}
               {effectiveDone}/{effectiveTotal}
             </span>
 
             {batchElapsedStr && (
-              <span className="hidden text-xs text-muted-foreground md:inline whitespace-nowrap">
+              <span className="text-xs text-muted-foreground whitespace-nowrap">
                 {batchElapsedStr}
               </span>
             )}
