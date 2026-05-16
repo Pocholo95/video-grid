@@ -1,4 +1,4 @@
-import { useMemo, useCallback } from "react";
+import { useMemo, useCallback, useRef, useEffect, useState } from "react";
 import { autoAnimate } from "@formkit/auto-animate";
 import { Download, Loader2, Upload } from "lucide-react";
 import type { TaskItem, UploadDestination } from "../types";
@@ -6,6 +6,7 @@ import type { ProcessorStatus } from "../hooks/useProcessor";
 import TaskCard from "./TaskCard";
 import CopyAllPanel from "./CopyAllPanel";
 import ProcessingPanel from "./ProcessingPanel";
+import CompactBar from "./CompactBar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import FilePicker from "./control/FilePicker";
@@ -144,108 +145,154 @@ export default function TaskList({
     }
   }, []);
 
+  // IntersectionObserver to detect when the controls header scrolls offscreen
+  const headerRef = useRef<HTMLDivElement>(null);
+  const [isCompact, setIsCompact] = useState(false);
+
+  useEffect(() => {
+    const header = headerRef.current;
+    if (!header) return;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        setIsCompact(!entry.isIntersecting);
+      },
+      {
+        rootMargin: "-15px",
+        threshold: 0,
+      },
+    );
+
+    observer.observe(header);
+    return () => observer.disconnect();
+  }, []);
+
   return (
-    <Card className="task-list-card overflow-hidden">
-      <CardContent className="flex flex-col gap-4 opacity-100">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <h2 className="text-lg font-semibold">Tasks ({items.length})</h2>
+    <>
+      {/* Compact bar shown when controls scroll offscreen */}
+      {isCompact && (
+        <CompactBar
+          status={status}
+          isProcessing={isProcessing}
+          hasFiles={hasFiles}
+          allMetadataReady={allMetadataReady}
+          hasRequeuableItems={hasRequeuableItems}
+          effectiveBatchTotal={effectiveBatchTotal}
+          effectiveBatchDone={effectiveBatchDone}
+          onFilesChange={onFilesChange}
+          onStart={onStart}
+          onCancel={onCancel}
+          onClear={onClear}
+          onRequeueAll={onRequeueAll}
+        />
+      )}
 
-          <div className="flex flex-col sm:flex-row gap-4 w-full">
-            <div className="w-full sm:w-1/3">
-              <FilePicker onFilesChange={onFilesChange} />
+      <Card className="task-list-card overflow-hidden">
+        <CardContent className="flex flex-col gap-4 opacity-100">
+          <div
+            ref={headerRef}
+            className="flex flex-wrap items-start justify-between gap-3"
+          >
+            <h2 className="text-lg font-semibold">Tasks ({items.length})</h2>
+
+            <div className="flex flex-col sm:flex-row gap-4 w-full">
+              <div className="w-full sm:w-1/3">
+                <FilePicker onFilesChange={onFilesChange} />
+              </div>
+              <div className="w-full sm:w-2/3">
+                <ProcessingPanel
+                  status={status}
+                  isProcessing={isProcessing}
+                  hasFiles={hasFiles}
+                  allMetadataReady={allMetadataReady}
+                  hasRequeuableItems={hasRequeuableItems}
+                  effectiveBatchTotal={effectiveBatchTotal}
+                  effectiveBatchDone={effectiveBatchDone}
+                  onStart={onStart}
+                  onCancel={onCancel}
+                  onClear={onClear}
+                  onRequeueAll={onRequeueAll}
+                />
+              </div>
             </div>
-            <div className="w-full sm:w-2/3">
-              <ProcessingPanel
-                status={status}
-                isProcessing={isProcessing}
-                hasFiles={hasFiles}
-                allMetadataReady={allMetadataReady}
-                hasRequeuableItems={hasRequeuableItems}
-                effectiveBatchTotal={effectiveBatchTotal}
-                effectiveBatchDone={effectiveBatchDone}
-                onStart={onStart}
-                onCancel={onCancel}
-                onClear={onClear}
-                onRequeueAll={onRequeueAll}
-              />
+
+            <div className="flex flex-wrap items-center gap-2">
+              {enabledDests.length > 0 && doneItems.length > 0 && (
+                <Button
+                  variant="default"
+                  disabled={isUploadingAll || !hasPendingUploads}
+                  onClick={onUploadAll}
+                  title={`Upload all to ${enabledDests.map((d) => d.name).join(", ")} ${
+                    hasPendingUploads ? "" : "(All uploads complete)"
+                  }`}
+                >
+                  {isUploadingAll ? (
+                    <>
+                      <Loader2 className="size-4 animate-spin" />
+                      Uploading… ({uploadProgress.attempted}/
+                      {uploadProgress.total})
+                    </>
+                  ) : (
+                    <>
+                      <Upload className="size-4" />
+                      Upload All ({completedUploads}/{totalPossibleUploads})
+                    </>
+                  )}
+                </Button>
+              )}
+              {doneItems.length > 1 && (
+                <Button
+                  variant="default"
+                  disabled={isZipping}
+                  onClick={onDownloadAll}
+                >
+                  {isZipping ? (
+                    <>
+                      <Loader2 className="size-4 animate-spin" />
+                      Zipping…
+                    </>
+                  ) : (
+                    <>
+                      <Download className="size-4" />
+                      Download All ({doneItems.length})
+                    </>
+                  )}
+                </Button>
+              )}
             </div>
           </div>
+          {doneItems.length > 0 && <CopyAllPanel items={doneItems} />}
 
-          <div className="flex flex-wrap items-center gap-2">
-            {enabledDests.length > 0 && doneItems.length > 0 && (
-              <Button
-                variant="default"
-                disabled={isUploadingAll || !hasPendingUploads}
-                onClick={onUploadAll}
-                title={`Upload all to ${enabledDests.map((d) => d.name).join(", ")} ${
-                  hasPendingUploads ? "" : "(All uploads complete)"
-                }`}
-              >
-                {isUploadingAll ? (
-                  <>
-                    <Loader2 className="size-4 animate-spin" />
-                    Uploading… ({uploadProgress.attempted}/
-                    {uploadProgress.total})
-                  </>
-                ) : (
-                  <>
-                    <Upload className="size-4" />
-                    Upload All ({completedUploads}/{totalPossibleUploads})
-                  </>
-                )}
-              </Button>
-            )}
-            {doneItems.length > 1 && (
-              <Button
-                variant="default"
-                disabled={isZipping}
-                onClick={onDownloadAll}
-              >
-                {isZipping ? (
-                  <>
-                    <Loader2 className="size-4 animate-spin" />
-                    Zipping…
-                  </>
-                ) : (
-                  <>
-                    <Download className="size-4" />
-                    Download All ({doneItems.length})
-                  </>
-                )}
-              </Button>
+          <div ref={listRef} className="flex flex-col gap-3 overflow-hidden">
+            {items.length === 0 ? (
+              <div className="text-muted-foreground py-2 text-center text-sm">
+                No tasks yet. Add video files to get started.
+              </div>
+            ) : (
+              items.map((item, idx) => (
+                <TaskCard
+                  key={item.id}
+                  position={idx + 1}
+                  item={item}
+                  totalCells={totalCells}
+                  showPreview={showPreview}
+                  destinations={destinations}
+                  onPreview={onPreview}
+                  onUpload={onUpload}
+                  onUpdateTimestamps={onUpdateTimestamps}
+                  onRemove={onRemove}
+                  onRequeue={onRequeue}
+                  handleEnablePreviews={handleEnablePreviews}
+                  isStale={isStale && item.id === staleTaskId}
+                  onForceCancel={
+                    item.status === "processing" ? onForceCancel : undefined
+                  }
+                />
+              ))
             )}
           </div>
-        </div>
-        {doneItems.length > 0 && <CopyAllPanel items={doneItems} />}
-
-        <div ref={listRef} className="flex flex-col gap-3 overflow-hidden">
-          {items.length === 0 ? (
-            <div className="text-muted-foreground py-2 text-center text-sm">
-              No tasks yet. Add video files to get started.
-            </div>
-          ) : (
-            items.map((item) => (
-              <TaskCard
-                key={item.id}
-                item={item}
-                totalCells={totalCells}
-                showPreview={showPreview}
-                destinations={destinations}
-                onPreview={onPreview}
-                onUpload={onUpload}
-                onUpdateTimestamps={onUpdateTimestamps}
-                onRemove={onRemove}
-                onRequeue={onRequeue}
-                handleEnablePreviews={handleEnablePreviews}
-                isStale={isStale && item.id === staleTaskId}
-                onForceCancel={
-                  item.status === "processing" ? onForceCancel : undefined
-                }
-              />
-            ))
-          )}
-        </div>
-      </CardContent>
-    </Card>
+        </CardContent>
+      </Card>
+    </>
   );
 }

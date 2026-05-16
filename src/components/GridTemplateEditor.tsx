@@ -380,10 +380,7 @@ export default function GridTemplateEditor({
                   <>
                     {/* Thin drop-line indicator before this row */}
                     {showDropLineBefore && (
-                      <div
-                        className="h-0.5 rounded-full bg-primary/70 transition-all duration-150"
-                        style={{ animation: "none" }}
-                      />
+                      <div className="h-0.5 rounded-full bg-primary/70 transition-all duration-150 animate-none" />
                     )}
 
                     <div

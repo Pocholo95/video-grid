@@ -113,7 +113,7 @@ export const readMetadataMediaInfo = async (
     const codec = parts.length > 0 ? parts.join(" / ") : undefined;
 
     log(
-      `MediaInfo: duration=${duration}s, ${width}x${height}, ` +
+      `MediaInfo: duration=${duration}s, ${width}×${height}, ` +
         `${bitrate}bps, ${fps ?? "N/A"}fps, codec=${codec ?? "N/A"}`,
     );
     onProgress?.(100, "Metadata ready");

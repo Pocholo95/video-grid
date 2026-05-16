@@ -235,7 +235,7 @@ export const createGridJpg = async (
         onWarning(`FFmpeg error at frame ${i + 1}: ${msg}`);
         if (isMemoryError(ffErr)) {
           onWarning(
-            `⚠️ Out of memory at frame ${i + 1}. Try reducing output width, columns, or rows.`,
+            `Out of memory at frame ${i + 1}. Try reducing output width, columns, or rows.`,
           );
         }
       }

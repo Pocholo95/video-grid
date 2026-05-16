@@ -12,7 +12,7 @@ import {
   Download,
   Loader2,
   RotateCcw,
-  Target,
+  Timeline,
   Terminal,
   Trash2,
 } from "lucide-react";
@@ -41,6 +41,8 @@ import {
 import { cn } from "@/lib/utils";
 
 interface Props {
+  /** 1-based position in the task list for display purposes. */
+  position?: number;
   item: TaskItem;
   totalCells: number;
   showPreview: boolean;
@@ -62,6 +64,7 @@ interface Props {
 }
 
 export default function TaskCard({
+  position,
   item,
   totalCells,
   showPreview,
@@ -239,8 +242,16 @@ export default function TaskCard({
         )}
       >
         <CardContent className="flex flex-col gap-3">
-          {/* Top row: filename + status badge + remove button */}
+          {/* Top row: position + filename + status badge + remove button */}
           <div className="flex items-start justify-between gap-3">
+            {position != null && (
+              <Badge
+                variant="info"
+                className="text-xs uppercase shrink-0 font-mono p-1"
+              >
+                #{position}
+              </Badge>
+            )}
             <div className="min-w-0 flex-1">
               <h3
                 className="truncate text-sm font-semibold"
@@ -275,7 +286,7 @@ export default function TaskCard({
                   className="flex items-center gap-2 hover:text-foreground flex-1 text-muted-foreground"
                   onClick={() => setShowSourceInfo((s) => !s)}
                 >
-                  <FileVideo className="size-3" />
+                  <FileVideo className="size-4" />
                   <span className="font-medium">Source</span>
                   <span className="text-muted-foreground">{sourceSummary}</span>
                 </button>
@@ -293,6 +304,7 @@ export default function TaskCard({
               </div>
               {showSourceInfo && (
                 <div className="px-3 pb-2 text-xs text-muted-foreground space-y-1">
+                  <div>Filename: {item.file.name}</div>
                   <div>
                     Resolution: {item.metadata.width}×{item.metadata.height}
                   </div>
@@ -312,7 +324,7 @@ export default function TaskCard({
 
           {/* Warning row */}
           {item.warning && (
-            <Alert className="py-2">
+            <Alert className="py-2 px-3">
               <AlertTriangle />
               <AlertDescription>{item.warning}</AlertDescription>
             </Alert>
@@ -320,7 +332,7 @@ export default function TaskCard({
 
           {/* Error row */}
           {item.error && (
-            <Alert variant="destructive" className="py-2">
+            <Alert variant="destructive" className="py-2 px-3">
               <CircleAlert />
               <AlertDescription>{item.error}</AlertDescription>
             </Alert>
@@ -328,7 +340,7 @@ export default function TaskCard({
 
           {/* Stale warning */}
           {isStale && (
-            <Alert variant="destructive" className="py-2">
+            <Alert variant="destructive" className="py-2 px-3">
               <AlertTriangle />
               <AlertDescription>
                 FFmpeg processing might be stuck, if you don't see any progress
@@ -392,7 +404,7 @@ export default function TaskCard({
                 isCustom ? "text-primary font-medium" : "text-muted-foreground",
               )}
             >
-              <Target className="size-4" />
+              <Timeline className="size-4 -rotate-90" />
               {tsLabel}
             </span>
             <Button
@@ -406,7 +418,7 @@ export default function TaskCard({
                   : "Timestamps can be edited after analysis completes"
               }
             >
-              <Clock className="size-4" />
+              <Timeline className="size-4 -rotate-90" />
               Edit Timestamps
             </Button>
           </div>

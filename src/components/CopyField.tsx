@@ -54,7 +54,7 @@ export function CopyField({
           size="icon"
           onClick={handleCopy}
           title={copied ? "Copied!" : "Copy to clipboard"}
-          className="absolute right-0 top-1/2 -translate-y-1/2 h-full w-10 z-50 bg-background/80 hover:bg-background text-xs shadow-sm transition-all group-hover/item:bg-accent/50"
+          className="absolute right-0 top-1/2 -translate-y-1/2 h-full w-10 z-40 bg-background/80 hover:bg-background text-xs shadow-sm transition-all group-hover/item:bg-accent/50"
         >
           {copied ? <Check className="size-3" /> : <Copy className="size-3" />}
         </Button>

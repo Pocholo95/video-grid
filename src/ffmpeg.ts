@@ -390,7 +390,7 @@ export const extractFrameFFmpeg = async (
 
   log(
     `  [FFmpeg] Single frame at t=${timestamp.toFixed(3)}s` +
-      (targetWidth ? ` → ${targetWidth}x${targetHeight}` : ""),
+      (targetWidth ? ` → ${targetWidth}×${targetHeight}` : ""),
   );
   isFFmpegBusy = true;
   let execDone = false;

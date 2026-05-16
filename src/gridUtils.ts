@@ -189,7 +189,7 @@ export const createHeaderCanvas = (
   const infoLines = [
     `Filename: ${file.name}`,
     `Size: ${humanSize(file.size)}`,
-    `Resolution: ${meta.width > 0 ? `${meta.width}x${meta.height}` : "Unknown"}`,
+    `Resolution: ${meta.width > 0 ? `${meta.width}×${meta.height}` : "Unknown"}`,
     `Duration: ${formatTime(meta.duration)}`,
     `Bitrate: ${meta.bitrate ? `${Math.round(meta.bitrate / 1000)} kbps` : "Unknown"} @ ${meta.fps ?? "Unknown "}fps - Codec: ${meta.codec ?? "Unknown"}`,
   ];

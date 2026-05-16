@@ -153,9 +153,9 @@ export default function ProcessingPanel({
             (() => {
               const StatusIcon = STATUS_TEXT_ICON[status.textKind ?? "info"];
               return (
-                <Alert className="py-2">
+                <Alert className="text-xs py-1 items-center">
                   <StatusIcon />
-                  <AlertDescription style={{ overflowWrap: "anywhere" }}>
+                  <AlertDescription className="text-xs wrap-anywhere">
                     {status.text}
                   </AlertDescription>
                 </Alert>
