@@ -21,14 +21,13 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
-
-const DEFAULT_URL = "https://api.imgbb.com/1/upload?key={key}";
+import { DEFAULT_DESTINATION_URL } from "@/constants";
 
 const EMPTY: Omit<UploadDestination, "id"> = {
   name: "",
   type: "chevereto",
   apiKey: "",
-  url: DEFAULT_URL,
+  url: DEFAULT_DESTINATION_URL,
   enabled: true,
 };
 
@@ -287,7 +286,7 @@ export default function DestinationManager({
                 id="dest-url"
                 type="text"
                 value={draft.url}
-                placeholder={DEFAULT_URL}
+                placeholder={DEFAULT_DESTINATION_URL}
                 onChange={(e) =>
                   setDraft((p) => ({ ...p, url: e.target.value }))
                 }

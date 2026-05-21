@@ -24,6 +24,11 @@
   --input: oklch(0.922 0 0);
   --ring: oklch(0.708 0 0);
   --radius: 0.625rem;
+  --shadow-sm: 0 1px 4px rgba(0, 0, 0, 0.1);
+  --shadow-md: 0 4px 8px rgba(0, 0, 0, 0.12), 0 2px 4px rgba(0, 0, 0, 0.08);
+  --shadow-lg: 0 12px 18px rgba(0, 0, 0, 0.14), 0 4px 8px rgba(0, 0, 0, 0.08);
+  --shadow-xl: 0 20px 28px rgba(0, 0, 0, 0.14), 0 8px 12px rgba(0, 0, 0, 0.1);
+  --shadow-2xl: 0 25px 50px rgba(0, 0, 0, 0.2);
 }
 
 .dark {
@@ -43,9 +48,14 @@
   --accent-foreground: oklch(0.985 0 0);
   --destructive: oklch(0.704 0.191 22.216);
   --destructive-foreground: oklch(0.985 0 0);
-  --border: oklch(1 0 0 / 10%);
+  --border: oklch(1 0 0 / 15%);
   --input: oklch(1 0 0 / 15%);
   --ring: oklch(0.556 0 0);
+  --shadow-sm: 0 2px 6px rgba(0, 0, 0, 0.7), 0 -1px 0 rgba(255, 255, 255, 0.06);
+  --shadow-md: 0 6px 12px rgba(0, 0, 0, 0.75), 0 2px 6px rgba(0, 0, 0, 0.6), 0 -1px 0 rgba(255, 255, 255, 0.06);
+  --shadow-lg: 0 12px 24px rgba(0, 0, 0, 0.8), 0 4px 10px rgba(0, 0, 0, 0.6), 0 -1px 0 rgba(255, 255, 255, 0.07);
+  --shadow-xl: 0 20px 36px rgba(0, 0, 0, 0.85), 0 8px 14px rgba(0, 0, 0, 0.6), 0 -1px 0 rgba(255, 255, 255, 0.07);
+  --shadow-2xl: 0 28px 56px rgba(0, 0, 0, 0.9), 0 -1px 0 rgba(255, 255, 255, 0.07);
 }
 
 /*
@@ -74,12 +84,17 @@
   --border: oklch(0.84 0.01 250);
   --input: oklch(0.82 0.01 250);
   --ring: oklch(0.56 0.11 250);
+  --shadow-sm: 0 1px 4px rgba(0, 0, 0, 0.1);
+  --shadow-md: 0 4px 8px rgba(0, 0, 0, 0.12), 0 2px 4px rgba(0, 0, 0, 0.08);
+  --shadow-lg: 0 12px 18px rgba(0, 0, 0, 0.14), 0 4px 8px rgba(0, 0, 0, 0.08);
+  --shadow-xl: 0 20px 28px rgba(0, 0, 0, 0.14), 0 8px 12px rgba(0, 0, 0, 0.1);
+  --shadow-2xl: 0 25px 50px rgba(0, 0, 0, 0.2);
 }
 
 /*
  * "classic" theme, the original navy + sky-blue palette
- * from the pre-shadcn style.css. Apply via <html class="classic">.
-  */
+ * from the pre-radix style.css. Apply via <html class="classic">.
+   */
 .classic {
   color-scheme: dark;
   --background: oklch(0.21 0.04 264);
@@ -98,9 +113,14 @@
   --accent-foreground: oklch(0.93 0.01 256);
   --destructive: oklch(0.69 0.2 23);
   --destructive-foreground: oklch(0.985 0 0);
-  --border: oklch(0.83 0.1 230 / 0.18);
+  --border: oklch(0.83 0.1 230 / 0.22);
   --input: oklch(0.83 0.1 230 / 0.22);
   --ring: oklch(0.74 0.15 230);
+  --shadow-sm: 0 2px 6px rgba(0, 0, 0, 0.7), 0 -1px 0 rgba(255, 255, 255, 0.07);
+  --shadow-md: 0 6px 12px rgba(0, 0, 0, 0.75), 0 2px 6px rgba(0, 0, 0, 0.6), 0 -1px 0 rgba(255, 255, 255, 0.07);
+  --shadow-lg: 0 12px 24px rgba(0, 0, 0, 0.8), 0 4px 10px rgba(0, 0, 0, 0.6), 0 -1px 0 rgba(255, 255, 255, 0.08);
+  --shadow-xl: 0 20px 36px rgba(0, 0, 0, 0.85), 0 8px 14px rgba(0, 0, 0, 0.6), 0 -1px 0 rgba(255, 255, 255, 0.08);
+  --shadow-2xl: 0 28px 56px rgba(0, 0, 0, 0.9), 0 -1px 0 rgba(255, 255, 255, 0.08);
 }
 
 @layer utilities {
@@ -133,6 +153,11 @@
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
+  --shadow-sm: var(--shadow-sm);
+  --shadow-md: var(--shadow-md);
+  --shadow-lg: var(--shadow-lg);
+  --shadow-xl: var(--shadow-xl);
+  --shadow-2xl: var(--shadow-2xl);
 }
 
 @layer base {

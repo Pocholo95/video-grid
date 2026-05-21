@@ -52,4 +52,26 @@ export const APP_STORAGE_KEY = "vidgrid_settings";
 
 export const PRESETS_DEFAULT_VALUE = "__default__";
 
-export const DEBUG = true;
+/** JPEG Quality for grid outpus */
+export const JPEG_QUALITY = 0.95;
+
+/** Current schema version for stored settings (used by migration system) */
+export const STORAGE_SCHEMA_VERSION = 1;
+
+/** Destination Manager defaults */
+export const DEFAULT_DESTINATION_URL =
+  "https://api.imgbb.com/1/upload?key={key}";
+
+/** Upload requests timeout/delay in milliseconds */
+export const UPLOAD_TIMEOUT_MS = 30_000;
+export const UPLOAD_DELAY_MS = 1200;
+
+/** Timeout for XHR-based operations in milliseconds */
+export const XHR_TIMEOUT_MS = 30_000;
+
+/** Animated WebP composition quality percentage */
+export const ANIMATED_COMPOSE_PCT = 70;
+export const ANIMATED_ENCODE_PCT = 100 - ANIMATED_COMPOSE_PCT;
+
+/** Enable verbose console logging. Controlled via VITE_DEBUG env variable. */
+export const DEBUG = import.meta.env.VITE_DEBUG === "true";

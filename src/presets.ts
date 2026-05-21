@@ -1,10 +1,10 @@
-import { APP_STORAGE_KEY } from "./constants";
 import type {
   AppSettings,
   Presets,
   SavedOptions,
   UploadDestination,
 } from "./types";
+import { createVersionedStorage } from "./services/storage.service";
 
 const DEFAULT: AppSettings = {
   presets: { entries: {}, lastUsed: null },
@@ -14,40 +14,27 @@ const DEFAULT: AppSettings = {
 };
 
 /**
+ * Singleton VersionedStorage instance for app settings.
+ * Handles schema versioning and migration automatically.
+ */
+const storage = createVersionedStorage();
+
+/**
  * Load the full AppSettings object from localStorage.
  * Returns a safe default if nothing is stored or parsing fails.
+ * Automatically runs schema migrations if needed.
  */
-export const loadAppSettings = (): AppSettings => {
-  try {
-    const raw = localStorage.getItem(APP_STORAGE_KEY);
-    if (!raw) return structuredClone(DEFAULT);
-    const parsed = JSON.parse(raw) as Partial<AppSettings>;
-    const destinations: UploadDestination[] = parsed.destinations ?? [];
-    return {
-      presets: {
-        entries: parsed.presets?.entries ?? {},
-        lastUsed: parsed.presets?.lastUsed ?? null,
-      },
-      destinations,
-      theme: parsed.theme ?? DEFAULT.theme,
-      showPreview: parsed.showPreview ?? DEFAULT.showPreview,
-    };
-  } catch {
-    return structuredClone(DEFAULT);
-  }
-};
+export const loadAppSettings = (): AppSettings =>
+  storage.load(() => structuredClone(DEFAULT));
 
 /**
  * Persist the full AppSettings object to localStorage.
+ * Wraps data in VersionedSettings with current schema version.
  *
  * @param settings - The settings object to store.
  */
 export const persistAppSettings = (settings: AppSettings): void => {
-  try {
-    localStorage.setItem(APP_STORAGE_KEY, JSON.stringify(settings));
-  } catch (e) {
-    console.warn("localStorage write failed:", e);
-  }
+  storage.save(settings);
 };
 
 // Preset helpers

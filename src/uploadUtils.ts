@@ -18,7 +18,7 @@ export type LinkFormat = {
  */
 export const resolutionLabel = (meta?: VideoMetadata): string => {
   if (!meta || meta.height === 0) return "";
-  const h = meta.height;
+  const h = Math.min(meta.width, meta.height);
   if (h >= 2160) return "[COLOR=rgb(85, 57, 130)]2160p[/COLOR]";
   if (h >= 1440) return "[COLOR=rgb(251, 160, 38)]1440p[/COLOR]";
   if (h >= 1080) return "[COLOR=rgb(184, 49, 47)]1080p[/COLOR]";
@@ -48,18 +48,6 @@ export const buildFormats = (
   const resolution = resolutionLabel(metadata);
   const formats: LinkFormat[] = [
     {
-      key: "directUrl",
-      label: "Direct URL",
-      value: r.directUrl,
-      description: "Full-resolution image link",
-    },
-    {
-      key: "pageUrl",
-      label: "Viewer page",
-      value: r.pageUrl,
-      description: "Host viewer page",
-    },
-    {
       key: "bbcodeFull",
       label: "BBCode — full image",
       value: `[img]${r.directUrl}[/img]`,
@@ -72,6 +60,25 @@ export const buildFormats = (
       description: "Thumbnail that links to the viewer page",
     },
     {
+      key: "bbcodePostTemplate",
+      label: "Post Template",
+      value: `[b]${filenameNoExt}${resolution ? ` ${resolution}` : ""}[/b]\n[url=${r.pageUrl}][img]${r.mediumUrl ?? r.thumbUrl}[/img][/url]`,
+      description: "Forum-style template for this upload",
+      fieldType: "textarea",
+    },
+    {
+      key: "directUrl",
+      label: "Direct URL",
+      value: r.directUrl,
+      description: "Full-resolution image link",
+    },
+    {
+      key: "pageUrl",
+      label: "Viewer page",
+      value: r.pageUrl,
+      description: "Host viewer page",
+    },
+    {
       key: "markdown",
       label: "Markdown",
       value: `![${filenameNoExt}](${r.directUrl})`,
@@ -82,13 +89,6 @@ export const buildFormats = (
       label: "HTML img",
       value: `<img src="${r.directUrl}" alt="${filenameNoExt}" />`,
       description: "Inline HTML image tag",
-    },
-    {
-      key: "postTemplate",
-      label: "Post Template",
-      value: `[b]${filenameNoExt}${resolution ? ` ${resolution}` : ""}[/b]\n[url=${r.pageUrl}][img]${r.mediumUrl ?? r.thumbUrl}[/img][/url]`,
-      description: "Forum-style template for this upload",
-      fieldType: "textarea",
     },
   ];
 

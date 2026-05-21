@@ -564,7 +564,13 @@ export default function TimestampEditor({
             <div className="bg-muted/30 flex h-[30vh] shrink-0 flex-col gap-2 rounded-md border p-3 md:h-auto md:min-h-0 md:shrink">
               <div className="flex items-center justify-between gap-2">
                 <span className="text-sm font-semibold">
-                  Markers ({markers.length})
+                  Markers (
+                  {markers.length > totalCells ? (
+                    <span className="text-destructive">{markers.length}</span>
+                  ) : (
+                    markers.length
+                  )}
+                  /{totalCells})
                 </span>
                 {markers.length > 0 && (
                   <Button

@@ -13,29 +13,33 @@ import {
 } from "@/components/ui/select";
 
 interface Props {
-  /** Only done items with at least one successful upload should be passed. */
+  /** All items that have been analyzed (metadata available). */
   items: TaskItem[];
+  /** Whether all uploads across all items and destinations are complete. */
+  allDone: boolean;
 }
 
 type FormatKey =
-  | "directUrl"
-  | "pageUrl"
+  | "bbcodeTitleRes"
+  | "bbcodePostTemplate"
   | "bbcodeFull"
   | "bbcodeMedium"
   | "bbcodeThumb"
+  | "directUrl"
+  | "pageUrl"
   | "markdown"
-  | "htmlImg"
-  | "postTemplate";
+  | "htmlImg";
 
 const FORMAT_LABELS: Record<FormatKey, string> = {
-  directUrl: "Direct URL",
-  pageUrl: "Viewer page",
+  bbcodeTitleRes: "BBCode – video title + resolution",
+  bbcodePostTemplate: "BBCode — post template",
   bbcodeFull: "BBCode — full image",
   bbcodeMedium: "BBCode — medium",
   bbcodeThumb: "BBCode — thumbnail",
+  directUrl: "Direct URL",
+  pageUrl: "Viewer page",
   markdown: "Markdown",
   htmlImg: "HTML img",
-  postTemplate: "Post Template",
 };
 
 /**
@@ -88,14 +92,28 @@ function buildPostBlock(item: TaskItem): string | null {
 
 /**
  * Build the copyable text for a given format key, one line per item.
- * For "postTemplate", items are separated by blank lines instead.
+ * For "bbcodePostTemplate", items are separated by blank lines instead.
  *
  * @param items - The TaskItems to include (should each have at least one upload).
  * @param format - The FormatKey identifying which named link format to emit.
  * @returns The combined copyable text for the selected format.
  */
 function buildCopyText(items: TaskItem[], format: FormatKey): string {
-  if (format === "postTemplate") {
+  if (format === "bbcodeTitleRes") {
+    // Title + resolution: works as long as metadata is available
+    return items
+      .filter((i) => i.metadata)
+      .map((item) => {
+        const name = (item.outputName ?? item.file.name)
+          .replace(/\.[^.]+$/, "")
+          .replace(/\.[^.]+$/, "");
+        const res = resolutionLabel(item.metadata);
+        return `[b]${name}${res ? ` ${res}` : ""}[/b]`;
+      })
+      .join("\n");
+  }
+
+  if (format === "bbcodePostTemplate") {
     return items
       .map((item) => buildPostBlock(item))
       .filter((value): value is string => Boolean(value))
@@ -172,35 +190,60 @@ function CopyButton({ text, disabled }: { text: string; disabled?: boolean }) {
 }
 
 /**
- * Toolbar that lets the user pick a link format and copy all uploaded
- * link strings (one per task) at once.
- * @param items Task items that could be used to generate the output strings
+ * Toolbar that lets the user pick a link format and copy all strings
+ * (one per task) at once.
+ *
+ * The "BBCode – video title + resolution" format is always available
+ * (requires only metadata). All upload-dependent formats are disabled
+ * until every upload across all items is complete.
+ *
+ * @param items - All analyzed task items (with metadata).
+ * @param allDone - True when all uploads are complete.
  */
-export default function CopyAllPanel({ items }: Props) {
-  const [format, setFormat] = useState<FormatKey>("bbcodeThumb");
+export default function CopyAllPanel({ items, allDone }: Props) {
+  const [format, setFormat] = useState<FormatKey>("bbcodeTitleRes");
 
-  // Only include items that have at least one upload result.
-  const uploadedItems = items.filter((i) => firstResult(i) !== null);
-  if (uploadedItems.length === 0) return null;
+  // Only items that have metadata are useful for title+resolution.
+  const analyzedItems = items.filter((i) => i.metadata);
+  if (analyzedItems.length === 0) return null;
 
-  const copyText = buildCopyText(uploadedItems, format);
+  // Only include items that have at least one upload result for upload formats.
+  const uploadedItems = analyzedItems.filter((i) => firstResult(i) !== null);
+
+  // Determine which formats are available given current state.
+  const titleResAvailable = analyzedItems.length > 0;
+  const uploadFormatsAvailable = allDone && uploadedItems.length > 0;
+  const anyAvailable = titleResAvailable || uploadFormatsAvailable;
+
+  const copyText = buildCopyText(
+    uploadFormatsAvailable ? uploadedItems : analyzedItems,
+    format,
+  );
 
   return (
     <div className="bg-muted/30 flex flex-wrap items-center gap-3 rounded-md border p-3">
-      <Label className="text-sm font-medium">Copy all links:</Label>
+      <Label className="text-sm font-medium">Copy all:</Label>
       <Select value={format} onValueChange={(v) => setFormat(v as FormatKey)}>
         <SelectTrigger className="w-auto min-w-45">
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
           {(Object.keys(FORMAT_LABELS) as FormatKey[]).map((k) => (
-            <SelectItem key={k} value={k}>
+            <SelectItem
+              key={k}
+              value={k}
+              disabled={
+                k === "bbcodeTitleRes"
+                  ? !titleResAvailable
+                  : !uploadFormatsAvailable
+              }
+            >
               {FORMAT_LABELS[k]}
             </SelectItem>
           ))}
         </SelectContent>
       </Select>
-      <CopyButton text={copyText} disabled={uploadedItems.length === 0} />
+      <CopyButton text={copyText} disabled={!anyAvailable} />
     </div>
   );
 }

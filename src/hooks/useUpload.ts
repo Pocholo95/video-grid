@@ -6,9 +6,9 @@ import type {
   UploadDestination,
   UploadResult,
 } from "../types";
+import { UPLOAD_DELAY_MS } from "@/constants";
 
 /** Delay between sequential uploads to avoid rate-limiting. */
-const UPLOAD_DELAY_MS = 1200;
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
 /**

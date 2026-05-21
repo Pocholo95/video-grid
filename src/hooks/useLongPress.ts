@@ -26,7 +26,7 @@ export function useLongPress(
       timerRef.current = window.setTimeout(() => {
         timerRef.current = null;
         onLongPress();
-      }, thresholdMs) as unknown as number;
+      }, thresholdMs);
     },
     [onLongPress, thresholdMs],
   );

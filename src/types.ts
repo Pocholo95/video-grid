@@ -1,3 +1,24 @@
+// - Processor Status
+
+/**
+ * Status object returned by the processor hook to drive the ProcessingPanel UI.
+ */
+export type ProcessorStatus = {
+  text: string;
+  /**
+   * Semantic kind of the current `text` message. Drives the icon shown
+   * by the consumer (ProcessingPanel) so we don't have to embed emoji
+   * directly in the message string. Optional; consumer treats undefined
+   * as "info".
+   */
+  textKind?: "info" | "success" | "warning" | "cancelled";
+  currentPct: number;
+  batchDone: number;
+  batchTotal: number;
+  batchStartTime: number | null;
+  batchDurationMs: number | null;
+};
+
 // - Grid / Video
 
 /** Result of setting up a native video decoder for frame capture. */

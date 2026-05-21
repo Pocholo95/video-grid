@@ -136,6 +136,10 @@ export default function TaskList({
 
   const hasPendingUploads = completedUploads < totalPossibleUploads;
 
+  // True when every possible upload across all done items is complete.
+  const allDone =
+    totalPossibleUploads > 0 && completedUploads >= totalPossibleUploads;
+
   // auto-animate ref for smooth layout transitions when items are added/removed.
   // Configured with duration so enter/exit animations are visible even when
   // items are added quickly by the MutationObserver.
@@ -258,9 +262,11 @@ export default function TaskList({
               )}
             </div>
           </div>
-          {doneItems.length > 0 && <CopyAllPanel items={doneItems} />}
+          {items.some((i) => i.metadata) && (
+            <CopyAllPanel items={items} allDone={allDone} />
+          )}
 
-          <div ref={listRef} className="flex flex-col gap-3 overflow-hidden">
+          <div ref={listRef} className="flex flex-col gap-4 overflow-hidden">
             {items.length === 0 ? (
               <div className="text-muted-foreground py-2 text-center text-sm">
                 No tasks yet. Add video files to get started.
