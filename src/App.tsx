@@ -2,7 +2,13 @@ import { useCallback } from "react";
 import { Settings as SettingsIcon } from "lucide-react";
 
 import { PROJECT_NAME } from "./constants";
-import { useAppContext } from "./context/AppContext";
+import {
+  useTasksContext,
+  useProcessingContext,
+  useUploadContext,
+  useSettingsContext,
+  useUiContext,
+} from "./context";
 
 import ControlPanel from "./components/ControlPanel";
 import TaskList from "./components/TaskList";
@@ -12,15 +18,19 @@ import Settings from "./components/Settings";
 import { Button } from "./components/ui/button";
 
 export default function App() {
-  const ctx = useAppContext();
+  const tasks = useTasksContext();
+  const processing = useProcessingContext();
+  const upload = useUploadContext();
+  const settings = useSettingsContext();
+  const ui = useUiContext();
 
-  const handleClosePreview = useCallback(() => ctx.setPreviewUrl(null), [ctx]);
+  const handleClosePreview = useCallback(
+    () => ui.setPreviewUrl(null),
+    [ui.setPreviewUrl],
+  );
 
   return (
-    <div
-      ref={ctx.mainRef}
-      className="mx-auto flex max-w-6xl flex-col gap-3 p-4"
-    >
+    <div ref={ui.mainRef} className="mx-auto flex max-w-6xl flex-col gap-3 p-4">
       <header className="bg-card text-card-foreground flex items-start justify-between gap-4 rounded-xl border p-4 shadow-sm">
         <div className="flex items-center gap-4 flex-1">
           <a
@@ -44,7 +54,7 @@ export default function App() {
         </div>
 
         <Button
-          onClick={ctx.handleOpenSettingsDialog}
+          onClick={settings.handleOpenSettingsDialog}
           variant={"outline"}
           size={"icon"}
           aria-label="Open settings"
@@ -54,67 +64,67 @@ export default function App() {
       </header>
 
       <TaskList
-        items={ctx.items}
-        totalCells={ctx.totalCells}
-        showPreview={ctx.getCurrentSettings().showPreview}
-        destinations={ctx.getCurrentSettings().destinations}
-        onFilesChange={ctx.handleFilesChange}
-        isUploadingAll={ctx.isUploadingAll}
-        uploadProgress={ctx.uploadProgress}
-        isZipping={ctx.isZipping}
-        onUploadAll={ctx.handleUploadAll}
-        onDownloadAll={ctx.downloadAll}
-        onPreview={ctx.setPreviewUrl}
-        onUpload={ctx.handleUploadItem}
-        onUpdateTimestamps={ctx.handleUpdateTimestamps}
-        onRemove={ctx.handleRemoveItem}
-        onRequeue={ctx.handleRequeueItem}
-        handleEnablePreviews={ctx.handleEnablePreviews}
-        status={ctx.status}
-        isProcessing={ctx.isProcessing}
-        isStale={ctx.isStale}
-        staleTaskId={ctx.staleTaskId}
-        hasFiles={ctx.hasQueuedFiles}
-        allMetadataReady={ctx.allMetadataReady}
-        hasRequeuableItems={ctx.hasRequeuableItems}
-        effectiveBatchTotal={ctx.effectiveBatchTotal}
-        effectiveBatchDone={ctx.effectiveBatchDone}
-        onStart={ctx.handleStart}
-        onCancel={ctx.requestCancel}
-        onForceCancel={ctx.forceCancel}
-        onClear={ctx.onClear}
-        onRequeueAll={ctx.handleRequeueAll}
+        items={tasks.items}
+        totalCells={ui.totalCells}
+        showPreview={settings.getCurrentSettings().showPreview}
+        destinations={settings.getCurrentSettings().destinations}
+        onFilesChange={ui.handleFilesChange}
+        isUploadingAll={upload.isUploadingAll}
+        uploadProgress={upload.uploadProgress}
+        isZipping={ui.isZipping}
+        onUploadAll={ui.handleUploadAll}
+        onDownloadAll={ui.downloadAll}
+        onPreview={ui.setPreviewUrl}
+        onUpload={ui.handleUploadItem}
+        onUpdateTimestamps={tasks.handleUpdateTimestamps}
+        onRemove={tasks.handleRemoveItem}
+        onRequeue={tasks.handleRequeueItem}
+        handleEnablePreviews={ui.handleEnablePreviews}
+        status={processing.status}
+        isProcessing={processing.isProcessing}
+        isStale={processing.isStale}
+        staleTaskId={processing.staleTaskId}
+        hasFiles={tasks.hasQueuedFiles}
+        allMetadataReady={tasks.allMetadataReady}
+        hasRequeuableItems={tasks.hasRequeuableItems}
+        effectiveBatchTotal={ui.effectiveBatchTotal}
+        effectiveBatchDone={tasks.effectiveBatchDone}
+        onStart={ui.handleStart}
+        onCancel={processing.requestCancel}
+        onForceCancel={processing.forceCancel}
+        onClear={ui.onClear}
+        onRequeueAll={tasks.handleRequeueAll}
       />
 
       <ControlPanel
-        opts={ctx.opts}
-        setOpts={ctx.setOpts}
-        presets={ctx.getCurrentSettings().presets}
+        opts={ui.opts}
+        setOpts={ui.setOpts}
+        presets={settings.getCurrentSettings().presets}
         setPresets={(p) => {
-          ctx.updateSettings({ presets: p });
+          settings.updateSettings({ presets: p });
         }}
       />
 
-      {ctx.previewUrl && (
-        <PreviewModal url={ctx.previewUrl} onClose={handleClosePreview} />
+      {ui.previewUrl && (
+        <PreviewModal url={ui.previewUrl} onClose={handleClosePreview} />
       )}
 
       <Footer />
 
       {/* Settings Dialog with nested Upload Destinations */}
       <Settings
-        open={ctx.showSettingsDialog}
-        theme={ctx.getCurrentSettings().theme}
-        showPreview={ctx.getCurrentSettings().showPreview}
-        destinations={ctx.getCurrentSettings().destinations}
-        onThemeChange={ctx.handleThemeChange}
-        onShowPreviewChange={ctx.handleShowPreviewChange}
+        open={settings.showSettingsDialog}
+        theme={settings.getCurrentSettings().theme}
+        showPreview={settings.getCurrentSettings().showPreview}
+        destinations={settings.getCurrentSettings().destinations}
+        onThemeChange={settings.handleThemeChange}
+        onShowPreviewChange={settings.handleShowPreviewChange}
         onSaveAndClose={() => {
-          ctx.saveSettings();
-          ctx.setShowSettingsDialog(false);
+          settings.saveSettings();
+          settings.setShowSettingsDialog(false);
         }}
-        onCancel={ctx.handleCancelSettings}
-        updateDestinations={ctx.updateDestinations}
+        onCancel={settings.handleCancelSettings}
+        updateDestinations={settings.updateDestinations}
       />
     </div>
   );

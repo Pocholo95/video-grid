@@ -1,17 +1,12 @@
 import { useCallback, useRef } from "react";
-import {
-  ANIMATED_COMPOSE_PCT,
-  ANIMATED_ENCODE_PCT,
-  DEFAULTS,
-} from "../constants";
+import { ANIMATED_COMPOSE_PCT, ANIMATED_ENCODE_PCT } from "../constants";
 import type { IGridRenderer } from "../types/service";
 import type { IFFmpegService, IMediaInfoService } from "../types/service";
-import type {
-  TaskItem,
-  SavedOptions,
-  ProcessorStatus,
-  VideoMetadata,
-} from "../types";
+import type { TaskItem, SavedOptions, ProcessorStatus } from "../types";
+import {
+  buildStaticGridOptions,
+  buildAnimatedGridOptions,
+} from "../gridOptions";
 import {
   errlog,
   formatElapsed,
@@ -62,22 +57,6 @@ export function useBatchProcessor(
       isProcessingRef.current = true;
       setIsProcessing(true);
       cancelRef.current = false;
-
-      const baseGridOpts = {
-        width: Math.max(240, opts.width || DEFAULTS.width),
-        cols: Math.max(1, opts.cols || DEFAULTS.cols),
-        rows: Math.max(1, opts.rows || DEFAULTS.rows),
-        spacing: Math.max(0, opts.spacing || DEFAULTS.spacing),
-        position: opts.position ?? DEFAULTS.position,
-        header: opts.header ?? DEFAULTS.header,
-        bgColor: opts.bgColor || DEFAULTS.bgColor,
-        textColor: opts.textColor || DEFAULTS.textColor,
-        vrMode: opts.vrMode ?? DEFAULTS.vrMode,
-        gridTemplate:
-          opts.gridTemplate && opts.gridTemplate.cells.length > 0
-            ? opts.gridTemplate
-            : undefined,
-      };
 
       const isAnimated = opts.animated ?? false;
 
@@ -154,34 +133,8 @@ export function useBatchProcessor(
               );
             }
 
-            const itemCustomTimestamps =
-              item.timestampMode === "custom" &&
-              item.customTimestamps &&
-              item.customTimestamps.length > 0
-                ? item.customTimestamps
-                : undefined;
-
-            const duration = Math.max(1, (meta as VideoMetadata).duration || 1);
-
-            const gridOpts = {
-              ...baseGridOpts,
-              customTimestamps: itemCustomTimestamps,
-              duration,
-            } as import("../types/service").StaticGridRenderOptions;
-
-            const animGridOpts = {
-              ...gridOpts,
-              animDuration: Math.max(
-                1,
-                opts.animDuration ?? DEFAULTS.animDuration,
-              ),
-              animFps: Math.max(1, opts.animFps ?? DEFAULTS.animFps),
-              webpMethod: opts.webpMethod ?? DEFAULTS.webpMethod,
-              webpQuality: Math.min(
-                100,
-                Math.max(5, opts.webpQuality ?? DEFAULTS.webpQuality),
-              ),
-            };
+            const gridOpts = buildStaticGridOptions(opts, item, meta);
+            const animGridOpts = buildAnimatedGridOptions(opts, item, meta);
 
             let res;
             if (isAnimated) {
@@ -217,7 +170,7 @@ export function useBatchProcessor(
               res = await gridRenderer.renderAnimatedGrid(
                 item.file,
                 meta,
-                animGridOpts as import("../types/service").AnimatedGridRenderOptions,
+                animGridOpts,
                 () => cancelRef.current || forceCancelCurrentRef.current,
                 onAnimFrameDone,
                 onEncodeProgress,

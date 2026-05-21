@@ -44,6 +44,7 @@ export default function ControlPanel({
   return (
     <Card>
       <CardContent className="flex flex-col gap-4">
+        <h2 className="text-lg font-semibold">Generation Options</h2>
         <PresetsRow
           opts={opts}
           setOpts={setOpts}
