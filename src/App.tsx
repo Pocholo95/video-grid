@@ -1,14 +1,14 @@
-import { useCallback } from "react";
+import { useCallback, useRef } from "react";
 import { Settings as SettingsIcon } from "lucide-react";
+import { autoAnimate } from "@formkit/auto-animate";
+import { yieldToBrowser } from "@/lib/utils";
 
 import { PROJECT_NAME } from "./constants";
-import {
-  useTasksContext,
-  useProcessingContext,
-  useUploadContext,
-  useSettingsContext,
-  useUiContext,
-} from "./context";
+import { useTaskStore } from "@/store/taskStore";
+import { useUiStore } from "@/store/uiStore";
+import { useSettingsStore } from "@/store/settingsStore";
+import { useProcessor } from "@/hooks/useProcessor";
+import { useUpload } from "@/hooks/useUpload";
 
 import ControlPanel from "./components/ControlPanel";
 import TaskList from "./components/TaskList";
@@ -18,19 +18,86 @@ import Settings from "./components/Settings";
 import { Button } from "./components/ui/button";
 
 export default function App() {
-  const tasks = useTasksContext();
-  const processing = useProcessingContext();
-  const upload = useUploadContext();
-  const settings = useSettingsContext();
-  const ui = useUiContext();
+  // --- Stores ---
+  const items = useTaskStore((s) => s.items);
+  const setItems = useTaskStore((s) => s.setItems);
+  const updateItem = useTaskStore((s) => s.updateItem);
 
+  const opts = useUiStore((s) => s.opts);
+  const setOpts = useUiStore((s) => s.setOpts);
+  const previewUrl = useUiStore((s) => s.previewUrl);
+  const setPreviewUrl = useUiStore((s) => s.setPreviewUrl);
+  const downloadAll = useUiStore((s) => s.downloadAll);
+
+  const settings = useSettingsStore((s) => s.settings);
+  const showSettingsDialog = useSettingsStore((s) => s.showSettingsDialog);
+  const handleOpenSettingsDialog = useSettingsStore(
+    (s) => s.handleOpenSettingsDialog,
+  );
+  const handleCancelSettings = useSettingsStore((s) => s.handleCancelSettings);
+  const saveAndCloseSettings = useSettingsStore((s) => s.saveAndCloseSettings);
+  const handleThemeChange = useSettingsStore((s) => s.handleThemeChange);
+  const handleShowPreviewChange = useSettingsStore(
+    (s) => s.handleShowPreviewChange,
+  );
+  const updateDestinations = useSettingsStore((s) => s.updateDestinations);
+  const updateSettings = useSettingsStore((s) => s.updateSettings);
+
+  // --- Hooks ---
+  const processor = useProcessor(updateItem);
+  const { requestCancel, forceCancel } = processor;
+  const upload = useUpload();
+
+  // --- DOM refs ---
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const mainRef = useCallback((el: HTMLDivElement | null) => {
+    if (el) autoAnimate(el);
+  }, []);
+
+  // --- File handling ---
+  const handleFilesChange = useCallback(
+    async (files: File[]) => {
+      await processor.analyzeFiles(files, (item) => {
+        setItems((prev) => [...prev, item]);
+        return yieldToBrowser();
+      });
+    },
+    [processor.analyzeFiles, setItems],
+  );
+
+  // --- Start processing ---
+  const handleStart = useCallback(async () => {
+    const queued = items.filter((it) => it.status === "queued");
+    await processor.processAll(queued, opts);
+  }, [items, opts, processor.processAll]);
+
+  // --- Upload handlers ---
+  const handleUploadItem = useCallback(
+    (id: string) => upload.uploadItem(id),
+    [upload.uploadItem],
+  );
+
+  const handleUploadAll = useCallback(() => {
+    upload.uploadAll(settings.destinations);
+  }, [upload.uploadAll, settings.destinations]);
+
+  // --- Clear ---
+  const onClear = useCallback(async () => {
+    setItems(() => []);
+    await yieldToBrowser();
+    await processor.resetState();
+    upload.resetUploadState();
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  }, [setItems, processor.resetState, upload.resetUploadState]);
+
+  // --- Preview ---
   const handleClosePreview = useCallback(
-    () => ui.setPreviewUrl(null),
-    [ui.setPreviewUrl],
+    () => setPreviewUrl(null),
+    [setPreviewUrl],
   );
 
   return (
-    <div ref={ui.mainRef} className="mx-auto flex max-w-6xl flex-col gap-3 p-4">
+    <div ref={mainRef} className="mx-auto flex max-w-6xl flex-col gap-3 p-4">
       <header className="bg-card text-card-foreground flex items-start justify-between gap-4 rounded-xl border p-4 shadow-sm">
         <div className="flex items-center gap-4 flex-1">
           <a
@@ -54,7 +121,7 @@ export default function App() {
         </div>
 
         <Button
-          onClick={settings.handleOpenSettingsDialog}
+          onClick={handleOpenSettingsDialog}
           variant={"outline"}
           size={"icon"}
           aria-label="Open settings"
@@ -64,67 +131,43 @@ export default function App() {
       </header>
 
       <TaskList
-        items={tasks.items}
-        totalCells={ui.totalCells}
-        showPreview={settings.getCurrentSettings().showPreview}
-        destinations={settings.getCurrentSettings().destinations}
-        onFilesChange={ui.handleFilesChange}
-        isUploadingAll={upload.isUploadingAll}
-        uploadProgress={upload.uploadProgress}
-        isZipping={ui.isZipping}
-        onUploadAll={ui.handleUploadAll}
-        onDownloadAll={ui.downloadAll}
-        onPreview={ui.setPreviewUrl}
-        onUpload={ui.handleUploadItem}
-        onUpdateTimestamps={tasks.handleUpdateTimestamps}
-        onRemove={tasks.handleRemoveItem}
-        onRequeue={tasks.handleRequeueItem}
-        handleEnablePreviews={ui.handleEnablePreviews}
-        status={processing.status}
-        isProcessing={processing.isProcessing}
-        isStale={processing.isStale}
-        staleTaskId={processing.staleTaskId}
-        hasFiles={tasks.hasQueuedFiles}
-        allMetadataReady={tasks.allMetadataReady}
-        hasRequeuableItems={tasks.hasRequeuableItems}
-        effectiveBatchTotal={ui.effectiveBatchTotal}
-        effectiveBatchDone={tasks.effectiveBatchDone}
-        onStart={ui.handleStart}
-        onCancel={processing.requestCancel}
-        onForceCancel={processing.forceCancel}
-        onClear={ui.onClear}
-        onRequeueAll={tasks.handleRequeueAll}
+        onFilesChange={handleFilesChange}
+        onUploadAll={handleUploadAll}
+        onDownloadAll={downloadAll}
+        onPreview={setPreviewUrl}
+        onUpload={handleUploadItem}
+        onStart={handleStart}
+        onCancel={requestCancel}
+        onForceCancel={forceCancel}
+        onClear={onClear}
       />
 
       <ControlPanel
-        opts={ui.opts}
-        setOpts={ui.setOpts}
-        presets={settings.getCurrentSettings().presets}
+        opts={opts}
+        setOpts={setOpts}
+        presets={settings.presets}
         setPresets={(p) => {
-          settings.updateSettings({ presets: p });
+          updateSettings({ presets: p });
         }}
       />
 
-      {ui.previewUrl && (
-        <PreviewModal url={ui.previewUrl} onClose={handleClosePreview} />
+      {previewUrl && (
+        <PreviewModal url={previewUrl} onClose={handleClosePreview} />
       )}
 
       <Footer />
 
       {/* Settings Dialog with nested Upload Destinations */}
       <Settings
-        open={settings.showSettingsDialog}
-        theme={settings.getCurrentSettings().theme}
-        showPreview={settings.getCurrentSettings().showPreview}
-        destinations={settings.getCurrentSettings().destinations}
-        onThemeChange={settings.handleThemeChange}
-        onShowPreviewChange={settings.handleShowPreviewChange}
-        onSaveAndClose={() => {
-          settings.saveSettings();
-          settings.setShowSettingsDialog(false);
-        }}
-        onCancel={settings.handleCancelSettings}
-        updateDestinations={settings.updateDestinations}
+        open={showSettingsDialog}
+        theme={settings.theme}
+        showPreview={settings.showPreview}
+        destinations={settings.destinations}
+        onThemeChange={handleThemeChange}
+        onShowPreviewChange={handleShowPreviewChange}
+        onSaveAndClose={saveAndCloseSettings}
+        onCancel={handleCancelSettings}
+        updateDestinations={updateDestinations}
       />
     </div>
   );

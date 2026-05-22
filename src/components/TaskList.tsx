@@ -1,9 +1,13 @@
 import { useMemo, useCallback, useRef, useEffect, useState } from "react";
 import { autoAnimate } from "@formkit/auto-animate";
 import { Download, Loader2, Upload } from "lucide-react";
-import type { TaskItem, UploadDestination } from "../types";
-import type { ProcessorStatus } from "../hooks/useProcessor";
+import { useTaskStore } from "@/store/taskStore";
+import { useProcessingStore } from "@/store/processingStore";
+import { useSettingsStore } from "@/store/settingsStore";
+import { useUploadStore } from "@/store/uploadStore";
+import { useUiStore } from "@/store/uiStore";
 import TaskCard from "./TaskCard";
+import { ErrorBoundary } from "./ErrorBoundary";
 import CopyAllPanel from "./CopyAllPanel";
 import ProcessingPanel from "./ProcessingPanel";
 import CompactBar from "./CompactBar";
@@ -12,43 +16,16 @@ import { Card, CardContent } from "@/components/ui/card";
 import FilePicker from "./control/FilePicker";
 
 interface Props {
-  items: TaskItem[];
-  totalCells: number;
-  showPreview: boolean;
-  destinations: UploadDestination[];
-  isUploadingAll: boolean;
-  uploadProgress: { attempted: number; total: number };
-  isZipping: boolean;
+  // --- Callbacks that require processor/upload hooks (cannot be in stores) ---
   onFilesChange: (files: File[]) => void;
   onUploadAll: () => void;
   onDownloadAll: () => void;
   onPreview: (url: string) => void;
   onUpload: (id: string) => void;
-  onUpdateTimestamps: (
-    id: string,
-    mode: "auto" | "custom",
-    markers: number[],
-  ) => void;
-  onRemove: (id: string) => void;
-  onRequeue: (id: string) => void;
-  handleEnablePreviews: () => void;
-  // ProcessingPanel props
-  status: ProcessorStatus;
-  isProcessing: boolean;
-  isStale: boolean;
-  staleTaskId: string | null;
-  hasFiles: boolean;
-  allMetadataReady: boolean;
-  hasRequeuableItems: boolean;
   onStart: () => void;
   onCancel: () => void;
   onForceCancel: () => void;
   onClear: () => void;
-  onRequeueAll: () => void;
-  /** Effective batch total computed from items state for dynamic progress. */
-  effectiveBatchTotal: number;
-  /** Number of items that reached a terminal state (done/error/cancelled). */
-  effectiveBatchDone: number;
 }
 
 /**
@@ -75,37 +52,47 @@ interface Props {
  * @param onRequeue - Resets a finished task back to queued status.
  */
 export default function TaskList({
-  items,
-  totalCells,
-  showPreview,
-  destinations,
-  isUploadingAll,
-  uploadProgress,
-  isZipping,
   onFilesChange,
   onUploadAll,
   onDownloadAll,
   onPreview,
   onUpload,
-  onUpdateTimestamps,
-  onRemove,
-  onRequeue,
-  handleEnablePreviews,
-  status,
-  isProcessing,
-  isStale,
-  staleTaskId,
-  hasFiles,
-  allMetadataReady,
-  hasRequeuableItems,
   onStart,
   onCancel,
   onForceCancel,
   onClear,
-  onRequeueAll,
-  effectiveBatchTotal,
-  effectiveBatchDone,
 }: Props) {
+  // --- Store actions (read directly to reduce props drilling) ---
+  const handleUpdateTimestamps = useTaskStore((s) => s.handleUpdateTimestamps);
+  const handleRemoveItem = useTaskStore((s) => s.handleRemoveItem);
+  const handleRequeueItem = useTaskStore((s) => s.handleRequeueItem);
+  const handleRequeueAll = useTaskStore((s) => s.handleRequeueAll);
+  const handleShowPreviewChange = useSettingsStore(
+    (s) => s.handleShowPreviewChange,
+  );
+  // --- Read from Zustand stores directly ---
+  const items = useTaskStore((s) => s.items);
+  const destinations = useSettingsStore((s) => s.settings.destinations);
+  const status = useProcessingStore((s) => s.status);
+  const isProcessing = useProcessingStore((s) => s.isProcessing);
+  const isStale = useProcessingStore((s) => s.isStale);
+  const staleTaskId = useProcessingStore((s) => s.staleTaskId);
+
+  // Upload state from uploadStore
+  const isUploadingAll = useUploadStore((s) => s.isUploadingAll);
+  const uploadProgress = useUploadStore((s) => s.uploadProgress);
+
+  // ZIP state from uiStore
+  const isZipping = useUiStore((s) => s.isZipping);
+
+  // --- Derived values ---
+  const hasFiles = items.some((i) => i.status === "queued");
+  const allMetadataReady = items.length > 0 && items.every((i) => !!i.metadata);
+  const hasRequeuableItems = items.some(
+    (i) =>
+      i.status === "done" || i.status === "error" || i.status === "cancelled",
+  );
+
   const enabledDests = useMemo(
     () => destinations.filter((d) => d.enabled),
     [destinations],
@@ -139,6 +126,22 @@ export default function TaskList({
   // True when every possible upload across all done items is complete.
   const allDone =
     totalPossibleUploads > 0 && completedUploads >= totalPossibleUploads;
+
+  // effective batch progress (for CompactBar / ProcessingPanel)
+  // Computed dynamically from actual item states so that:
+  // 1. Requeued tasks don't carry stale counters from previous runs.
+  // 2. Deleting a task during processing immediately updates progress.
+  // 3. Already-done tasks count as "completed" for the current batch.
+  const effectiveBatchDone = items.filter(
+    (i) =>
+      i.status === "done" || i.status === "error" || i.status === "cancelled",
+  ).length;
+  const inFlight = items.filter(
+    (i) => i.status === "queued" || i.status === "processing",
+  ).length;
+  const effectiveBatchTotal = isProcessing
+    ? effectiveBatchDone + inFlight
+    : effectiveBatchDone;
 
   // auto-animate ref for smooth layout transitions when items are added/removed.
   // Configured with duration so enter/exit animations are visible even when
@@ -187,7 +190,7 @@ export default function TaskList({
           onStart={onStart}
           onCancel={onCancel}
           onClear={onClear}
-          onRequeueAll={onRequeueAll}
+          onRequeueAll={handleRequeueAll}
         />
       )}
 
@@ -212,7 +215,7 @@ export default function TaskList({
                   onStart={onStart}
                   onCancel={onCancel}
                   onClear={onClear}
-                  onRequeueAll={onRequeueAll}
+                  onRequeueAll={handleRequeueAll}
                 />
               </div>
             </div>
@@ -273,24 +276,22 @@ export default function TaskList({
               </div>
             ) : (
               items.map((item, idx) => (
-                <TaskCard
-                  key={item.id}
-                  position={idx + 1}
-                  item={item}
-                  totalCells={totalCells}
-                  showPreview={showPreview}
-                  destinations={destinations}
-                  onPreview={onPreview}
-                  onUpload={onUpload}
-                  onUpdateTimestamps={onUpdateTimestamps}
-                  onRemove={onRemove}
-                  onRequeue={onRequeue}
-                  handleEnablePreviews={handleEnablePreviews}
-                  isStale={isStale && item.id === staleTaskId}
-                  onForceCancel={
-                    item.status === "processing" ? onForceCancel : undefined
-                  }
-                />
+                <ErrorBoundary key={item.id}>
+                  <TaskCard
+                    position={idx + 1}
+                    item={item}
+                    onPreview={onPreview}
+                    onUpload={onUpload}
+                    onUpdateTimestamps={handleUpdateTimestamps}
+                    onRemove={handleRemoveItem}
+                    onRequeue={handleRequeueItem}
+                    handleEnablePreviews={() => handleShowPreviewChange(true)}
+                    isStale={isStale && item.id === staleTaskId}
+                    onForceCancel={
+                      item.status === "processing" ? onForceCancel : undefined
+                    }
+                  />
+                </ErrorBoundary>
               ))
             )}
           </div>

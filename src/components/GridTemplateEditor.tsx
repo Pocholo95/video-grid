@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from "react";
+import React, { useCallback, useRef, useState } from "react";
 import { autoAnimate } from "@formkit/auto-animate";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import {
@@ -298,6 +298,9 @@ export default function GridTemplateEditor({
           <DialogPrimitive.Title className="sr-only">
             Grid Template Editor
           </DialogPrimitive.Title>
+          <DialogPrimitive.Description className="sr-only">
+            Customize the grid layout by adding rows and cells
+          </DialogPrimitive.Description>
           {/* Header */}
           <div className="flex items-center justify-between gap-2">
             <h2 className="flex items-center gap-2 text-base font-semibold sm:text-lg">
@@ -377,14 +380,13 @@ export default function GridTemplateEditor({
                   dropIndex === dropIdxBeforeThis;
 
                 return (
-                  <>
+                  <React.Fragment key={`row-${rowY}`}>
                     {/* Thin drop-line indicator before this row */}
                     {showDropLineBefore && (
                       <div className="h-0.5 rounded-full bg-primary/70 transition-all duration-150 animate-none" />
                     )}
 
                     <div
-                      key={rowY}
                       ref={(el) => {
                         if (el) rowRefs.current.set(rowY, el);
                         else rowRefs.current.delete(rowY);
@@ -446,7 +448,7 @@ export default function GridTemplateEditor({
                         </Button>
                       </div>
                     </div>
-                  </>
+                  </React.Fragment>
                 );
               })}
 

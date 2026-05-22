@@ -1,7 +1,12 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useCallback } from "react";
 import { FFMPEG_STALE_THRESHOLD_MS } from "../constants";
-import type { ProcessorStatus, TaskItem } from "../types";
+import type { TaskItem } from "../types";
 import type { IFFmpegService } from "../types/service";
+import {
+  useProcessingStore,
+  getProcessingGuard,
+} from "@/store/processingStore";
+import { useTick } from "@/lib/useTick";
 
 type Updater = (id: string, patch: Partial<TaskItem>) => void;
 
@@ -9,36 +14,23 @@ type Updater = (id: string, patch: Partial<TaskItem>) => void;
  * Hook that manages the processor UI status state, stale detection,
  * and live log callbacks — extracted from useProcessor for clarity.
  *
- * Manages its own isProcessing state so the orchestrator doesn't need
- * to pass it through multiple layers.
+ * Now reads all reactive state from the Zustand processingStore instead
+ * of maintaining its own duplicate state.
+ *
+ * Stale detection uses the shared useTick rAF loop instead of a raw
+ * setInterval, so it benefits from frame-alignment and tab-hidden pausing.
  */
 export function useProcessorStatus(
   updateItem: Updater,
   ffmpegService: IFFmpegService,
 ) {
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [isStale, setIsStale] = useState(false);
-  const [staleTaskId, setStaleTaskId] = useState<string | null>(null);
-  const [status, setStatus] = useState<ProcessorStatus>({
-    text: "Select one or more videos to begin.",
-    currentPct: 0,
-    batchDone: 0,
-    batchTotal: 0,
-    batchStartTime: null,
-    batchDurationMs: null,
-  });
-
-  // Mutable refs for stale detection (avoid re-renders)
-  const isProcessingRef = useRef(isProcessing);
-  useEffect(() => {
-    isProcessingRef.current = isProcessing;
-  }, [isProcessing]);
-  const lastProgressTimeRef = useRef<number>(Date.now());
-  const staleIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const currentTaskIdRef = useRef<string | null>(null);
-
-  // Expose setStatus so external callers can update status directly.
-  const setStatusRef = setStatus;
+  // --- Read all state from Zustand store ---
+  const isProcessing = useProcessingStore((s) => s.isProcessing);
+  const isStale = useProcessingStore((s) => s.isStale);
+  const staleTaskId = useProcessingStore((s) => s.staleTaskId);
+  const status = useProcessingStore((s) => s.status);
+  const setStatus = useProcessingStore((s) => s.setStatus);
+  const setStale = useProcessingStore((s) => s.setStale);
 
   /**
    * Register a live-log callback so that whenever FFmpeg appends a log line,
@@ -57,71 +49,38 @@ export function useProcessorStatus(
    * Stale detection: periodically check if progress has stalled while FFmpeg
    * is busy. If progress hasn't advanced for FFMPEG_STALE_THRESHOLD_MS and
    * FFmpeg is still busy, mark the operation as stale.
+   *
+   * Uses useTick (rAF-based) instead of setInterval for frame-aligned
+   * execution and automatic tab-hidden pausing.
    */
-  useEffect(() => {
-    if (!isProcessing) return;
-
-    staleIntervalRef.current = setInterval(() => {
-      const elapsedSinceProgress = Date.now() - lastProgressTimeRef.current;
-      if (
-        elapsedSinceProgress > FFMPEG_STALE_THRESHOLD_MS &&
-        ffmpegService.getBusyState()
-      ) {
-        console.warn(
-          `[Stale Detection] Progress stalled for ${elapsedSinceProgress}ms while FFmpeg is busy.`,
-        );
-        setIsStale(true);
-        setStaleTaskId(currentTaskIdRef.current);
-      }
-    }, 5000);
-
-    return () => {
-      if (staleIntervalRef.current) {
-        clearInterval(staleIntervalRef.current);
-        staleIntervalRef.current = null;
-      }
-    };
-  }, [isProcessing, ffmpegService]);
-
-  /** Reset stale detection state. */
-  const resetStaleState = useCallback(() => {
-    setIsStale(false);
-    setStaleTaskId(null);
-  }, []);
-
-  /** Update the last progress timestamp to reset stale detection timer. */
-  const touchProgress = useCallback(() => {
-    lastProgressTimeRef.current = Date.now();
-  }, []);
-
-  /** Set the current task ID for stale detection attribution. */
-  const setCurrentTask = useCallback((id: string | null) => {
-    currentTaskIdRef.current = id;
-  }, []);
-
-  /** Clean up stale detection interval. */
-  const cleanup = useCallback(() => {
-    if (staleIntervalRef.current) {
-      clearInterval(staleIntervalRef.current);
-      staleIntervalRef.current = null;
+  const _tick = useTick(isProcessing, 5000);
+  const checkStale = useCallback(() => {
+    const store = useProcessingStore.getState();
+    const elapsedSinceProgress = Date.now() - store.lastProgressTime;
+    if (
+      elapsedSinceProgress > FFMPEG_STALE_THRESHOLD_MS &&
+      ffmpegService.getBusyState()
+    ) {
+      console.warn(
+        `[Stale Detection] Progress stalled for ${elapsedSinceProgress}ms while FFmpeg is busy.`,
+      );
+      setStale(store.currentTaskId);
     }
-    setIsStale(false);
-    setStaleTaskId(null);
-  }, []);
+  }, [ffmpegService, setStale]);
+
+  // Trigger stale check on every _tick increment while processing
+  useEffect(() => {
+    if (isProcessing) {
+      checkStale();
+    }
+  }, [_tick, isProcessing, checkStale]);
 
   return {
     isProcessing,
-    setIsProcessing,
-    isProcessingRef,
+    isProcessingRef: { current: getProcessingGuard() },
     isStale,
     staleTaskId,
     status,
-    setStatus: setStatusRef,
-    lastProgressTimeRef,
-    currentTaskIdRef,
-    resetStaleState,
-    touchProgress,
-    setCurrentTask,
-    cleanup,
+    setStatus,
   };
 }

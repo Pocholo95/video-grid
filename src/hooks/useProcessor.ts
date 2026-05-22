@@ -1,23 +1,12 @@
 import { useCallback } from "react";
-import type { TaskItem } from "../types";
+import type { TaskItem } from "@/types";
 import { useFFmpegService } from "./useFFmpegService";
 import { useMediaInfoService } from "./useMediaInfoService";
 import { useProcessorStatus } from "./useProcessorStatus";
 import { useFileAnalyzer } from "./useFileAnalyzer";
 import { useBatchProcessor } from "./useBatchProcessor";
 import { useGridRenderer } from "./useGridRenderer";
-
-export type ProcessorStatus = {
-  text: string;
-  textKind?: "info" | "success" | "warning" | "cancelled";
-  currentPct: number;
-  batchDone: number;
-  batchTotal: number;
-  batchStartTime: number | null;
-  batchDurationMs: number | null;
-};
-
-type Updater = (id: string, patch: Partial<TaskItem>) => void;
+import { useProcessingStore } from "@/store/processingStore";
 
 /**
  * Orchestrator hook that composes the split service hooks:
@@ -28,7 +17,9 @@ type Updater = (id: string, patch: Partial<TaskItem>) => void;
  *
  * @param updateItem - Callback to patch a single TaskItem by id.
  */
-export function useProcessor(updateItem: Updater) {
+export function useProcessor(
+  updateItem: (id: string, patch: Partial<TaskItem>) => void,
+) {
   // --- Services ---
   const ffmpeg = useFFmpegService();
   const mediainfo = useMediaInfoService();
@@ -41,16 +32,12 @@ export function useProcessor(updateItem: Updater) {
     status,
     setStatus,
     isProcessingRef,
-    setIsProcessing,
   } = useProcessorStatus(updateItem, ffmpeg);
 
   // --- Split hooks ---
   const { analyzeFiles } = useFileAnalyzer(updateItem, setStatus, mediainfo);
   const gridRenderer = useGridRenderer();
   const { processAll, requestCancel, forceCancel } = useBatchProcessor(
-    updateItem,
-    setStatus,
-    setIsProcessing,
     gridRenderer,
     ffmpeg,
     mediainfo,
@@ -60,15 +47,8 @@ export function useProcessor(updateItem: Updater) {
   const resetState = useCallback(async () => {
     await ffmpeg.destroy();
     mediainfo.destroy();
-    setStatus({
-      text: "Selection cleared.",
-      currentPct: 0,
-      batchDone: 0,
-      batchTotal: 0,
-      batchStartTime: null,
-      batchDurationMs: null,
-    });
-  }, [ffmpeg, mediainfo, setStatus]);
+    useProcessingStore.getState().resetState();
+  }, [ffmpeg, mediainfo]);
 
   return {
     isProcessing,

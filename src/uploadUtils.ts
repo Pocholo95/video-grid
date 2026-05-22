@@ -61,7 +61,7 @@ export const buildFormats = (
     },
     {
       key: "bbcodePostTemplate",
-      label: "Post Template",
+      label: "BBCode — Post Template",
       value: `[b]${filenameNoExt}${resolution ? ` ${resolution}` : ""}[/b]\n[url=${r.pageUrl}][img]${r.mediumUrl ?? r.thumbUrl}[/img][/url]`,
       description: "Forum-style template for this upload",
       fieldType: "textarea",

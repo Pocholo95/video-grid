@@ -14,6 +14,7 @@ import { Dialog, DialogPortal, DialogOverlay } from "@/components/ui/dialog";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { getOrCreateUrl } from "@/lib/blobCache";
 import type { TaskItem } from "../types";
 import { calculateSampleTimes } from "../gridUtils";
 import { formatTimeExact } from "../utils";
@@ -200,12 +201,12 @@ export default function TimestampEditor({
     setSelectedMarker(markers.length > 0 ? 0 : null);
   }, [videoReady]);
 
-  // Create object URL for the video file.
+  // Create object URL for the video file (using blob cache).
   useEffect(() => {
-    const url = URL.createObjectURL(item.file);
+    const url = getOrCreateUrl(item.file);
     setBlobUrl(url);
     return () => {
-      URL.revokeObjectURL(url);
+      // Blob cache handles URL lifecycle globally.
       if (clickTimerRef.current) window.clearTimeout(clickTimerRef.current);
     };
   }, [item.file]);
@@ -416,6 +417,9 @@ export default function TimestampEditor({
           <DialogPrimitive.Title className="sr-only">
             Edit timestamps for {item.file.name}
           </DialogPrimitive.Title>
+          <DialogPrimitive.Description className="sr-only">
+            Customize the timestamps used to capture the video frames
+          </DialogPrimitive.Description>
           <div className="flex items-center justify-between gap-3">
             <h2 className="flex min-w-0 items-center gap-2 text-base font-semibold sm:text-lg">
               <Target className="size-5 shrink-0" />

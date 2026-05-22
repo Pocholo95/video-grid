@@ -9,7 +9,7 @@ import {
   Trash2,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
-import type { ProcessorStatus } from "../hooks/useProcessor";
+import type { ProcessorStatus } from "@/types";
 import { formatElapsed } from "../utils";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -81,8 +81,12 @@ export default function ProcessingPanel({
   const effectiveTotal = effectiveBatchTotal;
   const effectiveDone = effectiveBatchDone;
 
+  // Granular batch progress: completed files + current file's partial progress
+  // e.g. with 3 files: 1 done + file 2 at 40% = (1 + 0.4)/3 * 100 = 46.7%
+  const granularDone =
+    effectiveDone + (isProcessing ? status.currentPct / 100 : 0);
   const batchPct =
-    effectiveTotal > 0 ? Math.round((effectiveDone / effectiveTotal) * 100) : 0;
+    effectiveTotal > 0 ? Math.round((granularDone / effectiveTotal) * 100) : 0;
 
   // Live elapsed string shown in the batch progress label while processing.
   const batchElapsedStr = status.batchStartTime

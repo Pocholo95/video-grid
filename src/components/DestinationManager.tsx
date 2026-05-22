@@ -153,6 +153,8 @@ export default function DestinationManager({
       d.id === id ? { ...d, enabled: !d.enabled } : d,
     );
     setList(newList);
+    // Enabled state is persisted only when user clicks "Save & close" below
+    // (via onSave → updateDestinations → persistAppSettings)
   };
 
   const removeItem = (id: string) => {
@@ -337,10 +339,18 @@ export default function DestinationManager({
         )}
 
         <DialogFooter>
-          <Button variant="secondary" onClick={handleDiscardAndClose}>
+          <Button
+            variant="secondary"
+            onClick={handleDiscardAndClose}
+            disabled={editing !== null}
+          >
             Discard changes
           </Button>
-          <Button variant="default" onClick={handleSaveAndClose}>
+          <Button
+            variant="default"
+            onClick={handleSaveAndClose}
+            disabled={editing !== null}
+          >
             Save & close
           </Button>
         </DialogFooter>

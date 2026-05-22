@@ -65,7 +65,7 @@ function Field({
 }
 
 /**
- * Label for a Field. Wraps shadcn's Label primitive (which itself wraps
+ * Label for a Field. Wraps Radix's Label primitive (which itself wraps
  * Radix Label) and adds field-level styling tweaks (peer-disabled color,
  * cursor-pointer for clickable rows).
  */

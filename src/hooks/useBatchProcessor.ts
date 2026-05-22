@@ -2,7 +2,7 @@ import { useCallback, useRef } from "react";
 import { ANIMATED_COMPOSE_PCT, ANIMATED_ENCODE_PCT } from "../constants";
 import type { IGridRenderer } from "../types/service";
 import type { IFFmpegService, IMediaInfoService } from "../types/service";
-import type { TaskItem, SavedOptions, ProcessorStatus } from "../types";
+import type { TaskItem, SavedOptions } from "../types";
 import {
   buildStaticGridOptions,
   buildAnimatedGridOptions,
@@ -15,27 +15,21 @@ import {
   log,
   warn,
 } from "../utils";
-
-type Updater = (id: string, patch: Partial<TaskItem>) => void;
-type StatusSetter = (
-  status: ProcessorStatus | ((prev: ProcessorStatus) => ProcessorStatus),
-) => void;
-type ProcessingSetter = (value: boolean) => void;
+import { useTaskStore } from "@/store/taskStore";
+import {
+  useProcessingStore,
+  getProcessingGuard,
+  setProcessingGuard,
+} from "@/store/processingStore";
 
 /**
  * Hook that handles batch processing: iterating over queued items,
  * generating grid images, tracking progress, and handling errors/cancels.
  *
- * @param updateItem - Callback to patch a single TaskItem by id.
- * @param setStatus - Callback to update the processor UI status.
- * @param gridRenderer - GridRenderer service (uses FFmpegService internally).
- * @param ffmpeg - FFmpeg service for lifecycle management (reset/reinit/logs).
- * @param mediainfo - MediaInfo service instance.
+ * Uses Zustand store action methods (updateItem, setIsProcessing, setStatus)
+ * instead of raw setState mutations for better encapsulation.
  */
 export function useBatchProcessor(
-  updateItem: Updater,
-  setStatus: StatusSetter,
-  setIsProcessing: ProcessingSetter,
   gridRenderer: IGridRenderer,
   ffmpeg: IFFmpegService,
   mediainfo: IMediaInfoService,
@@ -47,15 +41,10 @@ export function useBatchProcessor(
    * Process all queued items, generating a JPEG grid or animated WebP for each one.
    */
   const processAll = useCallback(
-    async (
-      items: TaskItem[],
-      opts: SavedOptions,
-      isProcessingRef: { current: boolean },
-      isTaskActive?: (id: string) => boolean,
-    ) => {
-      if (isProcessingRef.current || !items.length) return;
-      isProcessingRef.current = true;
-      setIsProcessing(true);
+    async (items: TaskItem[], opts: SavedOptions) => {
+      if (getProcessingGuard() || !items.length) return;
+      setProcessingGuard(true);
+      useProcessingStore.getState().setIsProcessing(true);
       cancelRef.current = false;
 
       const isAnimated = opts.animated ?? false;
@@ -65,7 +54,7 @@ export function useBatchProcessor(
       let cancelled = 0;
       const batchStartTime = Date.now();
 
-      setStatus({
+      useProcessingStore.getState().setStatus({
         text: "Starting…",
         currentPct: 0,
         batchDone: 0,
@@ -74,14 +63,33 @@ export function useBatchProcessor(
         batchDurationMs: null,
       });
 
+      // Dynamic queue: starts with the initial items, but new queued items
+      // added during processing are picked up automatically.
+      const queue: TaskItem[] = [...items];
+
       try {
-        for (const item of items) {
-          if (isTaskActive && !isTaskActive(item.id)) {
+        let idx = 0;
+        while (idx < queue.length) {
+          const item = queue[idx];
+
+          // Check if item still exists in store (may have been removed)
+          const storeItems = useTaskStore.getState().items;
+          const stillExists = storeItems.find((i) => i.id === item.id);
+          if (!stillExists) {
+            idx++;
+            continue;
+          }
+
+          // Check if item is still queued (may have been processed already)
+          if (item.status !== "queued") {
+            idx++;
             continue;
           }
 
           if (cancelRef.current) {
-            updateItem(item.id, { status: "cancelled" });
+            useTaskStore
+              .getState()
+              .updateItem(item.id, { status: "cancelled" });
             cancelled++;
             continue;
           }
@@ -89,7 +97,7 @@ export function useBatchProcessor(
           const itemStartTime = Date.now();
           ffmpeg.setTaskId(item.id);
           ffmpeg.setAbortController();
-          updateItem(item.id, {
+          useTaskStore.getState().updateItem(item.id, {
             status: "processing",
             error: undefined,
             processingStartedAt: itemStartTime,
@@ -97,7 +105,7 @@ export function useBatchProcessor(
           });
 
           const batchProcessed = succeeded + errored;
-          setStatus({
+          useProcessingStore.getState().setStatus({
             text: `"${item.file.name}" — opening…`,
             currentPct: 0,
             batchDone: batchProcessed,
@@ -106,10 +114,14 @@ export function useBatchProcessor(
             batchDurationMs: null,
           });
 
+          // Update stale detection
+          useProcessingStore.getState().touchProgress();
+          useProcessingStore.getState().setCurrentTask(item.id);
+
           log(`Starting "${item.file.name}"`);
 
           const onWarning = (message: string) => {
-            updateItem(item.id, { warning: message });
+            useTaskStore.getState().updateItem(item.id, { warning: message });
             warn(`[${item.file.name}] ${message}`);
           };
 
@@ -117,13 +129,13 @@ export function useBatchProcessor(
             let meta = item.metadata;
             if (!meta) {
               meta = await mediainfo.analyze(item.file, (pct, msg) => {
-                setStatus((prev) => ({
+                useProcessingStore.getState().setStatus((prev) => ({
                   ...prev,
                   text: `"${item.file.name}" — ${msg}`,
                   currentPct: pct,
                 }));
               });
-              updateItem(item.id, { metadata: meta });
+              useTaskStore.getState().updateItem(item.id, { metadata: meta });
             }
 
             if (!hasUsableMetadata(meta)) {
@@ -142,7 +154,7 @@ export function useBatchProcessor(
                 composedFrame: number,
                 totalFrames: number,
               ) => {
-                setStatus((prev) => ({
+                useProcessingStore.getState().setStatus((prev) => ({
                   ...prev,
                   text: `"${item.file.name}" — composing frame ${composedFrame}/${totalFrames}`,
                   currentPct:
@@ -150,6 +162,7 @@ export function useBatchProcessor(
                   batchDone: succeeded + errored,
                   batchTotal: items.length,
                 }));
+                useProcessingStore.getState().touchProgress();
               };
 
               const onEncodeProgress = (ratio: number) => {
@@ -158,13 +171,14 @@ export function useBatchProcessor(
                   ratio < 0.5
                     ? `preparing frames (${Math.round((ratio / 0.5) * 100)}%)`
                     : `encoding WebP (${Math.round(((ratio - 0.5) / 0.5) * 100)}%)`;
-                setStatus((prev) => ({
+                useProcessingStore.getState().setStatus((prev) => ({
                   ...prev,
                   text: `"${item.file.name}" — ${phaseLabel}`,
                   currentPct: pct,
                   batchDone: succeeded + errored,
                   batchTotal: items.length,
                 }));
+                useProcessingStore.getState().touchProgress();
               };
 
               res = await gridRenderer.renderAnimatedGrid(
@@ -182,13 +196,14 @@ export function useBatchProcessor(
                 totalFrames: number,
                 tSec: number,
               ) => {
-                setStatus((prev) => ({
+                useProcessingStore.getState().setStatus((prev) => ({
                   ...prev,
                   text: `"${item.file.name}" — frame ${frameIdx}/${totalFrames} @ ${formatTime(tSec)}`,
                   currentPct: (frameIdx / totalFrames) * 100,
                   batchDone: succeeded + errored,
                   batchTotal: items.length,
                 }));
+                useProcessingStore.getState().touchProgress();
               };
 
               res = await gridRenderer.renderStaticGrid(
@@ -203,7 +218,7 @@ export function useBatchProcessor(
 
             const ffmpegLogs = ffmpeg.getAndClearLogs(item.id);
             const itemCancelledMidProcessing = cancelRef.current;
-            updateItem(item.id, {
+            useTaskStore.getState().updateItem(item.id, {
               outputName: res.outputName,
               outputSize: res.outputSize,
               outputBlob: res.outputBlob,
@@ -220,7 +235,7 @@ export function useBatchProcessor(
             }
 
             log(`Finished "${item.file.name}"`);
-            setStatus((prev) => ({
+            useProcessingStore.getState().setStatus((prev) => ({
               ...prev,
               currentPct: 100,
               batchDone: succeeded + errored,
@@ -232,7 +247,7 @@ export function useBatchProcessor(
             const wasUserCancelled = cancelRef.current;
             forceCancelCurrentRef.current = false;
             const itemErrored = !(wasUserCancelled || wasForceCancelled);
-            updateItem(item.id, {
+            useTaskStore.getState().updateItem(item.id, {
               status:
                 wasUserCancelled || wasForceCancelled ? "cancelled" : "error",
               error: msg,
@@ -246,7 +261,7 @@ export function useBatchProcessor(
             }
             errlog(`Failed "${item.file.name}":`, e);
             const batchProcessed = succeeded + errored;
-            setStatus((prev) => ({
+            useProcessingStore.getState().setStatus((prev) => ({
               ...prev,
               text: `Error on "${item.file.name}": ${msg}`,
               textKind: wasForceCancelled ? "cancelled" : undefined,
@@ -260,11 +275,25 @@ export function useBatchProcessor(
               await ffmpeg.reset();
             }
           }
+
+          idx++;
+
+          // Pick up any newly added queued items so they're processed in
+          // the same batch instead of being left behind.
+          const existingIds = new Set(queue.slice(idx).map((q) => q.id));
+          const newQueued = useTaskStore
+            .getState()
+            .items.filter(
+              (i) => i.status === "queued" && !existingIds.has(i.id),
+            );
+          if (newQueued.length > 0) {
+            queue.push(...newQueued);
+          }
         }
       } finally {
         const batchDurationMs = Date.now() - batchStartTime;
-        isProcessingRef.current = false;
-        setIsProcessing(false);
+        setProcessingGuard(false);
+        useProcessingStore.getState().setIsProcessing(false);
         const total = items.length;
         const parts = [`${succeeded} succeeded`, `${errored} failed`];
         if (cancelled > 0) {
@@ -273,7 +302,7 @@ export function useBatchProcessor(
         const breakdown = parts.join(", ");
         const label = cancelRef.current ? "Cancelled" : "Done";
 
-        setStatus({
+        useProcessingStore.getState().setStatus({
           currentPct: 0,
           batchDone: succeeded + errored,
           batchTotal: 0,
@@ -284,22 +313,25 @@ export function useBatchProcessor(
         });
       }
     },
-    [updateItem, setStatus, setIsProcessing, ffmpeg, mediainfo, gridRenderer],
+    [ffmpeg, mediainfo, gridRenderer],
   );
 
   /** Signal the running batch to stop after the current frame completes. */
   const requestCancel = useCallback(() => {
     cancelRef.current = true;
-    setStatus((prev) => ({ ...prev, text: "Cancelling…" }));
+    useProcessingStore.getState().setStatus((prev) => ({
+      ...prev,
+      text: "Cancelling…",
+    }));
     warn("Cancel requested by user");
-  }, [setStatus]);
+  }, []);
 
   /**
    * Force-kill the FFmpeg WASM instance for the current item only.
    */
   const forceCancel = useCallback(async () => {
     forceCancelCurrentRef.current = true;
-    setStatus((prev) => ({
+    useProcessingStore.getState().setStatus((prev) => ({
       ...prev,
       text: "Force-killing FFmpeg…",
       textKind: "warning",
@@ -308,7 +340,7 @@ export function useBatchProcessor(
     await ffmpeg.reset();
     try {
       await ffmpeg.reinit();
-      setStatus((prev) => ({
+      useProcessingStore.getState().setStatus((prev) => ({
         ...prev,
         text: "FFmpeg restored — continuing to next file.",
         textKind: "info",
@@ -316,13 +348,13 @@ export function useBatchProcessor(
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       errlog("FFmpeg re-initialization failed:", msg);
-      setStatus((prev) => ({
+      useProcessingStore.getState().setStatus((prev) => ({
         ...prev,
         text: `FFmpeg restore failed: ${msg}. Subsequent files will be skipped.`,
         textKind: "warning",
       }));
     }
-  }, [setStatus, ffmpeg]);
+  }, [ffmpeg]);
 
   return { processAll, requestCancel, forceCancel };
 }

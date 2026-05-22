@@ -80,14 +80,13 @@ trigger an upload.
    to select files from your filesystem.
 2. **Review analysis:** Each video is immediately analyzed and added to the
    "Tasks" list with its detected properties. Add more files at any time.
-3. **Customize options** _(optional)_ — Adjust grid size, style, animation,
+3. **Customize options:** _(optional)_ Adjust grid size, style, animation,
    or VR settings as described in [Generation Options](#generation-options).
 4. **Start processing:** Click "▶️ Start Processing" to generate thumbnail
    grids sequentially for all queued tasks.
 5. **Download/Upload/Requeue:** After processing, use the "Download JPG" (or
-   WebP) button to save the grid, the "Copy" button to grab a formatted
-   BBCode title, or "Requeue" to process the same video again with different
-   settings.
+   WebP) button to save the grid, or "Requeue" to process the same video
+   again with different settings.
    If you have configured one or more [Upload destinations](#upload-destinations),
    a third button captioned "Upload" will appear.
 
@@ -95,7 +94,7 @@ trigger an upload.
 
 ## Generation Options
 
-The controls are grouped into three fieldsets: **Grid**, **Style**, and **Output Modes**.
+The controls are grouped into three fieldsets: **Grid**, **Output Modes**, and **Style**.
 
 ### Grid
 
@@ -202,6 +201,7 @@ specific video.
 - **Works with animation:** custom timestamps apply to both static JPEG
   and animated WebP modes
 - **Per-file:** each video keeps its own custom markers independently
+  (but they are not preserved in presets).
 
 ---
 
@@ -374,16 +374,16 @@ After a successful upload, each task item shows a collapsible link panel
 (one per destination). Expand it with the destination name button to access the
 following link formats:
 
-| Format                  | Description                                                            |
-| ----------------------- | ---------------------------------------------------------------------- |
-| **Direct URL**          | Full-resolution image link                                             |
-| **Viewer page**         | Host viewer/page URL                                                   |
-| **BBCode - full image** | `[img]...[/img]` tag                                                   |
-| **BBCode - medium**     | Medium-size image linking to the viewer page (when provided by host)   |
-| **BBCode - thumbnail**  | Thumbnail linking to the viewer page                                   |
-| **Markdown**            | `![alt](url)`                                                          |
-| **HTML img**            | `<img src="..." alt="..." />`                                          |
-| **Post Template**       | Forum-style BBCode block with title and thumbnail (see Copy All below) |
+| Format                     | Description                                                            |
+| -------------------------- | ---------------------------------------------------------------------- |
+| **BBCode — full image**    | `[img]...[/img]` tag                                                   |
+| **BBCode — medium**        | Medium-size image linking to the viewer page (when provided by host)   |
+| **BBCode — thumbnail**     | Thumbnail linking to the viewer page                                   |
+| **BBCode — Post Template** | Forum-style BBCode block with title and thumbnail (see Copy All below) |
+| **Direct URL**             | Full-resolution image link                                             |
+| **Viewer page**            | Host viewer/page URL                                                   |
+| **Markdown**               | `![alt](url)`                                                          |
+| **HTML img**               | `<img src="..." alt="..." />`                                          |
 
 Each row has an individual **Copy** button. You can also **delete the image**
 from the host using the **🗑 Delete** link in the panel header — this opens the
@@ -391,9 +391,9 @@ host's delete URL in a new tab.
 
 ### Copy All
 
-When at least one task output has been uploaded, a **Copy all links** bar appears
+When at least one file has been analyzed, a **Copy all links** bar appears
 above the tasks list. Use the dropdown to select a format and click **Copy All**
-to copy links for all uploaded outputs at once, one per line.
+to copy links all uploaded outputs at once, one per line.
 
 The **Post Template** format produces a BBCode block per output: a bold title
 line (`[b]filename resolution[/b]`) followed by thumbnail links from every
@@ -462,6 +462,7 @@ See [RELEASE.md](./RELEASE.md) for deployment instructions
 
 - [Vite](https://vitejs.dev/) with TypeScript
 - [React JS](https://react.dev/)
+- [Zustand/Immer](https://zustand.site/) — state management and middleware
 - [TailwindCSS](https://tailwindcss.com/)
 - [Radix UI](https://www.radix-ui.com/)
 - [Lucide](https://lucide.dev/)

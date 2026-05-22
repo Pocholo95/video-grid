@@ -46,12 +46,9 @@ function CollapsibleContent({
       <span style={{ display: "contents" }}>
         <div
           className={cn(
-            "grid grid-cols-1",
-            "overflow-hidden",
+            "grid grid-cols-1 overflow-hidden",
+            "transition-[grid-template-rows] duration-250 ease-out",
             open ? "grid-rows-[1fr]" : "grid-rows-[0fr]",
-            "transition-[grid-template-rows]",
-            "duration-250",
-            "ease-out]",
             className,
           )}
         >
