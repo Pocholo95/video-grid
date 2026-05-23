@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Check, Copy } from "lucide-react";
 import type { DestinationUploadState, TaskItem, UploadResult } from "../types";
 import { resolutionLabel, buildFormats } from "../uploadUtils";
+import { buildBbcodeTitle } from "../utils";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import {
@@ -102,14 +103,8 @@ function buildCopyText(items: TaskItem[], format: FormatKey): string {
   if (format === "bbcodeTitleRes") {
     // Title + resolution: works as long as metadata is available
     return items
-      .filter((i) => i.metadata)
-      .map((item) => {
-        const name = (item.outputName ?? item.file.name)
-          .replace(/\.[^.]+$/, "")
-          .replace(/\.[^.]+$/, "");
-        const res = resolutionLabel(item.metadata);
-        return `[b]${name}${res ? ` ${res}` : ""}[/b]`;
-      })
+      .map((item) => buildBbcodeTitle(item))
+      .filter((value): value is string => Boolean(value))
       .join("\n");
   }
 

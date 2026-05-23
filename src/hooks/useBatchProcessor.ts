@@ -91,6 +91,7 @@ export function useBatchProcessor(
               .getState()
               .updateItem(item.id, { status: "cancelled" });
             cancelled++;
+            idx++;
             continue;
           }
 

@@ -1,5 +1,6 @@
 import { DEBUG } from "./constants";
-import type { VideoMetadata } from "./types";
+import type { TaskItem, VideoMetadata } from "./types";
+import { resolutionLabel } from "./uploadUtils";
 
 // Logging - all calls are no-ops when DEBUG is false.
 export const log = (...a: unknown[]) => DEBUG && console.log("[VidGrid]", ...a);
@@ -137,4 +138,21 @@ export const hexToRgba = (hex: string, alpha: number = 1): string => {
   const g = parseInt(fullHex.slice(2, 4), 16);
   const b = parseInt(fullHex.slice(4, 6), 16);
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+};
+
+/**
+ * Build a BBCode "title + resolution" string for a single task item.
+ * Uses `resolutionLabel` to derive a standard resolution tag (e.g. "1080p")
+ * from the video metadata when available. Falls back to title-only when
+ * metadata is missing.
+ *
+ * @param item - The TaskItem to build a title for.
+ * @returns The formatted BBCode string.
+ */
+export const buildBbcodeTitle = (item: TaskItem): string => {
+  const name = (item.outputName ?? item.file.name)
+    .replace(/\.[^.]+$/, "")
+    .replace(/\.[^.]+$/, "");
+  const res = item.metadata ? resolutionLabel(item.metadata) : "";
+  return `[b]${name}${res ? ` ${res}` : ""}[/b]`;
 };

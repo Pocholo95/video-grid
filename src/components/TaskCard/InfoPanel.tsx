@@ -5,7 +5,7 @@ import { Field, FieldLabel } from "@/components/ui/field";
 import { Progress } from "@/components/ui/progress";
 import type { TaskItem } from "@/types";
 import type { UploadDestination } from "@/types";
-import { humanSize } from "@/utils";
+import { buildBbcodeTitle, humanSize } from "@/utils";
 
 interface Props {
   item: TaskItem;
@@ -37,9 +37,7 @@ export default function InfoPanel({
     enabledDests.every((d) => item.uploads?.[d.id]?.status === "done");
 
   // BBCode video title
-  const bbcodeVideoTitle = item.metadata
-    ? `[b]${(item.outputName ?? item.file.name).replace(/\.[^.]+$/, "").replace(/\.[^.]+$/, "")}${item.metadata.width ? ` ${item.metadata.width}p` : ""}[/b]`
-    : null;
+  const bbcodeVideoTitle = buildBbcodeTitle(item);
 
   return (
     <div className="flex flex-col gap-2 text-sm">
@@ -62,14 +60,12 @@ export default function InfoPanel({
           </span>
         )}
       </p>
-      {bbcodeVideoTitle && (
-        <div className="flex flex-col gap-1 my-2">
-          <span className="text-xs font-medium">
-            BBCode – video title + resolution
-          </span>
-          <CopyField value={bbcodeVideoTitle} fieldType="input" />
-        </div>
-      )}
+      <div className="flex flex-col gap-1 my-2">
+        <span className="text-xs font-medium">
+          BBCode – video title + resolution
+        </span>
+        <CopyField value={bbcodeVideoTitle} fieldType="input" />
+      </div>
       <div className="mt-1 flex flex-wrap gap-2">
         {isDone && item.outputBlob && item.outputName && (
           <Button asChild variant="outline" size="sm">
