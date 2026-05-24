@@ -16,11 +16,16 @@ export function buildCellOptions(opts: SavedOptions): CellExtractionOptions {
     cols: Math.max(1, opts.cols || DEFAULTS.cols),
     rows: Math.max(1, opts.rows || DEFAULTS.rows),
     spacing: Math.max(0, opts.spacing || DEFAULTS.spacing),
-    position: opts.position ?? DEFAULTS.position,
+    tcPosition: opts.tcPosition ?? DEFAULTS.tcPosition,
     header: opts.header ?? DEFAULTS.header,
     bgColor: opts.bgColor || DEFAULTS.bgColor,
     textColor: opts.textColor || DEFAULTS.textColor,
     vrMode: opts.vrMode ?? DEFAULTS.vrMode,
+    fontFamily: opts.fontFamily ?? DEFAULTS.fontFamily,
+    tcFontSizeAuto: opts.tcFontSizeAuto ?? DEFAULTS.tcFontSizeAuto,
+    tcFontSize: opts.tcFontSize ?? DEFAULTS.tcFontSize,
+    headerFontSizeAuto: opts.headerFontSizeAuto ?? DEFAULTS.headerFontSizeAuto,
+    headerFontSize: opts.headerFontSize ?? DEFAULTS.headerFontSize,
     gridTemplate:
       opts.gridTemplate && opts.gridTemplate.cells.length > 0
         ? opts.gridTemplate

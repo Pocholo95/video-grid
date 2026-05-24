@@ -31,9 +31,7 @@ import { errlog, formatTime, log, warn } from "../utils";
 import { isAbortError, isMemoryError } from "./ffmpeg.service";
 import { JPEG_QUALITY } from "@/constants";
 
-/* ------------------------------------------------------------------ */
-/*  GridRenderer Implementation                                       */
-/* ------------------------------------------------------------------ */
+/** - GridRenderer Implementation */
 
 export class GridRenderer implements IGridRenderer {
   private readonly ffmpeg: IFFmpegService;
@@ -48,9 +46,7 @@ export class GridRenderer implements IGridRenderer {
     this.ffmpeg = ffmpegService;
   }
 
-  /* -------------------------------------------------------------- */
-  /*  Static JPEG Grid                                                */
-  /* -------------------------------------------------------------- */
+  /** - Static JPEG Grid */
 
   public async renderStaticGrid(
     file: File,
@@ -226,9 +222,12 @@ export class GridRenderer implements IGridRenderer {
         cellW,
         cellH,
         canvasWidth,
-        opts.position,
+        opts.tcPosition,
         opts.bgColor,
         opts.textColor,
+        opts.fontFamily,
+        opts.tcFontSizeAuto,
+        opts.tcFontSize,
       );
 
       onCellDone(i + 1, totalCells, tSec);
@@ -251,9 +250,7 @@ export class GridRenderer implements IGridRenderer {
     return { outputName, outputSize: jpgBlob.size, outputBlob: jpgBlob };
   }
 
-  /* -------------------------------------------------------------- */
-  /*  Animated WebP Grid                                              */
-  /* -------------------------------------------------------------- */
+  /** - Animated WebP Grid */
 
   public async renderAnimatedGrid(
     file: File,
@@ -380,9 +377,12 @@ export class GridRenderer implements IGridRenderer {
             cellW,
             cellH,
             canvasWidth,
-            opts.position,
+            opts.tcPosition,
             opts.bgColor,
             opts.textColor,
+            opts.fontFamily,
+            opts.tcFontSizeAuto,
+            opts.tcFontSize,
           );
         }
 
@@ -442,9 +442,7 @@ export class GridRenderer implements IGridRenderer {
     return { outputName, outputSize: webpBlob.size, outputBlob: webpBlob };
   }
 
-  /* -------------------------------------------------------------- */
-  /*  Lifecycle                                                       */
-  /* -------------------------------------------------------------- */
+  /** - Lifecycle */
 
   public async destroy(): Promise<void> {
     try {
@@ -455,9 +453,7 @@ export class GridRenderer implements IGridRenderer {
     this._inputFileCache = null;
   }
 
-  /* -------------------------------------------------------------- */
-  /*  Private Helpers                                                 */
-  /* -------------------------------------------------------------- */
+  /** - Private Helpers */
 
   private _getFileKey(file: File): string {
     return `${file.name}:${file.size}:${file.lastModified}:${file.type}`;
@@ -646,9 +642,7 @@ export class GridRenderer implements IGridRenderer {
   }
 }
 
-/* ------------------------------------------------------------------ */
-/*  Factory                                                             */
-/* ------------------------------------------------------------------ */
+/** - Factory */
 
 export function createGridRenderer(
   ffmpegService: IFFmpegService,

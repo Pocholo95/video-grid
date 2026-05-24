@@ -22,6 +22,8 @@ interface Props {
   showTextField?: boolean;
   /** Additional classes for the root container. */
   className?: string;
+  /** When true, the control is disabled (slider + text input). */
+  disabled?: boolean;
   /** When true, allows text input values outside [min, max] range. */
   unbounded?: boolean;
   /** Invisible absolute minimum (defaults to min if not provided). */
@@ -47,6 +49,7 @@ export default function RangeNumberInput({
   suffix,
   showTextField = true,
   className,
+  disabled = false,
   unbounded = false,
   hardMin,
   hardMax,
@@ -80,6 +83,7 @@ export default function RangeNumberInput({
     if (!el) return;
 
     const handler = (e: WheelEvent) => {
+      if (disabled) return;
       if (e.deltaY !== 0) {
         e.preventDefault();
         adjustValue(e.deltaY > 0 ? -1 : 1);
@@ -88,7 +92,7 @@ export default function RangeNumberInput({
 
     el.addEventListener("wheel", handler, { passive: false });
     return () => el.removeEventListener("wheel", handler);
-  }, [step, unbounded, min, max, actualMin, actualMax]);
+  }, [disabled, step, unbounded, min, max, actualMin, actualMax]);
 
   // Internal "draft" state for the text field so non-numeric keystrokes
   // don't cause immediate re-renders. Committed on blur / Enter.
@@ -138,7 +142,8 @@ export default function RangeNumberInput({
         step={step}
         value={[Math.max(min, Math.min(max, value))]}
         onValueChange={([v]) => onChange(v)}
-        className="flex-1"
+        disabled={disabled}
+        className={cn("flex-1", disabled && "opacity-50")}
       />
       {showTextField && (
         <div className="relative shrink-0">
@@ -149,7 +154,9 @@ export default function RangeNumberInput({
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
             onBlur={commitFromDraft}
+            disabled={disabled}
             onKeyDown={(e) => {
+              if (disabled) return;
               if (e.key === "Enter") {
                 e.preventDefault();
                 commitFromDraft();

@@ -22,17 +22,13 @@ vi.mock("mediainfo.js", () => {
 // Import after mock
 import { MediaInfoService } from "@/services/mediainfo.service";
 
-/* ------------------------------------------------------------------ */
-/*  Helpers                                                            */
-/* ------------------------------------------------------------------ */
+/** - Helpers */
 
 function createMockFile(): File {
   return new File([""], "test.mp4", { type: "video/mp4" });
 }
 
-/* ------------------------------------------------------------------ */
-/*  Tests                                                              */
-/* ------------------------------------------------------------------ */
+/** - Tests */
 
 describe("MediaInfoService", () => {
   let service: MediaInfoService;

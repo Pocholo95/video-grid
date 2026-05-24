@@ -16,9 +16,7 @@ import {
 import { STORAGE_SCHEMA_VERSION, APP_STORAGE_KEY } from "@/constants";
 import type { AppSettings } from "@/types";
 
-/* ------------------------------------------------------------------ */
-/*  Test fixtures                                                      */
-/* ------------------------------------------------------------------ */
+/** - Test fixtures */
 
 function getDefaultSettings(): AppSettings {
   return {
@@ -32,9 +30,7 @@ function getDefaultSettings(): AppSettings {
   };
 }
 
-/* ------------------------------------------------------------------ */
-/*  LocalStorageProvider                                               */
-/* ------------------------------------------------------------------ */
+/** - LocalStorageProvider */
 
 describe("LocalStorageProvider", () => {
   let provider: LocalStorageProvider;
@@ -99,9 +95,7 @@ describe("LocalStorageProvider", () => {
   });
 });
 
-/* ------------------------------------------------------------------ */
-/*  VersionedStorage                                                   */
-/* ------------------------------------------------------------------ */
+/** - VersionedStorage */
 
 describe("VersionedStorage", () => {
   let provider: LocalStorageProvider;
@@ -184,9 +178,7 @@ describe("VersionedStorage", () => {
   });
 });
 
-/* ------------------------------------------------------------------ */
-/*  createVersionedStorage factory                                     */
-/* ------------------------------------------------------------------ */
+/** - createVersionedStorage factory */
 
 describe("createVersionedStorage", () => {
   it("returns a VersionedStorage instance backed by localStorage", () => {

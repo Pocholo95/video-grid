@@ -3,8 +3,18 @@ import { Copy, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
+import RangeNumberInput from "@/components/control/RangeNumberInput";
 import Section from "./Section";
 import type { SavedOptions } from "../../types";
+import { FONT_FACES, FONT_SIZE_MIN, FONT_SIZE_MAX } from "../../constants";
 
 interface Props {
   opts: SavedOptions;
@@ -168,20 +178,116 @@ export default function StyleSection({
 
   return (
     <Section label="Style" expanded={expanded} onToggle={onToggle}>
-      <ColorField
-        label="Background color"
-        id="bg-color"
-        value={opts.bgColor}
-        draft={draftBg}
-        keyName="bgColor"
-      />
-      <ColorField
-        label="Text color"
-        id="text-color"
-        value={opts.textColor}
-        draft={draftTx}
-        keyName="textColor"
-      />
+      {/* Background color - stacks on narrow screens, side-by-side on wider ones */}
+      <div className="col-span-2 md:col-span-1">
+        <ColorField
+          label="Background color"
+          id="bg-color"
+          value={opts.bgColor}
+          draft={draftBg}
+          keyName="bgColor"
+        />
+      </div>
+      {/* Text color - stacks on narrow screens, side-by-side on wider ones */}
+      <div className="col-span-2 md:col-span-1">
+        <ColorField
+          label="Text color"
+          id="text-color"
+          value={opts.textColor}
+          draft={draftTx}
+          keyName="textColor"
+        />
+      </div>
+
+      {/* Font Family - spans full width */}
+      <div className="col-span-2">
+        <Field>
+          <FieldLabel htmlFor="cp-font-family">Font family</FieldLabel>
+          <Select
+            value={opts.fontFamily}
+            onValueChange={(v) => setOpts({ ...opts, fontFamily: v })}
+          >
+            <SelectTrigger id="cp-font-family" className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {FONT_FACES.map((f) => (
+                <SelectItem key={f} value={f}>
+                  {f.split(",")[0]}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </Field>
+      </div>
+
+      {/* Timecode Font Size - stacks on narrow screens, side-by-side on wider ones */}
+      <div className="col-span-2 md:col-span-1">
+        <Field>
+          <FieldLabel>Timecode font size</FieldLabel>
+          <div className="flex items-center gap-3">
+            <RangeNumberInput
+              id="tc-font-size"
+              min={FONT_SIZE_MIN}
+              max={FONT_SIZE_MAX}
+              step={1}
+              value={opts.tcFontSize}
+              onChange={(v) => setOpts({ ...opts, tcFontSize: v })}
+              disabled={opts.tcFontSizeAuto}
+              suffix="px"
+              className="flex-1"
+            />
+            <Checkbox
+              id="tc-font-auto"
+              checked={opts.tcFontSizeAuto}
+              onCheckedChange={(checked) =>
+                setOpts({ ...opts, tcFontSizeAuto: !!checked })
+              }
+              className="shrink-0"
+            />
+            <label
+              htmlFor="tc-font-auto"
+              className="text-sm cursor-pointer whitespace-nowrap shrink-0"
+            >
+              Auto
+            </label>
+          </div>
+        </Field>
+      </div>
+
+      {/* Header Font Size - stacks on narrow screens, side-by-side on wider ones */}
+      <div className="col-span-2 md:col-span-1">
+        <Field>
+          <FieldLabel>Header font size</FieldLabel>
+          <div className="flex items-center gap-3">
+            <RangeNumberInput
+              id="header-font-size"
+              min={FONT_SIZE_MIN}
+              max={FONT_SIZE_MAX}
+              step={1}
+              value={opts.headerFontSize}
+              onChange={(v) => setOpts({ ...opts, headerFontSize: v })}
+              disabled={opts.headerFontSizeAuto}
+              suffix="px"
+              className="flex-1"
+            />
+            <Checkbox
+              id="header-font-auto"
+              checked={opts.headerFontSizeAuto}
+              onCheckedChange={(checked) =>
+                setOpts({ ...opts, headerFontSizeAuto: !!checked })
+              }
+              className="shrink-0"
+            />
+            <label
+              htmlFor="header-font-auto"
+              className="text-sm cursor-pointer whitespace-nowrap shrink-0"
+            >
+              Auto
+            </label>
+          </div>
+        </Field>
+      </div>
     </Section>
   );
 }

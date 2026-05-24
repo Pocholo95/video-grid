@@ -13,9 +13,7 @@ import {
 } from "@/gridUtils";
 import { createTestMeta } from "../helpers/mockServices";
 
-/* ------------------------------------------------------------------ */
-/*  CanvasRenderingContext2D mock                                       */
-/* ------------------------------------------------------------------ */
+/** - CanvasRenderingContext2D mock */
 
 function createMockContext() {
   const mockCtx = {
@@ -35,6 +33,12 @@ function createMockContext() {
   };
   return mockCtx;
 }
+
+const DEFAULT_FONT_FAMILY = "Arial, sans-serif";
+const DEFAULT_TC_FONT_SIZE_AUTO = true;
+const DEFAULT_TC_FONT_SIZE = 24;
+const DEFAULT_HEADER_FONT_SIZE_AUTO = true;
+const DEFAULT_HEADER_FONT_SIZE = 16;
 
 describe("canvas rendering", () => {
   const mockMeta = createTestMeta();
@@ -70,6 +74,9 @@ describe("canvas rendering", () => {
         1920,
         "#000000",
         "#ffffff",
+        DEFAULT_FONT_FAMILY,
+        DEFAULT_HEADER_FONT_SIZE_AUTO,
+        DEFAULT_HEADER_FONT_SIZE,
       );
 
       expect(mockCtx.fillRect).toHaveBeenCalled();
@@ -86,6 +93,9 @@ describe("canvas rendering", () => {
         1920,
         "#000000",
         "#ffffff",
+        DEFAULT_FONT_FAMILY,
+        DEFAULT_HEADER_FONT_SIZE_AUTO,
+        DEFAULT_HEADER_FONT_SIZE,
       );
 
       const fillTextCalls = mockCtx.fillText.mock.calls;
@@ -104,6 +114,9 @@ describe("canvas rendering", () => {
         1920,
         "#000000",
         "#ffffff",
+        DEFAULT_FONT_FAMILY,
+        DEFAULT_HEADER_FONT_SIZE_AUTO,
+        DEFAULT_HEADER_FONT_SIZE,
       );
 
       const fillTextCalls = mockCtx.fillText.mock.calls;
@@ -122,6 +135,9 @@ describe("canvas rendering", () => {
         1920,
         "#000000",
         "#ffffff",
+        DEFAULT_FONT_FAMILY,
+        DEFAULT_HEADER_FONT_SIZE_AUTO,
+        DEFAULT_HEADER_FONT_SIZE,
       );
 
       const fillTextCalls = mockCtx.fillText.mock.calls;
@@ -143,6 +159,9 @@ describe("canvas rendering", () => {
           1920,
           "#000000",
           "#ffffff",
+          DEFAULT_FONT_FAMILY,
+          DEFAULT_HEADER_FONT_SIZE_AUTO,
+          DEFAULT_HEADER_FONT_SIZE,
         );
       }).not.toThrow();
 
@@ -158,9 +177,48 @@ describe("canvas rendering", () => {
         1920,
         "#1a1a2e",
         "#e0e0e0",
+        DEFAULT_FONT_FAMILY,
+        DEFAULT_HEADER_FONT_SIZE_AUTO,
+        DEFAULT_HEADER_FONT_SIZE,
       );
 
       expect(mockCtx.fillStyle).toBe("#e0e0e0");
+    });
+
+    it("uses font family and auto-scaled font size when auto is enabled", () => {
+      const file = new File([""], "test.mp4", { type: "video/mp4" });
+      createHeaderCanvas(
+        file,
+        mockMeta,
+        "disabled",
+        1920,
+        "#000000",
+        "#ffffff",
+        "Arial, sans-serif",
+        true,
+        16,
+      );
+
+      // Font should include the family and a computed size
+      expect(mockCtx.font).toMatch(/Arial/);
+    });
+
+    it("uses fixed font size when auto is disabled", () => {
+      const file = new File([""], "test.mp4", { type: "video/mp4" });
+      createHeaderCanvas(
+        file,
+        mockMeta,
+        "disabled",
+        1920,
+        "#000000",
+        "#ffffff",
+        "Arial, sans-serif",
+        false,
+        36,
+      );
+
+      // Font should be exactly 36px
+      expect(mockCtx.font).toMatch(/36px/);
     });
   });
 
@@ -184,6 +242,9 @@ describe("canvas rendering", () => {
         "top-left",
         "#000000",
         "#ffffff",
+        DEFAULT_FONT_FAMILY,
+        DEFAULT_TC_FONT_SIZE_AUTO,
+        DEFAULT_TC_FONT_SIZE,
       );
 
       expect(mockCtx.fillText).toHaveBeenCalled();
@@ -201,6 +262,9 @@ describe("canvas rendering", () => {
         "bottom-right",
         "#000000",
         "#ffffff",
+        DEFAULT_FONT_FAMILY,
+        DEFAULT_TC_FONT_SIZE_AUTO,
+        DEFAULT_TC_FONT_SIZE,
       );
 
       expect(mockCtx.fillText).toHaveBeenCalled();
@@ -218,6 +282,9 @@ describe("canvas rendering", () => {
         "disabled",
         "#000000",
         "#ffffff",
+        DEFAULT_FONT_FAMILY,
+        DEFAULT_TC_FONT_SIZE_AUTO,
+        DEFAULT_TC_FONT_SIZE,
       );
 
       expect(mockCtx.fillText).not.toHaveBeenCalled();
@@ -236,6 +303,9 @@ describe("canvas rendering", () => {
         "top-left",
         "#000000",
         "#ffffff",
+        DEFAULT_FONT_FAMILY,
+        DEFAULT_TC_FONT_SIZE_AUTO,
+        DEFAULT_TC_FONT_SIZE,
       );
 
       expect(mockCtx.fillRect).toHaveBeenCalled();
@@ -253,9 +323,76 @@ describe("canvas rendering", () => {
         "top-left",
         "#000000",
         "#ffffff",
+        DEFAULT_FONT_FAMILY,
+        DEFAULT_TC_FONT_SIZE_AUTO,
+        DEFAULT_TC_FONT_SIZE,
       );
 
       expect(mockCtx.textBaseline).toBe("alphabetic");
+    });
+
+    it("uses font family and auto-scaled font size when auto is enabled", () => {
+      drawTimecodeOverlay(
+        mockCtx as unknown as CanvasRenderingContext2D,
+        45.5,
+        0,
+        0,
+        320,
+        180,
+        1920,
+        "top-left",
+        "#000000",
+        "#ffffff",
+        "Arial, sans-serif",
+        true,
+        24,
+      );
+
+      // Font should include the family and a computed size (1920 * 0.0073 ~ 14)
+      expect(mockCtx.font).toMatch(/Arial/);
+      expect(mockCtx.font).toMatch(/\d+px/);
+    });
+
+    it("uses fixed font size when auto is disabled", () => {
+      drawTimecodeOverlay(
+        mockCtx as unknown as CanvasRenderingContext2D,
+        45.5,
+        0,
+        0,
+        320,
+        180,
+        1920,
+        "top-left",
+        "#000000",
+        "#ffffff",
+        "Arial, sans-serif",
+        false,
+        42,
+      );
+
+      // Font should be exactly 42px
+      expect(mockCtx.font).toMatch(/42px/);
+    });
+
+    it("clamps font size to valid range when auto is disabled", () => {
+      drawTimecodeOverlay(
+        mockCtx as unknown as CanvasRenderingContext2D,
+        45.5,
+        0,
+        0,
+        320,
+        180,
+        1920,
+        "top-left",
+        "#000000",
+        "#ffffff",
+        "Arial, sans-serif",
+        false,
+        2, // below minimum (8)
+      );
+
+      // Font should be clamped to FONT_SIZE_MIN (8)
+      expect(mockCtx.font).toMatch(/8px/);
     });
   });
 

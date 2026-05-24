@@ -1,7 +1,8 @@
 import {
-  HEADER_LINE_SPACING,
+  DEFAULTS,
+  FONT_SIZE_MAX,
+  FONT_SIZE_MIN,
   HEADER_PADDING_LEFT,
-  HEADER_TEXT_SIZE,
   SEEK_TIMEOUT_MS,
   VIDEO_OPEN_TIMEOUT_MS,
 } from "./constants";
@@ -83,6 +84,9 @@ export const prepareHeader = (
     textColor: string;
     vrMode: VrMode;
     width: number;
+    fontFamily: string;
+    headerFontSizeAuto: boolean;
+    headerFontSize: number;
   },
   file: File,
   meta: VideoMetadata,
@@ -96,6 +100,9 @@ export const prepareHeader = (
     Math.max(240, opts.width),
     opts.bgColor,
     opts.textColor,
+    opts.fontFamily,
+    opts.headerFontSizeAuto,
+    opts.headerFontSize,
   );
 
   return { headerCanvas, headerHeight: headerCanvas.height };
@@ -182,6 +189,9 @@ export const createHeaderCanvas = (
   canvasWidth: number,
   bgColor: string,
   textColor: string,
+  fontFamily: string,
+  headerFontSizeAuto: boolean,
+  headerFontSize: number,
 ): HTMLCanvasElement => {
   const vrActive = vrMode !== "disabled";
   const vrHeaderNote = vrActive ? `VR Video: ${vrModeLabel(vrMode)}` : null;
@@ -195,8 +205,15 @@ export const createHeaderCanvas = (
   ];
   if (vrHeaderNote) infoLines.push(vrHeaderNote);
 
-  const headerHeight =
-    HEADER_PADDING_LEFT * 2 + infoLines.length * HEADER_LINE_SPACING;
+  const safeHeaderFontSize = Number.isFinite(headerFontSize)
+    ? headerFontSize
+    : DEFAULTS.headerFontSize;
+  const headerFontSz = headerFontSizeAuto
+    ? Math.max(14, Math.round(canvasWidth * 0.0125))
+    : Math.max(FONT_SIZE_MIN, Math.min(FONT_SIZE_MAX, safeHeaderFontSize));
+  const lineSpacing = headerFontSz + 2;
+
+  const headerHeight = HEADER_PADDING_LEFT * 2 + infoLines.length * lineSpacing;
 
   const headerCanvas = document.createElement("canvas");
   headerCanvas.width = canvasWidth;
@@ -206,7 +223,7 @@ export const createHeaderCanvas = (
   ctx.fillStyle = bgColor;
   ctx.fillRect(0, 0, canvasWidth, headerHeight);
   ctx.fillStyle = textColor;
-  ctx.font = `${HEADER_TEXT_SIZE}px system-ui, Arial, sans-serif`;
+  ctx.font = `${headerFontSz}px ${fontFamily}`;
   ctx.textBaseline = "top";
 
   const maxTextWidth = canvasWidth - HEADER_PADDING_LEFT * 2;
@@ -224,7 +241,7 @@ export const createHeaderCanvas = (
       displayLine += "…";
     }
     ctx.fillText(displayLine, HEADER_PADDING_LEFT, yPos);
-    yPos += HEADER_LINE_SPACING;
+    yPos += lineSpacing;
   }
 
   ctx.textBaseline = "alphabetic";
@@ -256,12 +273,20 @@ export const drawTimecodeOverlay = (
   position: Position,
   bgColor: string,
   textColor: string,
+  fontFamily: string,
+  tcFontSizeAuto: boolean,
+  tcFontSize: number,
 ): void => {
   if (position === "disabled") return;
 
   const label = formatTime(tSec);
-  const tcFontSz = Math.max(11, Math.round(totalWidth * 0.012));
-  ctx.font = `${tcFontSz}px system-ui, Arial, sans-serif`;
+  const safeTcFontSize = Number.isFinite(tcFontSize)
+    ? tcFontSize
+    : DEFAULTS.tcFontSize;
+  const tcFontSz = tcFontSizeAuto
+    ? Math.max(11, Math.round(totalWidth * 0.0073))
+    : Math.max(FONT_SIZE_MIN, Math.min(FONT_SIZE_MAX, safeTcFontSize));
+  ctx.font = `${tcFontSz}px ${fontFamily}`;
   ctx.textBaseline = "top";
 
   const textW = ctx.measureText(label).width;

@@ -60,6 +60,17 @@ export class VersionedStorage {
 
   /**
    * Load and deserialize settings, running migrations if needed.
+   *
+   * Migrated data is returned in memory but is **not** automatically persisted
+   * back to localStorage. It will be written only when the user triggers an
+   * explicit save action (change a setting, save a preset, etc.).
+   *
+   * This is intentional: if a migration contains a bug, the original data in
+   * localStorage remains untouched, giving the user a chance to recover by
+   * clearing cache or downgrading. The settings payload is small and
+   * migrations are lightweight, so re-running migration on each load until the
+   * first explicit save is an acceptable trade-off.
+   *
    * @param defaults - Factory that returns default settings when nothing is stored.
    * @returns Current settings at the latest schema version.
    */
@@ -74,6 +85,7 @@ export class VersionedStorage {
       const versioned = this.ensureVersioned(parsed);
       const migrated = migrateSettings(versioned.data, versioned.schemaVersion);
 
+      // Note: migrated data is NOT auto-saved here. See method JSDoc above.
       return migrated as T;
     } catch {
       return defaults();

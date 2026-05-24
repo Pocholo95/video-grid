@@ -61,44 +61,65 @@ export interface IMediaInfoService {
   destroy(): void;
 }
 
-/** Interface for persistent storage backend */
+/** Interface for persistent storage backend (e.g., localStorage wrapper) */
 export interface IStorageProvider {
+  /** Retrieve a value by key; returns null if not present */
   getItem(key: string): string | null;
+  /** Persist a string value under the given key */
   setItem(key: string, value: string): void;
+  /** Remove an entry by key */
   removeItem(key: string): void;
 }
 
-/** Schema version for stored settings */
+/** Wrapper that pairs a schema version with settings data for migration support */
 export interface VersionedSettings {
+  /** Numeric schema version of the stored settings */
   schemaVersion: number;
+  /** Serialized application settings */
   data: AppSettings;
 }
 
-/** Processor sub-state for batch tracking */
+/** Accumulator for batch-processing statistics */
 export interface BatchState {
+  /** Number of files completed in the current batch */
   batchDone: number;
+  /** Total number of files in the current batch */
   batchTotal: number;
+  /** Timestamp when the batch started (milliseconds), or null if idle */
   batchStartTime: number | null;
+  /** Elapsed time for the last batch in milliseconds, or null if none */
   batchDurationMs: number | null;
+  /** Count of successfully processed files */
   succeeded: number;
+  /** Count of files that failed during processing */
   errored: number;
+  /** Count of files the user cancelled */
   cancelled: number;
 }
 
-/** Processor UI status (split from mixed concerns) */
+/** UI-facing processor status (separated from processing logic) */
 export interface ProcessorUIState {
+  /** Status message displayed to the user */
   text: string;
+  /** Semantic kind of the status message for styling */
   textKind?: "info" | "success" | "warning" | "cancelled";
+  /** Current processing progress as a 0–100 percentage */
   currentPct: number;
+  /** Whether the processor is actively working */
   isProcessing: boolean;
+  /** Whether the processor appears stuck (no progress for a threshold) */
   isStale: boolean;
+  /** Task ID considered stale, or null if no stale task */
   staleTaskId: string | null;
 }
 
-/** Result from grid rendering */
+/** Output produced by a single grid render operation */
 export interface GridRenderResult {
+  /** Suggested file name for the output */
   outputName: string;
+  /** Size of the rendered output in bytes */
   outputSize: number;
+  /** Binary blob containing the rendered image */
   outputBlob: Blob;
 }
 
@@ -112,18 +133,39 @@ export type CellDoneCallback = (
 /** Common warning callback */
 export type WarningCallback = (message: string) => void;
 
-/** Grid cell extraction options (shared between JPEG and WebP) */
+/** Shared options for grid cell extraction (JPEG and WebP) */
 export interface CellExtractionOptions {
+  /** Output canvas width in pixels */
   width: number;
+  /** Number of columns in the grid */
   cols: number;
+  /** Number of rows in the grid */
   rows: number;
+  /** Spacing in pixels between cells */
   spacing: number;
-  position: Position;
+  /** Position of the timecode overlay on each cell */
+  tcPosition: Position;
+  /** Whether to render a header bar with file info */
   header: boolean;
+  /** Background color of the canvas (hex string) */
   bgColor: string;
+  /** Color of timecode and header text (hex string) */
   textColor: string;
+  /** 360° VR cropping mode (e.g., left-eye, right-eye, or disabled) */
   vrMode: VrMode;
+  /** Font family for timecode overlay and header text. */
+  fontFamily: string;
+  /** When true, timecode font size scales with canvas width. */
+  tcFontSizeAuto: boolean;
+  /** Explicit timecode font size in pixels. */
+  tcFontSize: number;
+  /** When true, header font size scales with canvas width. */
+  headerFontSizeAuto: boolean;
+  /** Explicit header font size in pixels. */
+  headerFontSize: number;
+  /** Custom grid layout template, or undefined for uniform grid */
   gridTemplate: GridTemplate | undefined;
+  /** User-supplied timestamps to extract frames at, or undefined for auto-spaced */
   customTimestamps: number[] | undefined;
 }
 
@@ -145,10 +187,13 @@ export interface AnimatedGridRenderOptions extends StaticGridRenderOptions {
   webpQuality: number;
 }
 
-/** Result from grid rendering operations */
+/** Return type for grid rendering methods */
 export interface GridRenderOutput {
+  /** Suggested file name for the rendered output */
   outputName: string;
+  /** Size of the rendered output blob in bytes */
   outputSize: number;
+  /** Binary blob of the final rendered image (JPEG or WebP) */
   outputBlob: Blob;
 }
 

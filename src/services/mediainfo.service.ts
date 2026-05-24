@@ -12,9 +12,7 @@ import type { IMediaInfoService } from "../types/service";
 import type { VideoMetadata } from "../types";
 import { errlog, log } from "../utils";
 
-/* ------------------------------------------------------------------ */
-/*  MediaInfo Service Implementation                                  */
-/* ------------------------------------------------------------------ */
+/** - MediaInfo Service Implementation */
 
 export class MediaInfoService implements IMediaInfoService {
   private instance: MediaInfo | null = null;
@@ -144,9 +142,7 @@ export class MediaInfoService implements IMediaInfoService {
     this.loadPromise = null;
   }
 
-  /* -------------------------------------------------------------- */
-  /*  Private Helpers                                                 */
-  /* -------------------------------------------------------------- */
+  /** - Private Helpers */
 
   private async createInstance(): Promise<MediaInfo> {
     const mi = await mediaInfoFactory({

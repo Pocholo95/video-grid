@@ -8,30 +8,49 @@ export const AUTHOR_URL =
   import.meta.env.VITE_AUTHOR_URL || "https://gitlab.com/aknott00";
 export const AUTHOR_NAME = import.meta.env.VITE_AUTHOR_NAME || "aknott";
 
+/** Available font families for timecode overlay and header text. */
+export const FONT_FACES = [
+  "system-ui, Arial, sans-serif",
+  "Arial, Helvetica, sans-serif",
+  "Georgia, serif",
+  "Courier New, Courier, monospace",
+  "Verdana, Geneva, sans-serif",
+  "Tahoma, Geneva, sans-serif",
+  "Trebuchet MS, sans-serif",
+  "Impact, Charcoal, sans-serif",
+  "Comic Sans MS, cursive, sans-serif",
+] as const;
+
+/** Hard limits for font size sliders (pixels). */
+export const FONT_SIZE_MIN = 8;
+export const FONT_SIZE_MAX = 72;
+
 export const DEFAULTS: SavedOptions = {
   width: 1920,
   cols: 3,
   rows: 4,
   spacing: 0,
-  position: "top-left",
+  tcPosition: "top-left",
   bgColor: "#000000",
   textColor: "#ffffff",
   header: true,
-  preview: true,
   animated: false,
   animDuration: 3,
   animFps: 10,
   webpMethod: 5,
   webpQuality: 85,
   vrMode: "disabled",
+  fontFamily: FONT_FACES[0],
+  tcFontSizeAuto: true,
+  tcFontSize: 14,
+  headerFontSizeAuto: true,
+  headerFontSize: 24,
   sectionStates: { grid: true, style: true, modes: true },
   gridTemplate: undefined,
 };
 
 // Header layout
 export const HEADER_PADDING_LEFT = 12;
-export const HEADER_TEXT_SIZE = 24;
-export const HEADER_LINE_SPACING = 26;
 
 export const SEEK_TIMEOUT_MS = 10_000;
 
@@ -59,7 +78,7 @@ export const MIN_CELL_WIDTH = 240;
 export const JPEG_QUALITY = 0.95;
 
 /** Current schema version for stored settings (used by migration system) */
-export const STORAGE_SCHEMA_VERSION = 1;
+export const STORAGE_SCHEMA_VERSION = 2;
 
 /** Destination Manager defaults */
 export const DEFAULT_DESTINATION_URL =
@@ -68,9 +87,6 @@ export const DEFAULT_DESTINATION_URL =
 /** Upload requests timeout/delay in milliseconds */
 export const UPLOAD_TIMEOUT_MS = 30_000;
 export const UPLOAD_DELAY_MS = 1200;
-
-/** Timeout for XHR-based operations in milliseconds */
-export const XHR_TIMEOUT_MS = 30_000;
 
 /** Animated WebP composition quality percentage */
 export const ANIMATED_COMPOSE_PCT = 70;

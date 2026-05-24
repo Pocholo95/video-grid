@@ -19,9 +19,7 @@ import { FFMPEG_EXEC_TIMEOUT_MS } from "../constants";
 import type { IFFmpegService } from "../types/service";
 import { errlog, humanSize, log } from "../utils";
 
-/* ------------------------------------------------------------------ */
-/*  Module-level singleton state (shared across all callers)            */
-/* ------------------------------------------------------------------ */
+/** - Module-level singleton state (shared across all callers) */
 
 let ffmpeg: FFmpeg | null = null;
 let ffmpegLoadPromise: Promise<FFmpeg> | null = null;
@@ -55,9 +53,7 @@ let currentLogTaskId: string | null = null;
  */
 let onLogsChanged: ((id: string, logs: string[]) => void) | null = null;
 
-/* ------------------------------------------------------------------ */
-/*  Internal helpers                                                    */
-/* ------------------------------------------------------------------ */
+/** - Internal helpers */
 
 /** Append a log line to the current task's buffer. */
 function appendTaskLog(line: string) {
@@ -115,14 +111,10 @@ function withTimeout(
   });
 }
 
-/* ------------------------------------------------------------------ */
-/*  FFmpeg Service Implementation                                       */
-/* ------------------------------------------------------------------ */
+/** - FFmpeg Service Implementation */
 
 export class FFmpegService implements IFFmpegService {
-  /* -------------------------------------------------------------- */
-  /*  Lifecycle                                                       */
-  /* -------------------------------------------------------------- */
+  /** - Lifecycle */
 
   /** Initialize FFmpeg WASM instance. Idempotent. */
   public async init(): Promise<void> {
@@ -182,9 +174,7 @@ export class FFmpegService implements IFFmpegService {
     }
   }
 
-  /* -------------------------------------------------------------- */
-  /*  FFmpeg Operations (with timeout & abort signal)                 */
-  /* -------------------------------------------------------------- */
+  /** - FFmpeg Operations (with timeout & abort signal) */
 
   /** Execute an FFmpeg command with timeout and abort signal support. */
   public async exec(args: string[]): Promise<void> {
@@ -249,9 +239,7 @@ export class FFmpegService implements IFFmpegService {
     }
   }
 
-  /* -------------------------------------------------------------- */
-  /*  Input Management (with caching)                                 */
-  /* -------------------------------------------------------------- */
+  /** - Input Management (with caching) */
 
   /**
    * Ensures the given file is written to the FFmpeg virtual filesystem as
@@ -313,9 +301,7 @@ export class FFmpegService implements IFFmpegService {
     return currentFFmpegInputKey;
   }
 
-  /* -------------------------------------------------------------- */
-  /*  Log Management                                                  */
-  /* -------------------------------------------------------------- */
+  /** - Log Management */
 
   /** Register callback for FFmpeg log lines. */
   public onLog(
@@ -355,9 +341,7 @@ export class FFmpegService implements IFFmpegService {
     return logs;
   }
 
-  /* -------------------------------------------------------------- */
-  /*  Abort Control                                                   */
-  /* -------------------------------------------------------------- */
+  /** - Abort Control */
 
   /** Create a fresh AbortController for the current task. */
   public setAbortController(): AbortController {
@@ -375,9 +359,7 @@ export class FFmpegService implements IFFmpegService {
     return taskAbortController?.signal;
   }
 
-  /* -------------------------------------------------------------- */
-  /*  State Queries                                                   */
-  /* -------------------------------------------------------------- */
+  /** - State Queries */
 
   /** Check if FFmpeg is currently busy. */
   public getBusyState(): boolean {
@@ -389,9 +371,7 @@ export class FFmpegService implements IFFmpegService {
     return isFFmpegBroken;
   }
 
-  /* -------------------------------------------------------------- */
-  /*  Private Helpers                                                 */
-  /* -------------------------------------------------------------- */
+  /** - Private Helpers */
 
   /** Returns the shared FFmpeg instance, initialising it on first call. */
   private async getInstance(): Promise<FFmpeg> {
@@ -455,9 +435,7 @@ export class FFmpegService implements IFFmpegService {
   }
 }
 
-/* ------------------------------------------------------------------ */
-/*  Legacy utility functions (used by grid.ts / animatedGrid.ts)        */
-/* ------------------------------------------------------------------ */
+/** - Legacy utility functions (used by grid.ts / animatedGrid.ts) */
 
 /** Returns true if the error looks like a WASM out-of-memory or abort condition. */
 export const isMemoryError = (e: unknown): boolean => {

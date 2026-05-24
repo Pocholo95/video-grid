@@ -4,6 +4,7 @@
  * Status object returned by the processor hook to drive the ProcessingPanel UI.
  */
 export type ProcessorStatus = {
+  /** Human-readable status message displayed in the processing panel. */
   text: string;
   /**
    * Semantic kind of the current `text` message. Drives the icon shown
@@ -12,10 +13,15 @@ export type ProcessorStatus = {
    * as "info".
    */
   textKind?: "info" | "success" | "warning" | "cancelled";
+  /** Current file progress as a percentage (0–100). */
   currentPct: number;
+  /** Number of files completed in the current batch. */
   batchDone: number;
+  /** Total number of files in the current batch. */
   batchTotal: number;
+  /** Timestamp (ms) when the current batch started, or null if idle. */
   batchStartTime: number | null;
+  /** Elapsed time in milliseconds for the current batch, or null if idle. */
   batchDurationMs: number | null;
 };
 
@@ -38,12 +44,19 @@ export type Position =
   | "bottom-right"
   | "disabled";
 
+/** Metadata extracted from a video file by the MediaInfo service. */
 export type VideoMetadata = {
+  /** Duration of the video in seconds. */
   duration: number;
+  /** Native width of the video in pixels. */
   width: number;
+  /** Native height of the video in pixels. */
   height: number;
+  /** Bitrate in bits per second. */
   bitrate: number;
+  /** Frames per second, when detectable. */
   fps?: number;
+  /** Video codec identifier, when detectable. */
   codec?: string;
 };
 
@@ -138,10 +151,15 @@ export type UploadResult = {
 
 export type DestinationType = "chevereto";
 
+/** Configuration for a single upload destination. */
 export type UploadDestination = {
+  /** Unique identifier for the destination. */
   id: string;
+  /** Human-readable display name. */
   name: string;
+  /** Backend type of the destination. */
   type: DestinationType;
+  /** API key or token for authentication. */
   apiKey: string;
   /**
    * Upload endpoint URL template. Must use HTTPS.
@@ -149,29 +167,47 @@ export type UploadDestination = {
    * `https://api.imgbb.com/1/upload?key={key}`.
    */
   url: string;
+  /** Whether uploads to this destination are active. */
   enabled: boolean;
 };
 
-// - Per-destination upload state on an TaskItem
+// - Per-destination upload state on a task item
+/** Upload state for a single destination on a task item. */
 export type DestinationUploadState = {
+  /** Current upload lifecycle state. */
   status: UploadStatus;
+  /** Upload progress as a percentage (0–100). */
   progress: number;
+  /** Error message when status is "error". */
   error?: string;
+  /** Populated with URLs and delete link when status is "done". */
   result?: UploadResult;
 };
 
 // - Task items
+/** Represents a single video file queued for grid processing. */
 export type TaskItem = {
+  /** Unique identifier for the task. */
   id: string;
+  /** The source video file. */
   file: File;
+  /** Current lifecycle state of the task. */
   status: "queued" | "processing" | "done" | "error" | "cancelled";
+  /** Error message when status is "error". */
   error?: string;
+  /** Non-fatal warning message, if any. */
   warning?: string;
+  /** Filename of the generated grid image. */
   outputName?: string;
+  /** Size of the generated grid image in bytes. */
   outputSize?: number;
+  /** Blob containing the generated grid image. */
   outputBlob?: Blob;
+  /** Video metadata extracted before processing. */
   metadata?: VideoMetadata;
+  /** Timestamp (ms) when processing started for this task. */
   processingStartedAt?: number;
+  /** Elapsed processing time in milliseconds. */
   processingDurationMs?: number;
   /**
    * Upload state keyed by destination id.
@@ -208,31 +244,61 @@ export type SectionStates = {
 /** Available theme options for the app. */
 export type Theme = "dark" | "light" | "dimmed" | "classic";
 
+/** Grid rendering options persisted with presets. */
 export type SavedOptions = {
+  /** Output canvas width in pixels. */
   width: number;
+  /** Number of columns in the grid. */
   cols: number;
+  /** Number of rows in the grid. */
   rows: number;
+  /** Spacing in pixels between cells. */
   spacing: number;
-  position: Position;
+  /** Position of the timecode overlay on each cell. */
+  tcPosition: Position;
+  /** Background fill color for empty canvas areas. */
   bgColor: string;
+  /** Text color for timecode overlay and header. */
   textColor: string;
+  /** Whether to render a header row with the filename. */
   header: boolean;
-  preview: boolean;
+  /** Whether to produce animated WebP output instead of static JPEG. */
   animated: boolean;
+  /** Duration in seconds of each cell's animation clip (animated mode only). */
   animDuration: number;
+  /** Frame rate of the animated WebP output. */
   animFps: number;
+  /** WebP compression method (0-6, higher = better quality but slower). */
   webpMethod: number;
+  /** WebP output quality (5-100). */
   webpQuality: number;
+  /** VR mode for cropping stereo 360° video frames. */
   vrMode: VrMode;
+  /** Font family for timecode overlay and header text. */
+  fontFamily: string;
+  /** When true (default), timecode font size scales with canvas width. */
+  tcFontSizeAuto: boolean;
+  /** Explicit timecode font size in pixels (used when tcFontSizeAuto is false). */
+  tcFontSize: number;
+  /** When true (default), header font size scales with canvas width. */
+  headerFontSizeAuto: boolean;
+  /** Explicit header font size in pixels (used when headerFontSizeAuto is false). */
+  headerFontSize: number;
+  /** Persisted expanded/collapsed state of the Control Panel sections. */
   sectionStates?: SectionStates;
+  /** Custom grid layout; when set, overrides the uniform cols × rows grid. */
   gridTemplate?: GridTemplate;
 };
 
+/** Named preset configurations, keyed by display name. */
 export type Presets = Record<string, SavedOptions>;
 
+/** Root settings object persisted to localStorage. */
 export type AppSettings = {
   presets: {
+    /** Named preset configurations. */
     entries: Presets;
+    /** Name of the most recently selected preset, or null. */
     lastUsed: string | null;
   };
   /** Upload destinations stored alongside other app settings */

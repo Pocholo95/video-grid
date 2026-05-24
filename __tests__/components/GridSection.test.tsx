@@ -9,6 +9,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import GridSection from "@/components/control/GridSection";
+import { DEFAULTS } from "@/constants";
 import type { SavedOptions, AppSettings } from "@/types";
 
 // -- Mocks --
@@ -50,39 +51,19 @@ vi.mock("@/components/ui/alert-dialog", () => ({
     children: React.ReactNode;
     onOpenChange: (open: boolean) => void;
   }) => (open ? <div data-testid="alert-dialog">{children}</div> : null),
-  AlertDialogContent: ({
-    children,
-  }: {
-    children: React.ReactNode;
-  }) => (
+  AlertDialogContent: ({ children }: { children: React.ReactNode }) => (
     <div data-testid="alert-dialog-content">{children}</div>
   ),
-  AlertDialogHeader: ({
-    children,
-  }: {
-    children: React.ReactNode;
-  }) => (
+  AlertDialogHeader: ({ children }: { children: React.ReactNode }) => (
     <div>{children}</div>
   ),
-  AlertDialogTitle: ({
-    children,
-  }: {
-    children: React.ReactNode;
-  }) => (
+  AlertDialogTitle: ({ children }: { children: React.ReactNode }) => (
     <div>{children}</div>
   ),
-  AlertDialogDescription: ({
-    children,
-  }: {
-    children: React.ReactNode;
-  }) => (
+  AlertDialogDescription: ({ children }: { children: React.ReactNode }) => (
     <div>{children}</div>
   ),
-  AlertDialogFooter: ({
-    children,
-  }: {
-    children: React.ReactNode;
-  }) => (
+  AlertDialogFooter: ({ children }: { children: React.ReactNode }) => (
     <div>{children}</div>
   ),
   AlertDialogAction: ({
@@ -171,17 +152,21 @@ function createDefaultOpts(overrides?: Partial<SavedOptions>): SavedOptions {
     cols: 4,
     rows: 3,
     spacing: 4,
-    position: "disabled",
+    tcPosition: "disabled",
     header: true,
     bgColor: "#000000",
     textColor: "#FFFFFF",
-    preview: false,
     animated: false,
     animDuration: 10,
     animFps: 24,
     webpMethod: 4,
     webpQuality: 75,
     vrMode: "disabled",
+    fontFamily: DEFAULTS.fontFamily,
+    tcFontSizeAuto: DEFAULTS.tcFontSizeAuto,
+    tcFontSize: DEFAULTS.tcFontSize,
+    headerFontSizeAuto: DEFAULTS.headerFontSizeAuto,
+    headerFontSize: DEFAULTS.headerFontSize,
     sectionStates: { grid: true, style: true, modes: true },
     ...(overrides || {}),
   };
@@ -345,17 +330,21 @@ describe("GridSection", () => {
             cols: 4,
             rows: 3,
             spacing: 4,
-            position: "disabled" as const,
+            tcPosition: "disabled" as const,
             header: true,
             bgColor: "#000000",
             textColor: "#FFFFFF",
-            preview: false,
             animated: false,
             animDuration: 10,
             animFps: 24,
             webpMethod: 4,
             webpQuality: 75,
             vrMode: "disabled" as const,
+            fontFamily: DEFAULTS.fontFamily,
+            tcFontSizeAuto: DEFAULTS.tcFontSizeAuto,
+            tcFontSize: DEFAULTS.tcFontSize,
+            headerFontSizeAuto: DEFAULTS.headerFontSizeAuto,
+            headerFontSize: DEFAULTS.headerFontSize,
             gridTemplate: savedTemplate,
           },
         },

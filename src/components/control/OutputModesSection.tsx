@@ -51,9 +51,9 @@ export default function OutputModesSection({
         <Field>
           <FieldLabel htmlFor="cp-tc-pos">Timecode position</FieldLabel>
           <Select
-            value={opts.position}
+            value={opts.tcPosition}
             onValueChange={(v) =>
-              setOpts({ ...opts, position: v as SavedOptions["position"] })
+              setOpts({ ...opts, tcPosition: v as SavedOptions["tcPosition"] })
             }
           >
             <SelectTrigger id="cp-tc-pos" className="w-full">
