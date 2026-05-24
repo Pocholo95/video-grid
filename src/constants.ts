@@ -52,6 +52,9 @@ export const APP_STORAGE_KEY = "vidgrid_settings";
 
 export const PRESETS_DEFAULT_VALUE = "__default__";
 
+/** Minimum allowed cell width for grid rendering */
+export const MIN_CELL_WIDTH = 240;
+
 /** JPEG Quality for grid outpus */
 export const JPEG_QUALITY = 0.95;
 

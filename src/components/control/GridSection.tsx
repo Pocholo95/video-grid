@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { LayoutGrid } from "lucide-react";
+import { Grid3x3 } from "lucide-react";
 import { templateFromUniform } from "../../gridTemplate";
 import GridTemplateEditor from "../GridTemplateEditor";
 import {
@@ -174,7 +174,7 @@ export default function GridSection({
                 onClick={() => setShowTemplateEditor(true)}
                 title="Open template editor"
               >
-                <LayoutGrid className="size-4" />
+                <Grid3x3 className="size-4" />
                 Edit Template
               </Button>
             </div>

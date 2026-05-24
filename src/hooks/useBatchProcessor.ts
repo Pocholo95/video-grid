@@ -151,15 +151,15 @@ export function useBatchProcessor(
 
             let res;
             if (isAnimated) {
-              const onAnimFrameDone = (
-                composedFrame: number,
-                totalFrames: number,
+              const onAnimCellDone = (
+                composedCell: number,
+                totalCells: number,
               ) => {
                 useProcessingStore.getState().setStatus((prev) => ({
                   ...prev,
-                  text: `"${item.file.name}" — composing frame ${composedFrame}/${totalFrames}`,
+                  text: `"${item.file.name}" — composing cell ${composedCell}/${totalCells}`,
                   currentPct:
-                    (composedFrame / totalFrames) * ANIMATED_COMPOSE_PCT,
+                    (composedCell / totalCells) * ANIMATED_COMPOSE_PCT,
                   batchDone: succeeded + errored,
                   batchTotal: items.length,
                 }));
@@ -187,20 +187,20 @@ export function useBatchProcessor(
                 meta,
                 animGridOpts,
                 () => cancelRef.current || forceCancelCurrentRef.current,
-                onAnimFrameDone,
+                onAnimCellDone,
                 onEncodeProgress,
                 onWarning,
               );
             } else {
-              const onFrameDone = (
-                frameIdx: number,
-                totalFrames: number,
+              const onCellDone = (
+                cellIdx: number,
+                totalCells: number,
                 tSec: number,
               ) => {
                 useProcessingStore.getState().setStatus((prev) => ({
                   ...prev,
-                  text: `"${item.file.name}" — frame ${frameIdx}/${totalFrames} @ ${formatTime(tSec)}`,
-                  currentPct: (frameIdx / totalFrames) * 100,
+                  text: `"${item.file.name}" — cell ${cellIdx}/${totalCells} @ ${formatTime(tSec)}`,
+                  currentPct: (cellIdx / totalCells) * 100,
                   batchDone: succeeded + errored,
                   batchTotal: items.length,
                 }));
@@ -212,7 +212,7 @@ export function useBatchProcessor(
                 meta,
                 gridOpts,
                 () => cancelRef.current || forceCancelCurrentRef.current,
-                onFrameDone,
+                onCellDone,
                 onWarning,
               );
             }
@@ -317,7 +317,7 @@ export function useBatchProcessor(
     [ffmpeg, mediainfo, gridRenderer],
   );
 
-  /** Signal the running batch to stop after the current frame completes. */
+  /** Signal the running batch to stop after the current cell completes. */
   const requestCancel = useCallback(() => {
     cancelRef.current = true;
     useProcessingStore.getState().setStatus((prev) => ({

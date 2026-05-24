@@ -15,15 +15,15 @@ import type {
 } from "./types";
 import { errlog, formatTime, hexToRgba, humanSize, warn } from "./utils";
 
-export type FrameSlot = { x: number; y: number; cellW: number; cellH: number };
+export type CellSlot = { x: number; y: number; cellW: number; cellH: number };
 
 /**
- * Generates a grid layout describing the geometry of frames to be generated
+ * Generates a grid layout describing the geometry of cells in the grid
  *
  * @param opts Task options
  * @param meta Metadata about the file being processed
  * @param headerHeight Header height to account for in the final canvas height.
- * @returns object An array of FrameSlots and the size of the required canvas.
+ * @returns object An array of CellSlots and the size of the required canvas.
  */
 export const getGridLayout = (
   opts: {
@@ -36,7 +36,7 @@ export const getGridLayout = (
   },
   meta: VideoMetadata,
   headerHeight: number = 0,
-): { frameSlots: FrameSlot[]; canvasWidth: number; canvasHeight: number } => {
+): { cellSlots: CellSlot[]; canvasWidth: number; canvasHeight: number } => {
   const useTemplate = !!(
     opts.gridTemplate && opts.gridTemplate.cells.length > 0
   );
@@ -54,7 +54,7 @@ export const getGridLayout = (
   );
 
   // Shift slots if needed (e.g. header above)
-  const frameSlots = rectResult.rects.map((r) => ({
+  const cellSlots = rectResult.rects.map((r) => ({
     x: r.x,
     y: r.y + headerHeight,
     cellW: r.w,
@@ -62,7 +62,7 @@ export const getGridLayout = (
   }));
 
   return {
-    frameSlots,
+    cellSlots,
     canvasWidth: rectResult.canvasWidth,
     canvasHeight: rectResult.canvasHeight + headerHeight,
   };

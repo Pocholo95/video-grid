@@ -102,18 +102,18 @@ export interface GridRenderResult {
   outputBlob: Blob;
 }
 
-/** Common frame rendering callback */
-export type FrameDoneCallback = (
-  frameIdx: number,
-  totalFrames: number,
+/** Common cell rendering callback */
+export type CellDoneCallback = (
+  cellIdx: number,
+  totalCells: number,
   timestampSec: number,
 ) => void;
 
 /** Common warning callback */
 export type WarningCallback = (message: string) => void;
 
-/** Grid frame extraction options (shared between JPEG and WebP) */
-export interface FrameExtractionOptions {
+/** Grid cell extraction options (shared between JPEG and WebP) */
+export interface CellExtractionOptions {
   width: number;
   cols: number;
   rows: number;
@@ -128,7 +128,7 @@ export interface FrameExtractionOptions {
 }
 
 /** Static JPEG grid rendering options */
-export interface StaticGridRenderOptions extends FrameExtractionOptions {
+export interface StaticGridRenderOptions extends CellExtractionOptions {
   /** Duration of source video in seconds (used for fallback) */
   duration: number;
 }
@@ -152,17 +152,17 @@ export interface GridRenderOutput {
   outputBlob: Blob;
 }
 
-/** Callback for static grid frame progress */
-export type StaticFrameCallback = (
-  frameIndex: number,
-  totalFrames: number,
+/** Callback for static grid cell progress */
+export type StaticCellCallback = (
+  cellIndex: number,
+  totalCells: number,
   timestampSec: number,
 ) => void;
 
-/** Callback for animated grid frame progress */
-export type AnimatedFrameCallback = (
-  composedFrame: number,
-  totalFrames: number,
+/** Callback for animated grid cell progress */
+export type AnimatedCellCallback = (
+  composedCell: number,
+  totalCells: number,
 ) => void;
 
 /** Callback for animated grid encoding progress (0-1 ratio) */
@@ -179,7 +179,7 @@ export interface IGridRenderer {
     meta: VideoMetadata,
     opts: StaticGridRenderOptions,
     isCancelled: () => boolean,
-    onFrameDone: StaticFrameCallback,
+    onCellDone: StaticCellCallback,
     onWarning: WarningCallback,
   ): Promise<GridRenderOutput>;
 
@@ -192,7 +192,7 @@ export interface IGridRenderer {
     meta: VideoMetadata,
     opts: AnimatedGridRenderOptions,
     isCancelled: () => boolean,
-    onFrameDone: AnimatedFrameCallback,
+    onCellDone: AnimatedCellCallback,
     onEncodeProgress: EncodeProgressCallback,
     onWarning: WarningCallback,
   ): Promise<GridRenderOutput>;

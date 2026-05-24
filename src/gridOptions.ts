@@ -1,18 +1,18 @@
-import { DEFAULTS } from "./constants";
+import { DEFAULTS, MIN_CELL_WIDTH } from "./constants";
 import type { SavedOptions, TaskItem, VideoMetadata } from "./types";
 import type {
   StaticGridRenderOptions,
   AnimatedGridRenderOptions,
-  FrameExtractionOptions,
+  CellExtractionOptions,
 } from "./types/service";
 
 /**
- * Build the shared frame extraction options from user settings.
+ * Build the shared cell extraction options from user settings.
  * These are the options common to both static and animated grids.
  */
-export function buildFrameOptions(opts: SavedOptions): FrameExtractionOptions {
+export function buildCellOptions(opts: SavedOptions): CellExtractionOptions {
   return {
-    width: Math.max(240, opts.width || DEFAULTS.width),
+    width: Math.max(MIN_CELL_WIDTH, opts.width || DEFAULTS.width),
     cols: Math.max(1, opts.cols || DEFAULTS.cols),
     rows: Math.max(1, opts.rows || DEFAULTS.rows),
     spacing: Math.max(0, opts.spacing || DEFAULTS.spacing),
@@ -38,7 +38,7 @@ export function buildStaticGridOptions(
   item: TaskItem,
   meta: VideoMetadata,
 ): StaticGridRenderOptions {
-  const frameOpts = buildFrameOptions(opts);
+  const cellOpts = buildCellOptions(opts);
   const customTimestamps =
     item.timestampMode === "custom" &&
     item.customTimestamps &&
@@ -47,7 +47,7 @@ export function buildStaticGridOptions(
       : undefined;
 
   return {
-    ...frameOpts,
+    ...cellOpts,
     customTimestamps,
     duration: Math.max(1, meta.duration || 1),
   };

@@ -10,8 +10,8 @@ import type {
   StaticGridRenderOptions,
   AnimatedGridRenderOptions,
   GridRenderOutput,
-  StaticFrameCallback,
-  AnimatedFrameCallback,
+  StaticCellCallback,
+  AnimatedCellCallback,
   EncodeProgressCallback,
   WarningCallback,
 } from "../types/service";
@@ -57,7 +57,7 @@ export class GridRenderer implements IGridRenderer {
     meta: VideoMetadata,
     opts: StaticGridRenderOptions,
     isCancelled: () => boolean,
-    onFrameDone: StaticFrameCallback,
+    onCellDone: StaticCellCallback,
     onWarning: WarningCallback,
   ): Promise<GridRenderOutput> {
     const duration = Math.max(1, meta.duration || 1);
@@ -74,12 +74,12 @@ export class GridRenderer implements IGridRenderer {
       vrMode: opts.vrMode,
     };
 
-    const { frameSlots, canvasWidth, canvasHeight } = getGridLayout(
+    const { cellSlots, canvasWidth, canvasHeight } = getGridLayout(
       layoutOpts,
       meta,
       headerHeight,
     );
-    const totalCells = frameSlots.length;
+    const totalCells = cellSlots.length;
 
     const times =
       opts.customTimestamps && opts.customTimestamps.length > 0
@@ -110,7 +110,7 @@ export class GridRenderer implements IGridRenderer {
     ): Promise<ImageBitmap | null> => {
       log(
         `  Switching to FFmpeg frame-by-frame extraction ` +
-          `for frame ${index + 1}/${totalCells}…`,
+          `for cell ${index + 1}/${totalCells}…`,
       );
       const bitmap = await this.extractFrameViaFFmpeg(
         file,
@@ -137,15 +137,15 @@ export class GridRenderer implements IGridRenderer {
         throw new DOMException("Processing cancelled", "AbortError");
       }
       const tSec = times[i];
-      const { x, y, cellW, cellH } = frameSlots[i];
+      const { x, y, cellW, cellH } = cellSlots[i];
 
       log(
-        `  Frame ${i + 1}/${totalCells} — ` +
+        `  Cell ${i + 1}/${totalCells} — ` +
           `t=${tSec.toFixed(3)}s (${formatTime(tSec)}) ` +
           `from "${file.name}"`,
       );
 
-      let frameDrawn = false;
+      let cellDrawn = false;
 
       if (canNativelyPlay) {
         try {
@@ -162,13 +162,13 @@ export class GridRenderer implements IGridRenderer {
           } else {
             ctx.drawImage(video, x, y, cellW, cellH);
           }
-          frameDrawn = true;
+          cellDrawn = true;
         } catch (seekErr) {
           const msg =
             seekErr instanceof Error ? seekErr.message : String(seekErr);
-          warn(`  Native seek failed at frame ${i + 1}: ${msg}`);
+          warn(`  Native seek failed at cell ${i + 1}: ${msg}`);
           onWarning(
-            `Native seek failed at frame ${i + 1} (${msg}) ` +
+            `Native seek failed at cell ${i + 1} (${msg}) ` +
               `— switching to FFmpeg`,
           );
           canNativelyPlay = false;
@@ -190,31 +190,31 @@ export class GridRenderer implements IGridRenderer {
               ctx.drawImage(bitmap, x, y, cellW, cellH);
             }
             bitmap.close();
-            frameDrawn = true;
+            cellDrawn = true;
           } else {
             onWarning(
-              `FFmpeg returned no image for frame ${i + 1} ` +
+              `FFmpeg returned no image for cell ${i + 1} ` +
                 `— cell left blank`,
             );
           }
         } catch (ffErr) {
           if (isAbortError(ffErr)) {
-            errlog(`  FFmpeg frame ${i + 1} aborted (propagating):`, ffErr);
+            errlog(`  FFmpeg cell ${i + 1} aborted (propagating):`, ffErr);
             throw ffErr;
           }
           const msg = ffErr instanceof Error ? ffErr.message : String(ffErr);
-          errlog(`  FFmpeg frame ${i + 1} error:`, msg);
-          onWarning(`FFmpeg error at frame ${i + 1}: ${msg}`);
+          errlog(`  FFmpeg cell ${i + 1} error:`, msg);
+          onWarning(`FFmpeg error at cell ${i + 1}: ${msg}`);
           if (isMemoryError(ffErr)) {
             onWarning(
-              `Out of memory at frame ${i + 1}. ` +
+              `Out of memory at cell ${i + 1}. ` +
                 `Try reducing output width, columns, or rows.`,
             );
           }
         }
       }
 
-      if (!frameDrawn) {
+      if (!cellDrawn) {
         drawErrorPlaceholder(ctx, x, y, cellW, cellH, opts.bgColor);
       }
 
@@ -231,7 +231,7 @@ export class GridRenderer implements IGridRenderer {
         opts.textColor,
       );
 
-      onFrameDone(i + 1, totalCells, tSec);
+      onCellDone(i + 1, totalCells, tSec);
       await new Promise<void>((r) => setTimeout(r, 0));
     }
 
@@ -260,7 +260,7 @@ export class GridRenderer implements IGridRenderer {
     meta: VideoMetadata,
     opts: AnimatedGridRenderOptions,
     isCancelled: () => boolean,
-    onFrameDone: AnimatedFrameCallback,
+    onCellDone: AnimatedCellCallback,
     onEncodeProgress: EncodeProgressCallback,
     onWarning: WarningCallback,
   ): Promise<GridRenderOutput> {
@@ -278,12 +278,12 @@ export class GridRenderer implements IGridRenderer {
       vrMode: opts.vrMode,
     };
 
-    const { frameSlots, canvasWidth, canvasHeight } = getGridLayout(
+    const { cellSlots, canvasWidth, canvasHeight } = getGridLayout(
       layoutOpts,
       meta,
       headerHeight,
     );
-    const totalCells = frameSlots.length;
+    const totalCells = cellSlots.length;
 
     const totalAnimFrames = Math.max(
       1,
@@ -336,7 +336,7 @@ export class GridRenderer implements IGridRenderer {
             baseTimes[i] + f * frameDuration,
             duration - 0.001,
           );
-          const { x, y, cellW, cellH } = frameSlots[i];
+          const { x, y, cellW, cellH } = cellSlots[i];
 
           log(
             `  [AnimWebP] Anim frame ${f + 1}/${totalAnimFrames}, ` +
@@ -400,7 +400,7 @@ export class GridRenderer implements IGridRenderer {
         canvas.width = 0;
         canvas.height = 0;
 
-        onFrameDone(f + 1, totalAnimFrames);
+        onCellDone(f + 1, totalAnimFrames);
         await new Promise<void>((r) => setTimeout(r, 0));
       }
     } finally {

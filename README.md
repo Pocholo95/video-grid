@@ -463,6 +463,7 @@ See [RELEASE.md](./RELEASE.md) for deployment instructions
 - [Vite](https://vitejs.dev/) with TypeScript
 - [React JS](https://react.dev/)
 - [Zustand/Immer](https://zustand.site/) — state management and middleware
+- [Testing Library](https://testing-library.com/)/[vitest](https://vitest.dev/)/[happy-dom](https://github.com/capricorn86/happy-dom) — testing suite
 - [TailwindCSS](https://tailwindcss.com/)
 - [Radix UI](https://www.radix-ui.com/)
 - [Lucide](https://lucide.dev/)
