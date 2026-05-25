@@ -203,12 +203,16 @@ export default function StyleSection({
             value={opts.fontFamily}
             onValueChange={(v) => setOpts({ ...opts, fontFamily: v })}
           >
-            <SelectTrigger id="cp-font-family" className="w-full">
+            <SelectTrigger
+              id="cp-font-family"
+              className="w-full"
+              style={{ fontFamily: opts.fontFamily }}
+            >
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
               {FONT_FACES.map((f) => (
-                <SelectItem key={f} value={f}>
+                <SelectItem key={f} value={f} style={{ fontFamily: f }}>
                   {f.split(",")[0]}
                 </SelectItem>
               ))}
