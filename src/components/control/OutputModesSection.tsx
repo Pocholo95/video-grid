@@ -99,7 +99,7 @@ export default function OutputModesSection({
           </FieldLabel>
         </Field>
         {isAnimated && (
-          <div className="bg-muted/30 grid grid-cols-2 gap-3 rounded-md border p-3">
+          <div className="bg-muted/30 grid grid-cols-1 lg:grid-cols-2 gap-3 rounded-md border p-3">
             <Field>
               <FieldLabel htmlFor="cp-anim-duration">Duration</FieldLabel>
               <RangeNumberInput

@@ -1,7 +1,12 @@
 import { useRef, useState } from "react";
 import { Save, Trash2, Check, X, ListRestart } from "lucide-react";
 import { DEFAULTS, PRESETS_DEFAULT_VALUE } from "../../constants";
-import { deletePreset, loadPresets, savePreset } from "../../presets";
+import {
+  deletePreset,
+  getPresetSummary,
+  loadPresets,
+  savePreset,
+} from "../../presets";
 import { Button } from "@/components/ui/button";
 import {
   Popover,
@@ -13,6 +18,7 @@ import {
   Select,
   SelectContent,
   SelectItem,
+  SelectItemDescription,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
@@ -101,15 +107,34 @@ export default function PresetsRow({
           <SelectTrigger className="w-full min-w-20 truncate">
             <SelectValue className="truncate" />
           </SelectTrigger>
-          <SelectContent>
+          <SelectContent className="max-w-sm">
             <SelectItem value={PRESETS_DEFAULT_VALUE}>
-              &lt;Default Preset&gt;
+              <span className="flex items-center justify-between min-w-0 gap-2">
+                <span className="shrink-0">{"<Default Preset>"}</span>
+                <SelectItemDescription
+                  className="text-muted-foreground truncate text-right flex-1"
+                  title={getPresetSummary(DEFAULTS)}
+                >
+                  {getPresetSummary(DEFAULTS)}
+                </SelectItemDescription>
+              </span>
             </SelectItem>
-            {Object.keys(presets.entries).map((n) => (
-              <SelectItem key={n} value={n}>
-                {n}
-              </SelectItem>
-            ))}
+            {Object.keys(presets.entries).map((n) => {
+              const summary = getPresetSummary(presets.entries[n]);
+              return (
+                <SelectItem key={n} value={n}>
+                  <span className="flex items-center justify-between min-w-0 gap-2">
+                    <span className="shrink-0">{n}</span>
+                    <SelectItemDescription
+                      className="text-muted-foreground truncate text-right flex-1"
+                      title={summary}
+                    >
+                      {summary}
+                    </SelectItemDescription>
+                  </span>
+                </SelectItem>
+              );
+            })}
           </SelectContent>
         </Select>
         <Button

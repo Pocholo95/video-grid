@@ -1,6 +1,10 @@
 import { create } from "zustand";
 import { immer } from "zustand/middleware/immer";
-import { loadAppSettings, persistAppSettings } from "@/presets";
+import {
+  loadAppSettings,
+  persistAppSettings,
+  seedBuiltInPresets,
+} from "@/presets";
 import type { AppSettings } from "@/types";
 import { deepClone } from "@/lib/deepClone";
 
@@ -126,7 +130,9 @@ export const useSettingsStore = create<SettingsState>()(
   })),
 );
 
-/** Apply theme on store initialization. */
+/** Seed built-in presets on fresh install, reload settings, then apply theme. */
+seedBuiltInPresets();
+useSettingsStore.getState().loadSettings();
 useSettingsStore
   .getState()
   .applyTheme(useSettingsStore.getState().settings.theme);

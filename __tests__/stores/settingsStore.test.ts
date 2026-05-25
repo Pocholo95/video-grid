@@ -22,6 +22,7 @@ const defaultSettings = vi.hoisted(() => {
 vi.mock("@/presets", () => ({
   loadAppSettings: vi.fn(() => structuredClone(defaultSettings)),
   persistAppSettings: vi.fn(),
+  seedBuiltInPresets: vi.fn(),
 }));
 
 vi.mock("@/lib/deepClone", () => ({
