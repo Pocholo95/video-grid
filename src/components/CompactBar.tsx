@@ -14,6 +14,7 @@ import {
 import type { LucideIcon } from "lucide-react";
 import type { ProcessorStatus } from "@/types";
 import { formatElapsed } from "../utils";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import {
@@ -42,6 +43,7 @@ interface CompactBarProps {
   hasRequeuableItems: boolean;
   effectiveBatchTotal: number;
   effectiveBatchDone: number;
+  isCompact: boolean;
   onFilesChange: (files: File[]) => void;
   onStart: () => void;
   onCancel: () => void;
@@ -57,6 +59,7 @@ export default function CompactBar({
   hasRequeuableItems,
   effectiveBatchTotal,
   effectiveBatchDone,
+  isCompact: isCompact,
   onFilesChange,
   onStart,
   onCancel,
@@ -86,7 +89,13 @@ export default function CompactBar({
 
   return (
     <Collapsible open={open} onOpenChange={setOpen}>
-      <div className="fixed top-0 left-0 right-0 z-45 bg-card border-b border-border shadow-lg">
+      <div
+        className={cn(
+          "bg-card border-b border-border",
+          isCompact &&
+            "shadow-[0_4px_12px_rgba(0,0,0,0.25)] dark:shadow-[0_6px_15px_rgba(0,0,0,0.75)]",
+        )}
+      >
         <div className="mx-auto max-w-6xl px-4 py-2">
           <div className="flex items-center gap-2">
             <Button

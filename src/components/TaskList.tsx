@@ -1,6 +1,7 @@
 import { useMemo, useCallback, useRef, useEffect, useState } from "react";
 import { autoAnimate } from "@formkit/auto-animate";
 import { Download, Loader2, Upload } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { useTaskStore } from "@/store/taskStore";
 import { useProcessingStore } from "@/store/processingStore";
 import { useSettingsStore } from "@/store/settingsStore";
@@ -177,22 +178,30 @@ export default function TaskList({
   return (
     <>
       {/* Compact bar shown when controls scroll offscreen */}
-      {isCompact && (
-        <CompactBar
-          status={status}
-          isProcessing={isProcessing}
-          hasFiles={hasFiles}
-          allMetadataReady={allMetadataReady}
-          hasRequeuableItems={hasRequeuableItems}
-          effectiveBatchTotal={effectiveBatchTotal}
-          effectiveBatchDone={effectiveBatchDone}
-          onFilesChange={onFilesChange}
-          onStart={onStart}
-          onCancel={onCancel}
-          onClear={onClear}
-          onRequeueAll={handleRequeueAll}
-        />
-      )}
+      <div className="fixed top-0 left-0 right-0 z-45">
+        <div
+          className={cn(
+            "transition-transform duration-250 ease-out",
+            isCompact ? "translate-y-0" : "-translate-y-full",
+          )}
+        >
+          <CompactBar
+            status={status}
+            isProcessing={isProcessing}
+            hasFiles={hasFiles}
+            allMetadataReady={allMetadataReady}
+            hasRequeuableItems={hasRequeuableItems}
+            effectiveBatchTotal={effectiveBatchTotal}
+            effectiveBatchDone={effectiveBatchDone}
+            isCompact={isCompact}
+            onFilesChange={onFilesChange}
+            onStart={onStart}
+            onCancel={onCancel}
+            onClear={onClear}
+            onRequeueAll={handleRequeueAll}
+          />
+        </div>
+      </div>
 
       <Card className="task-list-card overflow-hidden">
         <CardContent className="flex flex-col gap-4 opacity-100">
