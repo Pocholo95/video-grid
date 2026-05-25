@@ -342,6 +342,20 @@ export default function TimestampEditor({
     [duration],
   );
 
+  // Mouse wheel seeking: same delta logic as arrow keys.
+  // preventDefault + stopPropagation suppresses browser zoom (Ctrl+wheel)
+  // and prevents the scroll from bubbling out of the dialog.
+  const handleWheel = useCallback(
+    (e: WheelEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const direction = e.deltaY > 0 ? 1 : -1;
+      const delta = e.ctrlKey ? 1 / fps : e.shiftKey ? 5 : 1;
+      seekBy(direction * delta);
+    },
+    [fps, seekBy],
+  );
+
   // Keyboard shortcuts: Space = play/pause, M = add marker, Arrow = seek.
   // Escape is handled by the surrounding Dialog primitive.
   useEffect(() => {
@@ -364,6 +378,35 @@ export default function TimestampEditor({
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
   }, [addMarkerAtCurrentTime, seekBy]);
+
+  // Attach wheel listener to video and seekbar elements for scroll-seeking.
+  // Use native addEventListener (not React synthetic events) so that
+  // preventDefault reliably suppresses the browser's Ctrl+wheel zoom.
+  //
+  // Depend on blobUrl/videoError so the effect re-runs after the conditional
+  // render updates the DOM. The `if (video)` guard handles both the initial
+  // null ref (first render) and the case where videoError replaced the <video>
+  // with an <Alert>.
+  useEffect(() => {
+    const video = videoRef.current;
+    const seekbar = seekbarRef.current;
+
+    if (video) {
+      video.addEventListener("wheel", handleWheel, { passive: false });
+    }
+    if (seekbar) {
+      seekbar.addEventListener("wheel", handleWheel, { passive: false });
+    }
+
+    return () => {
+      if (video) {
+        video.removeEventListener("wheel", handleWheel);
+      }
+      if (seekbar) {
+        seekbar.removeEventListener("wheel", handleWheel);
+      }
+    };
+  }, [handleWheel, blobUrl, videoError]);
 
   const handleSeekbarPointerDown = (e: React.PointerEvent) => {
     if ((e.target as HTMLElement).closest("[data-marker-pin]")) return;

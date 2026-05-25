@@ -398,6 +398,227 @@ describe("TimestampEditor", () => {
     });
   });
 
+  describe("mouse wheel seeking", () => {
+    // The wheel listener is attached via native addEventListener (not a React
+    // synthetic handler).  Dispatch a real WheelEvent so that shiftKey /
+    // ctrlKey are seen by the handler.
+    function dispatchWheel(
+      target: Element,
+      opts: { deltaY?: number; shiftKey?: boolean; ctrlKey?: boolean },
+    ) {
+      // jsdom's WheelEvent constructor doesn't reliably set modifier
+      // properties from the init dict, so we force them via
+      // Object.defineProperty after construction.
+      const event = new WheelEvent("wheel", {
+        bubbles: true,
+        cancelable: true,
+        deltaY: opts.deltaY ?? 1,
+      });
+      Object.defineProperty(event, "shiftKey", {
+        value: opts.shiftKey ?? false,
+        writable: false,
+        enumerable: true,
+        configurable: true,
+      });
+      Object.defineProperty(event, "ctrlKey", {
+        value: opts.ctrlKey ?? false,
+        writable: false,
+        enumerable: true,
+        configurable: true,
+      });
+      target.dispatchEvent(event);
+    }
+
+    it("seeks forward when scrolling down on the seekbar", async () => {
+      renderTimestampEditor();
+
+      const seekbar = document.querySelector(
+        '[class*="bg-muted"][class*="h-8"]',
+      );
+      expect(seekbar).toBeTruthy();
+
+      // Initial time is 0
+      expect(screen.getByText(/00:00:00/)).toBeTruthy();
+
+      dispatchWheel(seekbar!, { deltaY: 30 });
+
+      await waitFor(() => {
+        expect(screen.getByText(/00:00:01/)).toBeTruthy();
+      });
+    });
+
+    it("seeks backward when scrolling up on the seekbar", async () => {
+      renderTimestampEditor();
+
+      const seekbar = document.querySelector(
+        '[class*="bg-muted"][class*="h-8"]',
+      );
+      expect(seekbar).toBeTruthy();
+
+      // First seek forward
+      dispatchWheel(seekbar!, { deltaY: 30 });
+      await waitFor(() => {
+        expect(screen.getByText(/00:00:01/)).toBeTruthy();
+      });
+
+      // Then scroll up to seek backward
+      dispatchWheel(seekbar!, { deltaY: -30 });
+
+      await waitFor(() => {
+        expect(screen.getByText(/00:00:00/)).toBeTruthy();
+      });
+    });
+
+    it("seeks with default 1-second step without modifiers", async () => {
+      renderTimestampEditor();
+
+      const seekbar = document.querySelector(
+        '[class*="bg-muted"][class*="h-8"]',
+      );
+      expect(seekbar).toBeTruthy();
+
+      dispatchWheel(seekbar!, { deltaY: 1 });
+      await waitFor(() => {
+        expect(screen.getByText(/00:00:01/)).toBeTruthy();
+      });
+
+      dispatchWheel(seekbar!, { deltaY: 1 });
+      await waitFor(() => {
+        expect(screen.getByText(/00:00:02/)).toBeTruthy();
+      });
+    });
+
+    it("seeks with 5-second step when Shift is held", async () => {
+      renderTimestampEditor();
+
+      const seekbar = document.querySelector(
+        '[class*="bg-muted"][class*="h-8"]',
+      );
+      expect(seekbar).toBeTruthy();
+
+      // The time display is a font-mono span containing "HH:MM:SS.mmm / HH:MM:SS.mmm".
+      // Grab the first such element (the transport controls time readout).
+      const parseSec = (s: string) => {
+        const m = s.match(/(\d+):(\d+):([\d.]+)/);
+        return m
+          ? parseInt(m[1]) * 3600 + parseInt(m[2]) * 60 + parseFloat(m[3])
+          : 0;
+      };
+
+      // Find the time display element (font-mono span with time format)
+      const timeDisplay = document.querySelector(
+        '[class*="font-mono"][class*="tabular-nums"]',
+      );
+      expect(timeDisplay).toBeTruthy();
+      const beforeTime = parseSec(timeDisplay!.textContent ?? "");
+
+      // Scroll with Shift — handler uses 5s step
+      dispatchWheel(seekbar!, { deltaY: 1, shiftKey: true });
+
+      // Time should have advanced by ~5s
+      await waitFor(() => {
+        const el = document.querySelector(
+          '[class*="font-mono"][class*="tabular-nums"]',
+        );
+        const afterTime = parseSec(el?.textContent ?? "");
+        const delta = afterTime - beforeTime;
+        expect(delta).toBeCloseTo(5, 0); // within 1 second
+      });
+    });
+
+    it("seeks with frame-step when Ctrl is held", async () => {
+      renderTimestampEditor();
+
+      const seekbar = document.querySelector(
+        '[class*="bg-muted"][class*="h-8"]',
+      );
+      expect(seekbar).toBeTruthy();
+
+      const parseSec = (s: string) => {
+        const m = s.match(/(\d+):(\d+):([\d.]+)/);
+        return m
+          ? parseInt(m[1]) * 3600 + parseInt(m[2]) * 60 + parseFloat(m[3])
+          : 0;
+      };
+
+      // Find the time display element
+      const timeDisplay = document.querySelector(
+        '[class*="font-mono"][class*="tabular-nums"]',
+      );
+      expect(timeDisplay).toBeTruthy();
+      const beforeTime = parseSec(timeDisplay!.textContent ?? "");
+
+      // Scroll with Ctrl — handler uses 1/fps frame step (fps=30 → ~0.033s)
+      dispatchWheel(seekbar!, { deltaY: 1, ctrlKey: true });
+
+      // Time should have advanced by ~0.033s
+      await waitFor(() => {
+        const el = document.querySelector(
+          '[class*="font-mono"][class*="tabular-nums"]',
+        );
+        const afterTime = parseSec(el?.textContent ?? "");
+        const delta = afterTime - beforeTime;
+        expect(delta).toBeCloseTo(1 / 30, 2); // within 0.01 second
+      });
+    });
+
+    it("prevents default behavior on wheel events", async () => {
+      renderTimestampEditor();
+
+      const seekbar = document.querySelector<HTMLDivElement>(
+        '[class*="bg-muted"][class*="h-8"]',
+      );
+      expect(seekbar).toBeTruthy();
+      if (!seekbar) return;
+
+      let prevented = false;
+
+      const checkHandler = (e: Event) => {
+        prevented = e.defaultPrevented;
+      };
+      seekbar.addEventListener("wheel", checkHandler, { passive: false });
+
+      dispatchWheel(seekbar, { deltaY: 30 });
+
+      expect(prevented).toBe(true);
+
+      seekbar.removeEventListener("wheel", checkHandler);
+    });
+
+    it("seeks forward when scrolling down on the video element", async () => {
+      renderTimestampEditor();
+
+      const video = document.querySelector("video");
+      expect(video).toBeTruthy();
+
+      dispatchWheel(video!, { deltaY: 30 });
+
+      await waitFor(() => {
+        expect(screen.getByText(/00:00:01/)).toBeTruthy();
+      });
+    });
+
+    it("seeks backward when scrolling up on the video element", async () => {
+      renderTimestampEditor();
+
+      const video = document.querySelector("video");
+      expect(video).toBeTruthy();
+
+      // Seek forward first
+      dispatchWheel(video!, { deltaY: 30 });
+      await waitFor(() => {
+        expect(screen.getByText(/00:00:01/)).toBeTruthy();
+      });
+
+      // Then scroll up to seek backward
+      dispatchWheel(video!, { deltaY: -30 });
+
+      await waitFor(() => {
+        expect(screen.getByText(/00:00:00/)).toBeTruthy();
+      });
+    });
+  });
+
   describe("video error state", () => {
     it("renders without crashing when video error occurs", () => {
       // The component handles video errors internally via the error event listener
