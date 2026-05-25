@@ -451,9 +451,11 @@ the same codec support rules apply
 
 ```bash
 npm install
-npm run dev        # local dev server
-npm run build      # production build → dist/
-npm run preview    # preview the production build locally
+npm run dev              # local dev server
+npm run build            # production build → dist/
+npm run preview          # preview the production build locally
+npm run test             # run the test suite
+npm run test:coverage    # generate the test coverage report
 ```
 
 See [RELEASE.md](./RELEASE.md) for deployment instructions
@@ -472,6 +474,7 @@ See [RELEASE.md](./RELEASE.md) for deployment instructions
   encoding via libwebp, and frame extraction fallback for natively unsupported formats
 - [JSZip](https://github.com/Stuk/jszip) — compressing generated output for download
 - [FileSaver.js](https://github.com/eligrey/FileSaver.js/) — download helper
+- [color-picker](https://github.com/markoradak/color-picker)
 - HTML5 Canvas API — grid compositing and JPEG/PNG encoding
 - HTML5 Video API — native frame seeking for supported formats
 
