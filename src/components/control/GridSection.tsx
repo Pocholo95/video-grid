@@ -94,37 +94,40 @@ export default function GridSection({
 
   return (
     <>
-      <Section label="Grid" expanded={expanded} onToggle={onToggle}>
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-          <Field>
-            <FieldLabel htmlFor="cp-width">Output width (px)</FieldLabel>
-            <RangeNumberInput
-              id="cp-width"
-              value={opts.width}
-              min={240}
-              max={3840}
-              step={10}
-              onChange={(v) => setOpts({ ...opts, width: v })}
-              suffix="px"
-              unbounded
-              hardMin={240}
-              hardMax={16384}
-            />
-          </Field>
-          <Field>
-            <FieldLabel htmlFor="cp-spacing">Cell spacing (px)</FieldLabel>
-            <RangeNumberInput
-              id="cp-spacing"
-              value={opts.spacing}
-              min={0}
-              max={48}
-              onChange={(v) => setOpts({ ...opts, spacing: v })}
-              suffix="px"
-            />
-          </Field>
-        </div>
+      <Section
+        label="Grid"
+        expanded={expanded}
+        onToggle={onToggle}
+        bodyClassName="sm:grid-cols-1 lg:grid-cols-2"
+      >
+        <Field>
+          <FieldLabel htmlFor="cp-width">Output width (px)</FieldLabel>
+          <RangeNumberInput
+            id="cp-width"
+            value={opts.width}
+            min={240}
+            max={3840}
+            step={10}
+            onChange={(v) => setOpts({ ...opts, width: v })}
+            suffix="px"
+            unbounded
+            hardMin={240}
+            hardMax={16384}
+          />
+        </Field>
+        <Field>
+          <FieldLabel htmlFor="cp-spacing">Cell spacing (px)</FieldLabel>
+          <RangeNumberInput
+            id="cp-spacing"
+            value={opts.spacing}
+            min={0}
+            max={48}
+            onChange={(v) => setOpts({ ...opts, spacing: v })}
+            suffix="px"
+          />
+        </Field>
         {!isCustomTemplate && (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+          <>
             <Field>
               <FieldLabel htmlFor="cp-cols">Grid columns</FieldLabel>
               <RangeNumberInput
@@ -149,9 +152,9 @@ export default function GridSection({
                 hardMax={50}
               />
             </Field>
-          </div>
+          </>
         )}
-        <div className="bg-muted/30 flex flex-col gap-3 rounded-md border p-3 sm:col-span-2">
+        <div className="bg-muted/30 flex flex-col gap-3 rounded-md border p-3 lg:col-span-2">
           <Field orientation="horizontal">
             <Switch
               id="cp-tpl-toggle"

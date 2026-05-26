@@ -425,7 +425,7 @@ export default function GridTemplateEditor({
                               <Button
                                 variant="ghost"
                                 size="icon"
-                                className="absolute top-1 right-1 size-6 opacity-75 lg:opacity-0 border lg:border-0 border-input/50 lg:transition-opacity group-hover:opacity-100"
+                                className="absolute top-1 right-1 size-6 opacity-75 border border-input/50 lg:transition-opacity group-hover:opacity-100"
                                 title="Remove this cell"
                                 onClick={() => handleRemoveCell(cell.id)}
                               >

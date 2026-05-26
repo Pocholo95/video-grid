@@ -81,7 +81,7 @@ export default function Section({
         <CollapsibleContent>
           <div
             className={cn(
-              "grid grid-cols-1 gap-4 border-t p-4 sm:grid-cols-2",
+              "grid grid-cols-1 gap-4 gap-x-12 border-t p-4 sm:grid-cols-2",
               bodyClassName,
             )}
           >
