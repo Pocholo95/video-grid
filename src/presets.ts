@@ -164,6 +164,33 @@ const DEFAULT: AppSettings = {
 };
 
 /**
+ * Ensure settings object has all required keys with safe defaults.
+ * This handles corrupt or incomplete settings (e.g., old data missing
+ * schema-migration keys) by merging with defaults for any missing fields.
+ */
+const ensureValidSettings = (settings: AppSettings): AppSettings => {
+  const presets =
+    settings.presets && typeof settings.presets === "object"
+      ? settings.presets
+      : {};
+  const entries: Presets =
+    "entries" in presets &&
+    presets.entries &&
+    typeof presets.entries === "object"
+      ? (presets.entries as Presets)
+      : DEFAULT.presets.entries;
+  return {
+    ...DEFAULT,
+    ...settings,
+    presets: {
+      ...DEFAULT.presets,
+      ...presets,
+      entries,
+    },
+  };
+};
+
+/**
  * Singleton VersionedStorage instance for app settings.
  * Handles schema versioning and migration automatically.
  */
@@ -175,7 +202,9 @@ const storage = createVersionedStorage();
  * they delete all presets — we do not re-seed.
  */
 export const seedBuiltInPresets = (): void => {
-  const settings = storage.load(() => structuredClone(DEFAULT));
+  const settings = ensureValidSettings(
+    storage.load(() => structuredClone(DEFAULT)),
+  );
   if (Object.keys(settings.presets.entries).length === 0) {
     settings.presets.entries = Object.fromEntries(
       BUILT_IN_PRESETS.map((p) => [
@@ -193,7 +222,7 @@ export const seedBuiltInPresets = (): void => {
  * Automatically runs schema migrations if needed.
  */
 export const loadAppSettings = (): AppSettings =>
-  storage.load(() => structuredClone(DEFAULT));
+  ensureValidSettings(storage.load(() => structuredClone(DEFAULT)));
 
 /**
  * Persist the full AppSettings object to localStorage.
