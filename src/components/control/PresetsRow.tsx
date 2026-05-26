@@ -60,15 +60,15 @@ export default function PresetsRow({
   const openSave = () => {
     const cur = presets.lastUsed;
     const hasName = cur && cur !== PRESETS_DEFAULT_VALUE;
-    setNameValue(hasName ? cur : "");
+    const newName = hasName ? cur : "";
+    setNameValue(newName);
     setNameVisible(true);
     setTimeout(() => {
       if (presetNameRef.current) {
         presetNameRef.current.focus();
         // Select all text if there's a name to be edited, otherwise leave cursor at start for new entry
-        const valueLength = nameValue.length;
-        if (valueLength > 0) {
-          presetNameRef.current.setSelectionRange(0, valueLength);
+        if (newName.length > 0) {
+          presetNameRef.current.setSelectionRange(0, newName.length);
         }
       }
     }, 0);
@@ -86,10 +86,35 @@ export default function PresetsRow({
   const handleDelete = () => {
     const name = presets.lastUsed;
     if (!name) return;
+
+    // Compute sorted list and index BEFORE deleting, so we know what to select next
+    const sortedNames = Object.keys(presets.entries).sort((a, b) =>
+      a.localeCompare(b),
+    );
+    const deleteIndex = sortedNames.indexOf(name);
+
     deletePreset(name);
     const entries = loadPresets();
-    setPresets({ entries, lastUsed: null });
-    setOpts(DEFAULTS);
+
+    // Priority: next preset > previous preset > default
+    let nextName: string | null = null;
+
+    if (deleteIndex < sortedNames.length - 1) {
+      // Pick the next preset in alphabetical order
+      nextName = sortedNames[deleteIndex + 1];
+    } else if (deleteIndex > 0) {
+      // Was at the end; pick the previous preset
+      nextName = sortedNames[deleteIndex - 1];
+    }
+    // else: only preset existed; fall through to default (nextName stays null)
+
+    if (nextName && entries[nextName]) {
+      setOpts(entries[nextName]);
+      setPresets({ entries, lastUsed: nextName });
+    } else {
+      setPresets({ entries, lastUsed: null });
+      setOpts(DEFAULTS);
+    }
   };
 
   return (
@@ -103,7 +128,11 @@ export default function PresetsRow({
             Presets: Shortcuts to set all the options below quickly
           </PopoverContent>
         </Popover>
-        <Select value={selectedPreset} onValueChange={applyPreset}>
+        <Select
+          value={selectedPreset}
+          disabled={nameVisible}
+          onValueChange={applyPreset}
+        >
           <SelectTrigger className="w-full min-w-20 truncate">
             <SelectValue className="truncate" />
           </SelectTrigger>
@@ -119,28 +148,31 @@ export default function PresetsRow({
                 </SelectItemDescription>
               </span>
             </SelectItem>
-            {Object.keys(presets.entries).map((n) => {
-              const summary = getPresetSummary(presets.entries[n]);
-              return (
-                <SelectItem key={n} value={n}>
-                  <span className="flex items-center justify-between min-w-0 gap-2">
-                    <span className="shrink-0">{n}</span>
-                    <SelectItemDescription
-                      className="text-muted-foreground truncate text-right flex-1"
-                      title={summary}
-                    >
-                      {summary}
-                    </SelectItemDescription>
-                  </span>
-                </SelectItem>
-              );
-            })}
+            {Object.keys(presets.entries)
+              .sort((a, b) => a.localeCompare(b))
+              .map((n) => {
+                const summary = getPresetSummary(presets.entries[n]);
+                return (
+                  <SelectItem key={n} value={n}>
+                    <span className="flex items-center justify-between min-w-0 gap-2">
+                      <span className="shrink-0">{n}</span>
+                      <SelectItemDescription
+                        className="text-muted-foreground truncate text-right flex-1"
+                        title={summary}
+                      >
+                        {summary}
+                      </SelectItemDescription>
+                    </span>
+                  </SelectItem>
+                );
+              })}
           </SelectContent>
         </Select>
         <Button
           variant="outline"
           size="icon"
           title="Save / add preset"
+          disabled={nameVisible}
           onClick={openSave}
         >
           <Save className="size-4" />
@@ -149,7 +181,7 @@ export default function PresetsRow({
           variant="destructive"
           size="icon"
           title="Delete selected preset"
-          disabled={!presets.lastUsed}
+          disabled={!presets.lastUsed || nameVisible}
           onClick={handleDelete}
         >
           <Trash2 className="size-4" />
