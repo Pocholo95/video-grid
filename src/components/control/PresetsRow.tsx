@@ -107,7 +107,7 @@ export default function PresetsRow({
           <SelectTrigger className="w-full min-w-20 truncate">
             <SelectValue className="truncate" />
           </SelectTrigger>
-          <SelectContent className="max-w-sm">
+          <SelectContent className="max-w-sm md:max-w-none">
             <SelectItem value={PRESETS_DEFAULT_VALUE}>
               <span className="flex items-center justify-between min-w-0 gap-2">
                 <span className="shrink-0">{"<Default Preset>"}</span>
