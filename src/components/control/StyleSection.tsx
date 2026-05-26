@@ -113,6 +113,7 @@ function ColorPickerField({
         >
           <ColorPickerInputTrigger
             id={id}
+            enableEyeDropper={false}
             className="inline-flex h-10 w-full cursor-pointer items-center gap-2 rounded-lg border border-border dark:bg-input/30 dark:hover:bg-input/50 px-1.5 text-left outline-none focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2 focus-within:ring-offset-background"
             classNames={{
               thumbnail: "h-7 w-7 shrink-0 rounded-md",
