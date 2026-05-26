@@ -2,6 +2,7 @@ import * as React from "react";
 import { Input } from "@/components/ui/input";
 import { Slider } from "@/components/ui/slider";
 import { cn } from "@/lib/utils";
+import { useHoverArm } from "@/lib/useHoverArm";
 
 interface Props {
   /** Unique ID for the input (used for both range and number inputs). */
@@ -55,10 +56,17 @@ export default function RangeNumberInput({
   hardMax,
 }: Props) {
   const containerRef = React.useRef<HTMLDivElement>(null);
+  const [hoverRef, isArmed] = useHoverArm(250);
   const onChangeRef = React.useRef(onChange);
   const valueRef = React.useRef(value);
   onChangeRef.current = onChange;
   valueRef.current = value;
+
+  // Merge containerRef and hoverRef so both are attached to the root div.
+  const setNode = (node: HTMLDivElement | null) => {
+    containerRef.current = node;
+    (hoverRef as React.RefObject<HTMLDivElement | null>).current = node;
+  };
 
   const actualMin = hardMin ?? min;
   const actualMax = hardMax ?? max;
@@ -77,13 +85,15 @@ export default function RangeNumberInput({
   };
 
   // Register native wheel listener with { passive: false } so preventDefault
-  // actually blocks page scrolling while hovering over this control.
+  // actually blocks page scrolling while the control is armed.
+  // The control only arms after the cursor has rested for the configured delay,
+  // preventing inadvertent value changes while scrolling through the page.
   React.useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
 
     const handler = (e: WheelEvent) => {
-      if (disabled) return;
+      if (disabled || !isArmed.current) return;
       if (e.deltaY !== 0) {
         e.preventDefault();
         adjustValue(e.deltaY > 0 ? -1 : 1);
@@ -131,10 +141,7 @@ export default function RangeNumberInput({
   const isOutOfRange = value < min || value > max;
 
   return (
-    <div
-      ref={containerRef}
-      className={cn("flex items-center gap-3", className)}
-    >
+    <div ref={setNode} className={cn("flex items-center gap-3", className)}>
       <Slider
         id={id}
         min={min}
