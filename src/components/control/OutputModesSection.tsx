@@ -1,5 +1,5 @@
 import { DEFAULTS } from "../../constants";
-import { Checkbox } from "@/components/ui/checkbox";
+import { Switch } from "@/components/ui/switch";
 import { Field, FieldLabel } from "@/components/ui/field";
 import {
   Select,
@@ -45,8 +45,11 @@ export default function OutputModesSection({
       {/* Left column: Timecode / Header / Preview / VR */}
       <div className="flex flex-col gap-3">
         <Field orientation="horizontal">
-          <Checkbox id="cp-chk-header" {...checkField("header")} />
-          <FieldLabel htmlFor="cp-chk-header">Show header metadata</FieldLabel>
+          <Switch
+            id="cp-chk-header"
+            label="Show header metadata"
+            {...checkField("header")}
+          />
         </Field>
         <Field>
           <FieldLabel htmlFor="cp-tc-pos">Timecode position</FieldLabel>
@@ -93,10 +96,11 @@ export default function OutputModesSection({
       {/* Right column: Animated WebP */}
       <div className="flex flex-col gap-3">
         <Field orientation="horizontal">
-          <Checkbox id="cp-chk-animated" {...checkField("animated")} />
-          <FieldLabel htmlFor="cp-chk-animated">
-            Animated output (WebP)
-          </FieldLabel>
+          <Switch
+            id="cp-chk-animated"
+            label="Animated output (WebP)"
+            {...checkField("animated")}
+          />
         </Field>
         {isAnimated && (
           <div className="bg-muted/30 grid grid-cols-1 lg:grid-cols-2 gap-3 rounded-md border p-3">

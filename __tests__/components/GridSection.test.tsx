@@ -82,8 +82,8 @@ vi.mock("@/components/ui/alert-dialog", () => ({
   ),
 }));
 
-vi.mock("@/components/ui/checkbox", () => ({
-  Checkbox: ({
+vi.mock("@/components/ui/switch", () => ({
+  Switch: ({
     checked,
     onCheckedChange,
     id,
@@ -94,7 +94,7 @@ vi.mock("@/components/ui/checkbox", () => ({
   }) => (
     <input
       type="checkbox"
-      data-testid={`checkbox-${id}`}
+      data-testid={`switch-${id}`}
       checked={checked}
       onChange={() => onCheckedChange(!checked)}
     />
@@ -211,7 +211,7 @@ describe("GridSection", () => {
         );
 
         // Click the checkbox to enable custom grid
-        const checkbox = screen.getByTestId("checkbox-cp-tpl-toggle");
+        const checkbox = screen.getByTestId("switch-cp-tpl-toggle");
         fireEvent.click(checkbox);
 
         // setOpts should have been called to initialize the template
@@ -262,7 +262,7 @@ describe("GridSection", () => {
       );
 
       // Uncheck the checkbox to disable custom grid
-      const checkbox = screen.getByTestId("checkbox-cp-tpl-toggle");
+      const checkbox = screen.getByTestId("switch-cp-tpl-toggle");
       fireEvent.click(checkbox);
 
       // Confirm dialog should appear
@@ -301,7 +301,7 @@ describe("GridSection", () => {
       );
 
       // Trigger discard dialog
-      const checkbox = screen.getByTestId("checkbox-cp-tpl-toggle");
+      const checkbox = screen.getByTestId("switch-cp-tpl-toggle");
       fireEvent.click(checkbox);
 
       // Confirm discard
@@ -362,7 +362,7 @@ describe("GridSection", () => {
       );
 
       // Uncheck - no discard dialog since template matches preset
-      const checkbox = screen.getByTestId("checkbox-cp-tpl-toggle");
+      const checkbox = screen.getByTestId("switch-cp-tpl-toggle");
       fireEvent.click(checkbox);
 
       expect(screen.queryByTestId("alert-dialog")).not.toBeTruthy();

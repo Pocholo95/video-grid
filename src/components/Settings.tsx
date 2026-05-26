@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Sun, Moon, Monitor, Cloud } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
+import { Switch } from "@/components/ui/switch";
 import type { UploadDestination } from "../types";
 import DestinationManager from "./DestinationManager";
 import {
@@ -127,7 +127,7 @@ export default function Settings({
           <FieldSeparator />
 
           <Field orientation="horizontal">
-            <Checkbox
+            <Switch
               id="show-previews"
               checked={showPreview}
               onCheckedChange={onShowPreviewChange}

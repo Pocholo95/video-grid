@@ -7,7 +7,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Checkbox } from "@/components/ui/checkbox";
+import { Switch } from "@/components/ui/switch";
 import RangeNumberInput from "@/components/control/RangeNumberInput";
 import Section from "./Section";
 import {
@@ -237,20 +237,14 @@ export default function StyleSection({
               suffix="px"
               className="flex-1"
             />
-            <Checkbox
+            <Switch
               id="tc-font-auto"
+              label="Auto"
               checked={opts.tcFontSizeAuto}
               onCheckedChange={(checked) =>
                 setOpts({ ...opts, tcFontSizeAuto: !!checked })
               }
-              className="shrink-0"
             />
-            <label
-              htmlFor="tc-font-auto"
-              className="text-sm cursor-pointer whitespace-nowrap shrink-0"
-            >
-              Auto
-            </label>
           </div>
         </Field>
       </div>
@@ -271,20 +265,14 @@ export default function StyleSection({
               suffix="px"
               className="flex-1"
             />
-            <Checkbox
+            <Switch
               id="header-font-auto"
+              label="Auto"
               checked={opts.headerFontSizeAuto}
               onCheckedChange={(checked) =>
                 setOpts({ ...opts, headerFontSizeAuto: !!checked })
               }
-              className="shrink-0"
             />
-            <label
-              htmlFor="header-font-auto"
-              className="text-sm cursor-pointer whitespace-nowrap shrink-0"
-            >
-              Auto
-            </label>
           </div>
         </Field>
       </div>

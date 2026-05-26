@@ -3,7 +3,7 @@ import { Cloud, Pencil, Plus, Trash2 } from "lucide-react";
 import type { UploadDestination } from "../types";
 import { makeId } from "../utils";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
+import { Switch } from "@/components/ui/switch";
 import {
   Dialog,
   DialogContent,
@@ -202,14 +202,9 @@ export default function DestinationManager({
                 !d.enabled && "opacity-60",
               )}
             >
-              <Checkbox
+              <Switch
                 checked={d.enabled}
                 onCheckedChange={() => toggleEnabled(d.id)}
-                title={
-                  d.enabled
-                    ? "Enabled — click to disable"
-                    : "Disabled — click to enable"
-                }
               />
               <span className="bg-secondary text-secondary-foreground rounded px-2 py-0.5 font-mono text-xs">
                 {d.type}

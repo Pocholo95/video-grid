@@ -13,7 +13,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
+import { Switch } from "@/components/ui/switch";
 import { Field, FieldLabel } from "@/components/ui/field";
 import Section from "./Section";
 import RangeNumberInput from "./RangeNumberInput";
@@ -153,14 +153,12 @@ export default function GridSection({
         )}
         <div className="bg-muted/30 flex flex-col gap-3 rounded-md border p-3 sm:col-span-2">
           <Field orientation="horizontal">
-            <Checkbox
+            <Switch
               id="cp-tpl-toggle"
+              label="Custom grid template"
               checked={isCustomTemplate}
               onCheckedChange={handleToggleTemplate}
             />
-            <FieldLabel htmlFor="cp-tpl-toggle">
-              Custom grid template
-            </FieldLabel>
           </Field>
           {isCustomTemplate && opts.gridTemplate && (
             <div className="flex flex-wrap items-center justify-between gap-2">
