@@ -6,7 +6,7 @@ import type {
   UploadDestination,
 } from "./types";
 import { createVersionedStorage } from "./services/storage.service";
-import { DEFAULTS } from "./constants";
+import { APP_STORAGE_KEY, DEFAULTS } from "./constants";
 
 // ---------------------------------------------------------------------------
 // Built-in Presets
@@ -43,15 +43,6 @@ export const BUILT_IN_PRESETS: BuiltInPreset[] = [
     },
   },
   {
-    name: "Balanced",
-    opts: {
-      gridTemplate: {
-        cols: 60,
-        cells: [...row(0, 1), ...row(1, 2), ...row(2, 1)],
-      },
-    },
-  },
-  {
     name: "Animated Hero Light",
     opts: {
       width: 1280,
@@ -61,6 +52,15 @@ export const BUILT_IN_PRESETS: BuiltInPreset[] = [
       gridTemplate: {
         cols: 60,
         cells: [...row(0, 3), ...row(1, 1), ...row(2, 3)],
+      },
+    },
+  },
+  {
+    name: "Balanced",
+    opts: {
+      gridTemplate: {
+        cols: 60,
+        cells: [...row(0, 1), ...row(1, 2), ...row(2, 1)],
       },
     },
   },
@@ -202,18 +202,20 @@ const storage = createVersionedStorage();
  * they delete all presets — we do not re-seed.
  */
 export const seedBuiltInPresets = (): void => {
-  const settings = ensureValidSettings(
-    storage.load(() => structuredClone(DEFAULT)),
+  /* Only seed on a truly fresh install — no data in localStorage at all.
+     If the user deletes all presets manually, we respect that choice and do
+     NOT re-seed on the next load. */
+  const raw = localStorage.getItem(APP_STORAGE_KEY);
+  if (raw !== null) return;
+
+  const settings = ensureValidSettings(structuredClone(DEFAULT));
+  settings.presets.entries = Object.fromEntries(
+    BUILT_IN_PRESETS.map((p) => [
+      p.name,
+      { ...structuredClone(DEFAULTS), ...structuredClone(p.opts) },
+    ]),
   );
-  if (Object.keys(settings.presets.entries).length === 0) {
-    settings.presets.entries = Object.fromEntries(
-      BUILT_IN_PRESETS.map((p) => [
-        p.name,
-        { ...structuredClone(DEFAULTS), ...structuredClone(p.opts) },
-      ]),
-    );
-    storage.save(settings);
-  }
+  storage.save(settings);
 };
 
 /**
