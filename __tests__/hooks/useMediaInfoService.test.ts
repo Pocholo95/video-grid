@@ -14,11 +14,13 @@ vi.mock("@/services/mediainfo.service");
 
 describe("useMediaInfoService", () => {
   const createMock = () =>
-    vi.fn(() => ({
-      init: vi.fn().mockResolvedValue(undefined),
-      destroy: vi.fn(),
-      analyze: vi.fn().mockResolvedValue({}),
-    }));
+    vi.fn(function () {
+      return {
+        init: vi.fn().mockResolvedValue(undefined),
+        destroy: vi.fn(),
+        analyze: vi.fn().mockResolvedValue({}),
+      };
+    });
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -53,11 +55,13 @@ describe("useMediaInfoService", () => {
 
   it("destroys the service on unmount", () => {
     const destroySpy = vi.fn();
-    const mock = vi.fn(() => ({
-      init: vi.fn().mockResolvedValue(undefined),
-      destroy: destroySpy,
-      analyze: vi.fn().mockResolvedValue({}),
-    }));
+    const mock = vi.fn(function () {
+      return {
+        init: vi.fn().mockResolvedValue(undefined),
+        destroy: destroySpy,
+        analyze: vi.fn().mockResolvedValue({}),
+      };
+    });
     (mediainfoModule.MediaInfoService as unknown as ReturnType<typeof vi.fn>) =
       mock;
 

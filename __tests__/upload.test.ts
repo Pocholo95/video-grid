@@ -81,9 +81,9 @@ describe("uploadBlob", () => {
     vi.useFakeTimers();
     mockXHR = createMockXHR();
 
-    vi.spyOn(globalThis, "XMLHttpRequest").mockImplementation(
-      () => mockXHR as unknown as XMLHttpRequest,
-    );
+    vi.spyOn(globalThis, "XMLHttpRequest").mockImplementation(function () {
+      return mockXHR as unknown as XMLHttpRequest;
+    });
 
     // Mock FileReader to resolve synchronously via runAllTimersAsync
     vi.spyOn(globalThis, "FileReader").mockImplementation(function () {

@@ -14,13 +14,15 @@ vi.mock("@/services/ffmpeg.service");
 
 describe("useFFmpegService", () => {
   const createMock = () =>
-    vi.fn(() => ({
-      isReady: vi.fn().mockResolvedValue(true),
-      init: vi.fn().mockResolvedValue(undefined),
-      destroy: vi.fn().mockResolvedValue(undefined),
-      getBusyState: vi.fn().mockReturnValue(false),
-      onLog: vi.fn(),
-    }));
+    vi.fn(function () {
+      return {
+        isReady: vi.fn().mockResolvedValue(true),
+        init: vi.fn().mockResolvedValue(undefined),
+        destroy: vi.fn().mockResolvedValue(undefined),
+        getBusyState: vi.fn().mockReturnValue(false),
+        onLog: vi.fn(),
+      };
+    });
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -53,13 +55,15 @@ describe("useFFmpegService", () => {
 
   it("destroys the service on unmount", () => {
     const destroySpy = vi.fn();
-    const mock = vi.fn(() => ({
-      isReady: vi.fn().mockResolvedValue(true),
-      init: vi.fn().mockResolvedValue(undefined),
-      destroy: destroySpy,
-      getBusyState: vi.fn().mockReturnValue(false),
-      onLog: vi.fn(),
-    }));
+    const mock = vi.fn(function () {
+      return {
+        isReady: vi.fn().mockResolvedValue(true),
+        init: vi.fn().mockResolvedValue(undefined),
+        destroy: destroySpy,
+        getBusyState: vi.fn().mockReturnValue(false),
+        onLog: vi.fn(),
+      };
+    });
     (ffmpegModule.FFmpegService as unknown as ReturnType<typeof vi.fn>) = mock;
 
     const { unmount } = renderHook(() => useFFmpegService());
