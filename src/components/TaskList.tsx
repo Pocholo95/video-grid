@@ -1,6 +1,5 @@
 import { useMemo, useCallback, useRef, useEffect, useState } from "react";
 import { autoAnimate } from "@formkit/auto-animate";
-import { Download, Loader2, Upload } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useTaskStore } from "@/store/taskStore";
 import { useProcessingStore } from "@/store/processingStore";
@@ -9,10 +8,9 @@ import { useUploadStore } from "@/store/uploadStore";
 import { useUiStore } from "@/store/uiStore";
 import TaskCard from "./TaskCard";
 import { ErrorBoundary } from "./ErrorBoundary";
-import CopyAllPanel from "./CopyAllPanel";
+import TaskActionsPanel from "./TaskActionsPanel";
 import ProcessingPanel from "./ProcessingPanel";
 import CompactBar from "./CompactBar";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import FilePicker from "./control/FilePicker";
 
@@ -230,53 +228,24 @@ export default function TaskList({
             </div>
 
             <div className="flex items-center gap-2 justify-end w-full">
-              {enabledDests.length > 0 && doneItems.length > 0 && (
-                <Button
-                  variant="default"
-                  disabled={isUploadingAll || !hasPendingUploads}
-                  onClick={onUploadAll}
-                  title={`Upload all to ${enabledDests.map((d) => d.name).join(", ")} ${
-                    hasPendingUploads ? "" : "(All uploads complete)"
-                  }`}
-                >
-                  {isUploadingAll ? (
-                    <>
-                      <Loader2 className="size-4 animate-spin" />
-                      Uploading… ({uploadProgress.attempted}/
-                      {uploadProgress.total})
-                    </>
-                  ) : (
-                    <>
-                      <Upload className="size-4" />
-                      Upload All ({completedUploads}/{totalPossibleUploads})
-                    </>
-                  )}
-                </Button>
-              )}
-              {doneItems.length > 1 && (
-                <Button
-                  variant="default"
-                  disabled={isZipping}
-                  onClick={onDownloadAll}
-                >
-                  {isZipping ? (
-                    <>
-                      <Loader2 className="size-4 animate-spin" />
-                      Zipping…
-                    </>
-                  ) : (
-                    <>
-                      <Download className="size-4" />
-                      Download All ({doneItems.length})
-                    </>
-                  )}
-                </Button>
+              {items.some((i) => i.metadata) && (
+                <TaskActionsPanel
+                  items={items}
+                  allDone={allDone}
+                  enabledDests={enabledDests}
+                  doneItems={doneItems}
+                  totalPossibleUploads={totalPossibleUploads}
+                  completedUploads={completedUploads}
+                  hasPendingUploads={hasPendingUploads}
+                  isUploadingAll={isUploadingAll}
+                  uploadProgress={uploadProgress}
+                  isZipping={isZipping}
+                  onUploadAll={onUploadAll}
+                  onDownloadAll={onDownloadAll}
+                />
               )}
             </div>
           </div>
-          {items.some((i) => i.metadata) && (
-            <CopyAllPanel items={items} allDone={allDone} />
-          )}
 
           <div ref={listRef} className="flex flex-col gap-4 overflow-hidden">
             {items.length === 0 ? (

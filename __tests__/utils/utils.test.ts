@@ -12,6 +12,7 @@ import {
   warn,
   errlog,
   buildBbcodeTitle,
+  normalizeHex,
 } from "@/utils";
 import type { TaskItem, VideoMetadata } from "@/types";
 
@@ -289,6 +290,47 @@ describe("utils", () => {
       expect(buildBbcodeTitle(item)).toBe(
         "[b]fallback_name [COLOR=rgb(184, 49, 47)]1080p[/COLOR][/b]",
       );
+    });
+  });
+
+  describe("normalizeHex", () => {
+    it("normalizes full hex with #", () => {
+      expect(normalizeHex("#ff0000", "#000000")).toBe("#ff0000");
+      expect(normalizeHex("#00ff00", "#000000")).toBe("#00ff00");
+      expect(normalizeHex("#0000ff", "#000000")).toBe("#0000ff");
+    });
+
+    it("normalizes full hex without #", () => {
+      expect(normalizeHex("ff0000", "#000000")).toBe("#ff0000");
+    });
+
+    it("expands shorthand hex", () => {
+      expect(normalizeHex("#f00", "#000000")).toBe("#ff0000");
+      expect(normalizeHex("#0f0", "#000000")).toBe("#00ff00");
+      expect(normalizeHex("000", "#000000")).toBe("#000000");
+    });
+
+    it("normalizes to lowercase", () => {
+      expect(normalizeHex("#FF00AA", "#000000")).toBe("#ff00aa");
+      expect(normalizeHex("#F0A", "#000000")).toBe("#ff00aa");
+    });
+
+    it("strips alpha from 8-char hex", () => {
+      expect(normalizeHex("#ff000080", "#000000")).toBe("#ff0000");
+      expect(normalizeHex("ff0000ff", "#000000")).toBe("#ff0000");
+    });
+
+    it("returns fallback for non-string input", () => {
+      expect(normalizeHex(123, "#abcdef")).toBe("#abcdef");
+      expect(normalizeHex(null, "#abcdef")).toBe("#abcdef");
+      expect(normalizeHex(undefined, "#abcdef")).toBe("#abcdef");
+    });
+
+    it("returns fallback for invalid hex", () => {
+      expect(normalizeHex("#gggggg", "#fallback")).toBe("#fallback");
+      expect(normalizeHex("#12", "#fallback")).toBe("#fallback");
+      expect(normalizeHex("", "#fallback")).toBe("#fallback");
+      expect(normalizeHex("xyz", "#fallback")).toBe("#fallback");
     });
   });
 

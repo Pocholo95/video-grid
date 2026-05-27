@@ -1,9 +1,10 @@
 import { useState } from "react";
-import { Check, Copy } from "lucide-react";
+import { Check, Copy, Download, Loader2, Upload } from "lucide-react";
 import type { DestinationUploadState, TaskItem, UploadResult } from "../types";
 import { resolutionLabel, buildFormats } from "../uploadUtils";
 import { buildBbcodeTitle } from "../utils";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -14,10 +15,30 @@ import {
 } from "@/components/ui/select";
 
 interface Props {
-  /** All items that have been analyzed (metadata available). */
+  /** All task items. */
   items: TaskItem[];
   /** Whether all uploads across all items and destinations are complete. */
   allDone: boolean;
+  /** Enabled upload destinations. */
+  enabledDests: { id: string; name: string }[];
+  /** Done items that have outputBlob and outputName. */
+  doneItems: TaskItem[];
+  /** Total possible uploads (doneItems * enabledDests). */
+  totalPossibleUploads: number;
+  /** Completed upload count. */
+  completedUploads: number;
+  /** Whether there are pending uploads. */
+  hasPendingUploads: boolean;
+  /** True while a bulk-upload batch is in progress. */
+  isUploadingAll: boolean;
+  /** Upload progress for bulk upload. */
+  uploadProgress: { attempted: number; total: number };
+  /** True while ZIP archive is being generated. */
+  isZipping: boolean;
+  /** Callback to upload all completed items. */
+  onUploadAll: () => void;
+  /** Callback to download all completed items as ZIP. */
+  onDownloadAll: () => void;
 }
 
 type FormatKey =
@@ -185,20 +206,42 @@ function CopyButton({ text, disabled }: { text: string; disabled?: boolean }) {
 }
 
 /**
- * Toolbar that lets the user pick a link format and copy all strings
- * (one per task) at once.
+ * Panel that groups completed-task actions: CopyAll links toolbar,
+ * Upload All, and Download All buttons.
  *
- * The "BBCode – video title + resolution" format is always available
- * (requires only metadata). All upload-dependent formats are disabled
- * until every upload across all items is complete.
+ * Layout: two columns on desktop (CopyAll left, buttons right-aligned),
+ * stacked on mobile.
  *
- * @param items - All analyzed task items (with metadata).
+ * @param items - All task items.
  * @param allDone - True when all uploads are complete.
+ * @param enabledDests - Enabled upload destinations.
+ * @param doneItems - Items with outputBlob and outputName ready.
+ * @param totalPossibleUploads - Max upload count across all items/destinations.
+ * @param completedUploads - Number of uploads that have completed.
+ * @param hasPendingUploads - True when completedUploads < totalPossibleUploads.
+ * @param isUploadingAll - True while bulk-upload is in progress.
+ * @param uploadProgress - { attempted, total } for current bulk run.
+ * @param isZipping - True while ZIP archive is being generated.
+ * @param onUploadAll - Starts uploading all completed items.
+ * @param onDownloadAll - Downloads all completed items as ZIP.
  */
-export default function CopyAllPanel({ items, allDone }: Props) {
+export default function TaskActionsPanel({
+  items,
+  allDone,
+  enabledDests,
+  doneItems,
+  totalPossibleUploads,
+  completedUploads,
+  hasPendingUploads,
+  isUploadingAll,
+  uploadProgress,
+  isZipping,
+  onUploadAll,
+  onDownloadAll,
+}: Props) {
   const [format, setFormat] = useState<FormatKey>("bbcodeTitleRes");
 
-  // Only items that have metadata are useful for title+resolution.
+  // Only show panel if at least one item has metadata
   const analyzedItems = items.filter((i) => i.metadata);
   if (analyzedItems.length === 0) return null;
 
@@ -215,30 +258,93 @@ export default function CopyAllPanel({ items, allDone }: Props) {
     format,
   );
 
+  // Show panel only when there are done items or items with metadata
+  const hasActions = doneItems.length > 0 || analyzedItems.length > 0;
+  if (!hasActions) return null;
+
   return (
-    <div className="bg-muted/30 flex flex-wrap items-center gap-3 rounded-md border p-3">
-      <Label className="text-sm font-medium">Copy all:</Label>
-      <Select value={format} onValueChange={(v) => setFormat(v as FormatKey)}>
-        <SelectTrigger className="w-auto min-w-45">
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          {(Object.keys(FORMAT_LABELS) as FormatKey[]).map((k) => (
-            <SelectItem
-              key={k}
-              value={k}
-              disabled={
-                k === "bbcodeTitleRes"
-                  ? !titleResAvailable
-                  : !uploadFormatsAvailable
-              }
+    <Card className="w-full overflow-hidden">
+      <CardHeader>
+        <CardTitle>Tasks Actions</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* Column 1 - CopyAll Panel */}
+          <div className="flex items-center gap-3">
+            <Label className="text-sm font-medium sr-only">Copy all:</Label>
+            <Select
+              value={format}
+              onValueChange={(v) => setFormat(v as FormatKey)}
             >
-              {FORMAT_LABELS[k]}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-      <CopyButton text={copyText} disabled={!anyAvailable} />
-    </div>
+              <SelectTrigger className="w-56 min-w-0 **:data-[slot=select-value]:inline-block **:data-[slot=select-value]:max-w-full **:data-[slot=select-value]:truncate">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {(Object.keys(FORMAT_LABELS) as FormatKey[]).map((k) => (
+                  <SelectItem
+                    key={k}
+                    value={k}
+                    disabled={
+                      k === "bbcodeTitleRes"
+                        ? !titleResAvailable
+                        : !uploadFormatsAvailable
+                    }
+                  >
+                    {FORMAT_LABELS[k]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <CopyButton text={copyText} disabled={!anyAvailable} />
+          </div>
+
+          {/* Column 2 - Action Buttons (right-aligned) */}
+          <div className="flex flex-wrap items-center gap-2 justify-end">
+            {enabledDests.length > 0 && doneItems.length > 0 && (
+              <Button
+                variant="default"
+                disabled={isUploadingAll || !hasPendingUploads}
+                onClick={onUploadAll}
+                title={`Upload all to ${enabledDests.map((d) => d.name).join(", ")} ${
+                  hasPendingUploads ? "" : "(All uploads complete)"
+                }`}
+              >
+                {isUploadingAll ? (
+                  <>
+                    <Loader2 className="size-4 animate-spin" />
+                    Uploading… ({uploadProgress.attempted}/
+                    {uploadProgress.total})
+                  </>
+                ) : (
+                  <>
+                    <Upload className="size-4" />
+                    Upload All ({completedUploads}/{totalPossibleUploads})
+                  </>
+                )}
+              </Button>
+            )}
+            {doneItems.length > 1 && (
+              <Button
+                variant="default"
+                disabled={isZipping}
+                onClick={onDownloadAll}
+              >
+                {isZipping ? (
+                  <>
+                    <Loader2 className="size-4 animate-spin" />
+                    Zipping…
+                  </>
+                ) : (
+                  <>
+                    <Download className="size-4" />
+                    Download All ({doneItems.length})
+                  </>
+                )}
+              </Button>
+            )}
+          </div>
+        </div>
+      </CardContent>
+    </Card>
   );
 }

@@ -141,6 +141,32 @@ export const hexToRgba = (hex: string, alpha: number = 1): string => {
 };
 
 /**
+ * Validates and normalizes a hex color string.
+ * Returns a valid 7-char hex string (#RRGGBB) or the fallback.
+ *
+ * @param color - The color value to normalize (string or other type).
+ * @param fallback - The fallback color returned when the value is invalid.
+ * @returns A normalized 7-char hex string (#rrggbb) or the fallback.
+ */
+export function normalizeHex(color: unknown, fallback: string): string {
+  if (typeof color !== "string") return fallback;
+  const cleaned = color.replace(/^#/, "");
+  // Strip alpha if present (#rrggbbaa -> #rrggbb)
+  const hexPart = cleaned.length > 6 ? cleaned.slice(0, 6) : cleaned;
+  if (/^[0-9a-f]{6}$/i.test(hexPart)) {
+    return "#" + hexPart.toLowerCase();
+  }
+  if (/^[0-9a-f]{3}$/i.test(hexPart)) {
+    const expanded = hexPart
+      .split("")
+      .map((c) => c + c)
+      .join("");
+    return "#" + expanded.toLowerCase();
+  }
+  return fallback;
+}
+
+/**
  * Build a BBCode "title + resolution" string for a single task item.
  * Uses `resolutionLabel` to derive a standard resolution tag (e.g. "1080p")
  * from the video metadata when available. Falls back to title-only when

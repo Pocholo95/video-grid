@@ -94,3 +94,19 @@ export const ANIMATED_ENCODE_PCT = 100 - ANIMATED_COMPOSE_PCT;
 
 /** Enable verbose console logging. Controlled via VITE_DEBUG env variable. */
 export const DEBUG = import.meta.env.VITE_DEBUG === "true";
+
+/** Default color swatch palette used by the ColorPicker component. */
+export const COLOR_SWATCHES = [
+  "#000000",
+  "#737373",
+  "#ef4444",
+  "#f97316",
+  "#eab308",
+  "#22c55e",
+  "#14b8a6",
+  "#3b82f6",
+  "#8b5cf6",
+  "#ec4899",
+  "#a3a3a3",
+  "#ffffff",
+] as const;

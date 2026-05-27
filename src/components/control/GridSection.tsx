@@ -164,11 +164,12 @@ export default function GridSection({
                 <Button
                   variant="outline"
                   size="sm"
+                  className="w-full sm:w-auto"
                   onClick={() => setShowTemplateEditor(true)}
-                  title="Open template editor"
+                  title="Open the Grid Template Editor"
                 >
                   <Grid3x3 className="size-4" />
-                  Edit Template
+                  Edit Grid
                 </Button>
               </div>
             </div>

@@ -48,7 +48,8 @@ export default function TimestampRow({
         {tsLabel}
       </span>
       <Button
-        variant={isCustom ? "default" : "secondary"}
+        variant={isCustom ? "default" : "outline"}
+        className="w-full sm:w-auto"
         size="sm"
         disabled={!canEdit}
         onClick={onEdit}
