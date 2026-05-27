@@ -6,7 +6,7 @@ import {
   Play,
   Plus,
   RotateCcw,
-  Target,
+  Timeline,
   Trash2,
   X,
 } from "lucide-react";
@@ -19,6 +19,9 @@ import type { TaskItem } from "../types";
 import { calculateSampleTimes } from "../gridUtils";
 import { formatTimeExact } from "../utils";
 import { useLongPress } from "../hooks/useLongPress";
+import GridPreview from "./GridPreview";
+import { templateFromUniform } from "../gridTemplate";
+import { useUiStore } from "../store";
 
 interface Props {
   item: TaskItem;
@@ -275,9 +278,17 @@ export default function TimestampEditor({
 
   const addMarkerAtCurrentTime = useCallback(() => {
     const t = videoRef.current?.currentTime ?? currentTime;
-    setMarkers((prev) => [...prev, t].sort((a, b) => a - b));
-    setSelectedMarker(null);
-  }, [currentTime]);
+    setMarkers((prev) => {
+      const next = [...prev, t].sort((a, b) => a - b);
+      // Auto-select the newly added marker if within active range.
+      if (next.length <= totalCells) {
+        setSelectedMarker(next.length - 1);
+      } else {
+        setSelectedMarker(null);
+      }
+      return next;
+    });
+  }, [currentTime, totalCells]);
 
   const deleteMarker = useCallback((idx: number) => {
     setMarkers((prev) => prev.filter((_, i) => i !== idx));
@@ -295,6 +306,29 @@ export default function TimestampEditor({
     setCurrentTime(t);
     setSelectedMarker(idx);
   }, []);
+
+  /**
+   * Subscribe only to the specific store fields we need for the grid preview.
+   * Stable selectors avoid unnecessary re-renders.
+   */
+  const storeGridTpl = useUiStore((s) => s.opts?.gridTemplate);
+  const storeCols = useUiStore((s) => s.opts?.cols);
+  const storeRows = useUiStore((s) => s.opts?.rows);
+  const gridTemplate = storeGridTpl?.cells?.length
+    ? storeGridTpl
+    : templateFromUniform(storeCols ?? 4, storeRows ?? 3);
+
+  /**
+   * Handler for clicking a cell in the grid preview: seeks to the marker
+   * that corresponds to that cell index.
+   */
+  const handleGridCellClick = useCallback(
+    (cellIndex: number) => {
+      if (cellIndex < 0 || cellIndex >= markers.length) return;
+      seekToMarker(markers[cellIndex], cellIndex);
+    },
+    [markers, seekToMarker],
+  );
 
   // When a long press fires, the browser removes the marker element from the
   // DOM mid-gesture. Pointer capture is released at that point, so subsequent
@@ -465,7 +499,7 @@ export default function TimestampEditor({
           </DialogPrimitive.Description>
           <div className="flex items-center justify-between gap-3">
             <h2 className="flex min-w-0 items-center gap-2 text-base font-semibold sm:text-lg">
-              <Target className="size-5 shrink-0" />
+              <Timeline className="size-5 shrink-0 -rotate-90" />
               <span className="shrink-0">Timestamps for</span>
               <span className="truncate font-normal" title={item.file.name}>
                 {item.file.name}
@@ -607,8 +641,22 @@ export default function TimestampEditor({
               </div>
             </div>
 
-            {/* Right: marker list */}
+            {/* Right: grid preview + marker list */}
             <div className="bg-muted/30 flex h-[30vh] shrink-0 flex-col gap-2 rounded-md border p-3 md:h-auto md:min-h-0 md:shrink">
+              {/* Grid structure preview */}
+              <div className="flex flex-col gap-1">
+                <span className="text-muted-foreground text-xs font-medium">
+                  Grid Layout
+                </span>
+                <div className="bg-card overflow-x-auto rounded-md border p-2">
+                  <GridPreview
+                    template={gridTemplate}
+                    selectedCellIndex={selectedMarker}
+                    onClickCell={handleGridCellClick}
+                    assignedCount={effectiveCount}
+                  />
+                </div>
+              </div>
               <div className="flex items-center justify-between gap-2">
                 <span className="text-sm font-semibold">
                   Markers (

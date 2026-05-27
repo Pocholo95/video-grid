@@ -13,6 +13,23 @@ import type { TaskItem } from "@/types";
 
 // -- Mocks --
 
+// Mock the store module to prevent localStorage access during module initialization.
+// TimestampEditor imports useUiStore from "@/store", which triggers settingsStore
+// → presets.ts → localStorage.getItem(). This mock provides a stable default
+// selector returning undefined (no grid template), matching the typical test
+// scenario where the editor is used without a custom grid.
+vi.mock("@/store", () => {
+  const mockState = {
+    gridTemplate: undefined,
+    opts: { cols: 4, rows: 3 },
+  };
+  return {
+    useUiStore: vi.fn((selector) =>
+      selector ? selector(mockState) : mockState,
+    ),
+  };
+});
+
 vi.mock("@/lib/blobCache", () => ({
   getOrCreateUrl: vi.fn(() => "blob://mock-video"),
 }));
@@ -87,6 +104,24 @@ vi.mock("@radix-ui/react-dialog", () => ({
 
 vi.mock("@/lib/utils", () => ({
   cn: vi.fn((...classes: string[]) => classes.filter(Boolean).join(" ")),
+}));
+
+vi.mock("@/components/GridPreview", () => ({
+  default: () => <div data-testid="grid-preview">GridPreview</div>,
+}));
+
+vi.mock("@/gridTemplate", () => ({
+  templateFromUniform: vi.fn((cols, rows) => ({
+    cols,
+    rows,
+    cells: Array.from({ length: cols * rows }, (_, i) => ({
+      id: `cell-${i}`,
+      x: 0,
+      y: 0,
+      w: 1,
+      h: 1,
+    })),
+  })),
 }));
 
 // -- Helpers --

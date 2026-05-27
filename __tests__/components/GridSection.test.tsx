@@ -3,14 +3,14 @@
  *
  * Verifies custom grid template toggle behavior:
  * - Editor receives cols×rows as starting size when no template exists
- * - Unsaved template triggers discard confirmation dialog
+ * - Disabling custom grid always triggers discard confirmation dialog
  */
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import GridSection from "@/components/control/GridSection";
 import { DEFAULTS } from "@/constants";
-import type { SavedOptions, AppSettings } from "@/types";
+import type { SavedOptions } from "@/types";
 
 // -- Mocks --
 
@@ -172,13 +172,6 @@ function createDefaultOpts(overrides?: Partial<SavedOptions>): SavedOptions {
   };
 }
 
-function createDefaultPresets(): AppSettings["presets"] {
-  return {
-    entries: {},
-    lastUsed: null,
-  };
-}
-
 // -- Tests --
 
 describe("GridSection", () => {
@@ -198,13 +191,11 @@ describe("GridSection", () => {
       ({ cols, rows, expectedCells }) => {
         const setOpts = vi.fn();
         const opts = createDefaultOpts({ cols, rows });
-        const presets = createDefaultPresets();
 
         render(
           <GridSection
             opts={opts}
             setOpts={setOpts}
-            presets={presets}
             expanded={true}
             onToggle={() => {}}
           />,
@@ -237,7 +228,7 @@ describe("GridSection", () => {
   });
 
   describe("discard confirmation", () => {
-    it("shows discard dialog when disabling custom grid with unsaved template", () => {
+    it("shows discard dialog when disabling custom grid", () => {
       const setOpts = vi.fn();
       const unsavedTemplate = {
         cols: 60,
@@ -249,13 +240,11 @@ describe("GridSection", () => {
         ],
       };
       const opts = createDefaultOpts({ gridTemplate: unsavedTemplate });
-      const presets = createDefaultPresets();
 
       render(
         <GridSection
           opts={opts}
           setOpts={setOpts}
-          presets={presets}
           expanded={true}
           onToggle={() => {}}
         />,
@@ -267,12 +256,7 @@ describe("GridSection", () => {
 
       // Confirm dialog should appear
       expect(screen.getByTestId("alert-dialog")).toBeTruthy();
-      expect(screen.getByText("Discard unsaved template?")).toBeTruthy();
-      expect(
-        screen.getByText(
-          /The current grid template is not saved in any preset/,
-        ),
-      ).toBeTruthy();
+      expect(screen.getByText("Disable custom grid template?")).toBeTruthy();
 
       // setOpts should NOT have been called yet (template still active)
       expect(setOpts).not.toHaveBeenCalled();
@@ -288,13 +272,11 @@ describe("GridSection", () => {
         ],
       };
       const opts = createDefaultOpts({ gridTemplate: unsavedTemplate });
-      const presets = createDefaultPresets();
 
       render(
         <GridSection
           opts={opts}
           setOpts={setOpts}
-          presets={presets}
           expanded={true}
           onToggle={() => {}}
         />,
@@ -308,64 +290,6 @@ describe("GridSection", () => {
       const discardBtn = screen.getByTestId("alert-dialog-action");
       fireEvent.click(discardBtn);
 
-      expect(setOpts).toHaveBeenCalledWith(
-        expect.objectContaining({ gridTemplate: undefined }),
-      );
-    });
-
-    it("does not show discard dialog when template matches saved preset", () => {
-      const setOpts = vi.fn();
-      const savedTemplate = {
-        cols: 60,
-        cells: [
-          { id: "a", x: 0, y: 0, w: 30, h: 1 },
-          { id: "b", x: 30, y: 0, w: 30, h: 1 },
-        ],
-      };
-      const opts = createDefaultOpts({ gridTemplate: savedTemplate });
-      const presets: AppSettings["presets"] = {
-        entries: {
-          myPreset: {
-            width: 1920,
-            cols: 4,
-            rows: 3,
-            spacing: 4,
-            tcPosition: "disabled" as const,
-            header: true,
-            bgColor: "#000000",
-            textColor: "#FFFFFF",
-            animated: false,
-            animDuration: 10,
-            animFps: 24,
-            webpMethod: 4,
-            webpQuality: 75,
-            vrMode: "disabled" as const,
-            fontFamily: DEFAULTS.fontFamily,
-            tcFontSizeAuto: DEFAULTS.tcFontSizeAuto,
-            tcFontSize: DEFAULTS.tcFontSize,
-            headerFontSizeAuto: DEFAULTS.headerFontSizeAuto,
-            headerFontSize: DEFAULTS.headerFontSize,
-            gridTemplate: savedTemplate,
-          },
-        },
-        lastUsed: "myPreset",
-      };
-
-      render(
-        <GridSection
-          opts={opts}
-          setOpts={setOpts}
-          presets={presets}
-          expanded={true}
-          onToggle={() => {}}
-        />,
-      );
-
-      // Uncheck - no discard dialog since template matches preset
-      const checkbox = screen.getByTestId("switch-cp-tpl-toggle");
-      fireEvent.click(checkbox);
-
-      expect(screen.queryByTestId("alert-dialog")).not.toBeTruthy();
       expect(setOpts).toHaveBeenCalledWith(
         expect.objectContaining({ gridTemplate: undefined }),
       );

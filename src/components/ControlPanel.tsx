@@ -54,7 +54,6 @@ export default function ControlPanel({
         <GridSection
           opts={opts}
           setOpts={setOpts}
-          presets={presets}
           expanded={sections.grid}
           onToggle={() => toggleSection("grid")}
         />

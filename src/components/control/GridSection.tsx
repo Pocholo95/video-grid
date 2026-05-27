@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Grid3x3 } from "lucide-react";
 import { templateFromUniform } from "../../gridTemplate";
 import GridTemplateEditor from "../GridTemplateEditor";
+import GridPreview from "../GridPreview";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -17,12 +18,11 @@ import { Switch } from "@/components/ui/switch";
 import { Field, FieldLabel } from "@/components/ui/field";
 import Section from "./Section";
 import RangeNumberInput from "./RangeNumberInput";
-import type { AppSettings, GridTemplate, SavedOptions } from "../../types";
+import type { GridTemplate, SavedOptions } from "../../types";
 
 interface Props {
   opts: SavedOptions;
   setOpts: (o: SavedOptions) => void;
-  presets: AppSettings["presets"];
   expanded: boolean;
   onToggle: () => void;
 }
@@ -30,7 +30,6 @@ interface Props {
 export default function GridSection({
   opts,
   setOpts,
-  presets,
   expanded,
   onToggle,
 }: Props) {
@@ -53,22 +52,9 @@ export default function GridSection({
       });
       setShowTemplateEditor(true);
     } else {
-      const currentTemplate = opts.gridTemplate;
-      const presetName = presets.lastUsed;
-      const presetTemplate =
-        presetName && presets.entries[presetName]
-          ? presets.entries[presetName].gridTemplate
-          : undefined;
-
-      const hasUnsavedTemplate =
-        currentTemplate &&
-        JSON.stringify(currentTemplate) !== JSON.stringify(presetTemplate);
-
-      if (hasUnsavedTemplate) {
-        setConfirmDiscardTemplate(true);
-        return;
-      }
-      setOpts({ ...opts, gridTemplate: undefined });
+      // Always confirm before disabling to warn the user their template
+      // edits will not be preserved.
+      setConfirmDiscardTemplate(true);
     }
   };
 
@@ -164,20 +150,27 @@ export default function GridSection({
             />
           </Field>
           {isCustomTemplate && opts.gridTemplate && (
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <span className="text-muted-foreground text-sm">
-                {cellCount} cell{cellCount !== 1 ? "s" : ""} · {rowCount} row
-                {rowCount !== 1 ? "s" : ""}
-              </span>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setShowTemplateEditor(true)}
-                title="Open template editor"
-              >
-                <Grid3x3 className="size-4" />
-                Edit Template
-              </Button>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              {/* Left: grid preview */}
+              <div className="bg-card overflow-x-auto rounded-md border p-2">
+                <GridPreview template={opts.gridTemplate} />
+              </div>
+              {/* Right: summary + edit button */}
+              <div className="flex flex-col justify-center gap-2">
+                <span className="text-muted-foreground text-sm text-center">
+                  {cellCount} cell{cellCount !== 1 ? "s" : ""} · {rowCount} row
+                  {rowCount !== 1 ? "s" : ""}
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowTemplateEditor(true)}
+                  title="Open template editor"
+                >
+                  <Grid3x3 className="size-4" />
+                  Edit Template
+                </Button>
+              </div>
             </div>
           )}
         </div>
@@ -199,10 +192,10 @@ export default function GridSection({
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Discard unsaved template?</AlertDialogTitle>
+            <AlertDialogTitle>Disable custom grid template?</AlertDialogTitle>
             <AlertDialogDescription>
-              The current grid template is not saved in any preset. Disabling
-              this will discard it. Continue?
+              Your current grid template will not be preserved. If you want to
+              keep it, save it in a preset first.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

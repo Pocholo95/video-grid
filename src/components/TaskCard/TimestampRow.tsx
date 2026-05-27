@@ -31,7 +31,7 @@ export default function TimestampRow({
       tsLabel = `Custom timestamps — ${used} marker${used !== 1 ? "s" : ""} (${ignored} ignored)`;
     } else {
       tsLabel =
-        `Custom — ${used} marker${used !== 1 ? "s" : ""}` +
+        `Custom timestamps — ${used} marker${used !== 1 ? "s" : ""}` +
         (fallback > 0 ? ` + ${fallback} auto` : "");
     }
   }
