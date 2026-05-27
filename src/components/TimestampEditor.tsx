@@ -255,9 +255,19 @@ export default function TimestampEditor({
       const t = ratio * duration;
       if (videoRef.current) videoRef.current.currentTime = t;
       setCurrentTime(t);
-      setMarkers((prev) => [...prev, t].sort((a, b) => a - b));
+      setMarkers((prev) => {
+        const next = [...prev, t].sort((a, b) => a - b);
+        // Auto-select the newly added marker if within active range.
+        const idx = next.indexOf(t);
+        if (idx >= 0 && idx < totalCells) {
+          setSelectedMarker(idx);
+        } else {
+          setSelectedMarker(null);
+        }
+        return next;
+      });
     },
-    [duration],
+    [duration, totalCells],
   );
 
   const seekbarHandler = useCallback(
@@ -281,8 +291,9 @@ export default function TimestampEditor({
     setMarkers((prev) => {
       const next = [...prev, t].sort((a, b) => a - b);
       // Auto-select the newly added marker if within active range.
-      if (next.length <= totalCells) {
-        setSelectedMarker(next.length - 1);
+      const idx = next.indexOf(t);
+      if (idx >= 0 && idx < totalCells) {
+        setSelectedMarker(idx);
       } else {
         setSelectedMarker(null);
       }

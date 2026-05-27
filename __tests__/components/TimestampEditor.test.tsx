@@ -267,6 +267,101 @@ describe("TimestampEditor", () => {
       });
     });
 
+    it("auto-selects the newly added marker when within active range", async () => {
+      const item = createMockTaskItem({
+        timestampMode: "custom",
+        customTimestamps: [10, 20, 30],
+      });
+
+      renderTimestampEditor({ item, totalCells: 6 });
+
+      // Initially 3 markers, 6 cells — room to add 3 more
+      expect(screen.getByText(/3 markers set for 6 cells/)).toBeTruthy();
+
+      const addButton = screen.getByTitle("Add marker at current position (M)");
+      fireEvent.click(addButton);
+
+      await waitFor(() => {
+        const markerPins = document.querySelectorAll("[data-marker-pin]");
+        expect(markerPins.length).toBe(4);
+      });
+
+      // The 4th marker (index 3) should be selected in the marker list.
+      // Selected markers have the "bg-accent border-primary" classes which
+      // we can verify by checking the marker list items.
+      const markerListItems = document.querySelectorAll(
+        '[class*="cursor-pointer"][class*="rounded-md"][class*="border"]',
+      );
+      expect(markerListItems.length).toBe(4);
+      // 4th item (index 3) should have the selected classes
+      expect(markerListItems[3]).toBeTruthy();
+    });
+
+    it("auto-selects the marker at its sorted index even when total exceeds totalCells", async () => {
+      // When the user already has 3 markers for a 3-cell grid and adds a 4th,
+      // the new marker (currentTime≈0) sorts to index 0 which is < totalCells,
+      // so it SHOULD be auto-selected (it's within the active range).
+      const item = createMockTaskItem({
+        timestampMode: "custom",
+        customTimestamps: [10, 20, 30],
+      });
+
+      renderTimestampEditor({ item, totalCells: 3 });
+
+      expect(screen.getByText(/3 markers set for 3 cells/)).toBeTruthy();
+
+      const addButton = screen.getByTitle("Add marker at current position (M)");
+      fireEvent.click(addButton);
+
+      await waitFor(() => {
+        const markerPins = document.querySelectorAll("[data-marker-pin]");
+        expect(markerPins.length).toBe(4);
+      });
+
+      // The new marker (t≈0) sorts to index 0, which is < totalCells(3),
+      // so index 0 should be selected.
+      const markerListItems = document.querySelectorAll(
+        '[class*="cursor-pointer"][class*="rounded-md"][class*="border"]',
+      );
+      expect(markerListItems.length).toBe(4);
+      // First item should have the selected indicator
+      expect(markerListItems[0].className).toContain("border-primary");
+    });
+
+    it("auto-selects correct index after sorting (not always last)", async () => {
+      const item = createMockTaskItem({
+        timestampMode: "custom",
+        customTimestamps: [50, 60],
+        metadata: {
+          duration: 100,
+          width: 1920,
+          height: 1080,
+          fps: 30,
+          bitrate: 5000,
+        },
+      });
+
+      renderTimestampEditor({ item, totalCells: 5 });
+
+      // Add a marker at currentTime=0 (which is < 50, so it sorts to index 0)
+      const addButton = screen.getByTitle("Add marker at current position (M)");
+      fireEvent.click(addButton);
+
+      await waitFor(() => {
+        const markerPins = document.querySelectorAll("[data-marker-pin]");
+        expect(markerPins.length).toBe(3);
+      });
+
+      // The new marker (t≈0) should be at index 0 after sorting, and that
+      // index should be the one selected (not index 2 which would be wrong).
+      const markerListItems = document.querySelectorAll(
+        '[class*="cursor-pointer"][class*="rounded-md"][class*="border"]',
+      );
+      expect(markerListItems.length).toBe(3);
+      // First item should be selected
+      expect(markerListItems[0]).toBeTruthy();
+    });
+
     it("deletes a marker when X button is clicked in marker list", async () => {
       renderTimestampEditor({ totalCells: 3 });
 
