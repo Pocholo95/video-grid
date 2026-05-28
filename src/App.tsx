@@ -5,10 +5,12 @@ import { yieldToBrowser } from "@/lib/utils";
 
 import { PROJECT_NAME } from "./constants";
 import { useTaskStore } from "@/store/taskStore";
+import { useProcessingStore } from "@/store/processingStore";
 import { useUiStore } from "@/store/uiStore";
 import { useSettingsStore } from "@/store/settingsStore";
 import { useProcessor } from "@/hooks/useProcessor";
 import { useUpload } from "@/hooks/useUpload";
+import { useKeyboardShortcut } from "@/hooks/useKeyboardShortcut";
 
 import ControlPanel from "./components/ControlPanel";
 import TaskList from "./components/TaskList";
@@ -46,7 +48,36 @@ export default function App() {
   // --- Hooks ---
   const processor = useProcessor(updateItem);
   const { requestCancel, forceCancel } = processor;
+  const isProcessing = useProcessingStore((s) => s.isProcessing);
   const upload = useUpload();
+
+  // --- Keyboard shortcut: Ctrl+Enter to toggle Start/Cancel ---
+  const hasQueuedFiles = items.some((i) => i.status === "queued");
+  const allMetadataReady = items.length > 0 && items.every((i) => !!i.metadata);
+
+  const handleToggleProcessing = useCallback(() => {
+    if (isProcessing) {
+      requestCancel();
+    } else if (hasQueuedFiles && allMetadataReady) {
+      const queued = items.filter((it) => it.status === "queued");
+      processor.processAll(queued, opts);
+    }
+  }, [
+    isProcessing,
+    hasQueuedFiles,
+    allMetadataReady,
+    items,
+    opts,
+    requestCancel,
+    processor.processAll,
+  ]);
+
+  useKeyboardShortcut({
+    key: "Enter",
+    ctrl: true,
+    callback: handleToggleProcessing,
+    deps: [handleToggleProcessing],
+  });
 
   // --- DOM refs ---
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -70,6 +101,11 @@ export default function App() {
     const queued = items.filter((it) => it.status === "queued");
     await processor.processAll(queued, opts);
   }, [items, opts, processor.processAll]);
+
+  // --- Cancel processing ---
+  const handleCancel = useCallback(() => {
+    requestCancel();
+  }, [requestCancel]);
 
   // --- Upload handlers ---
   const handleUploadItem = useCallback(
@@ -137,7 +173,7 @@ export default function App() {
         onPreview={setPreviewUrl}
         onUpload={handleUploadItem}
         onStart={handleStart}
-        onCancel={requestCancel}
+        onCancel={handleCancel}
         onForceCancel={forceCancel}
         onClear={onClear}
       />

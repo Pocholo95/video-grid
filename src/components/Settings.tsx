@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Sun, Moon, Monitor, Cloud } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
@@ -53,6 +53,13 @@ export default function Settings({
   updateDestinations,
 }: SettingsProps) {
   const [showDestManagerOpen, setShowDestManagerOpen] = useState(false);
+  const saveButtonRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    if (open) {
+      setTimeout(() => saveButtonRef.current?.focus(), 0);
+    }
+  }, [open]);
 
   return (
     <Dialog open={open} onOpenChange={onCancel}>
@@ -186,7 +193,11 @@ export default function Settings({
           <Button variant="secondary" onClick={onCancel} className="min-w-0">
             Cancel
           </Button>
-          <Button onClick={onSaveAndClose} className="min-w-0">
+          <Button
+            ref={saveButtonRef}
+            onClick={onSaveAndClose}
+            className="min-w-0"
+          >
             Save & close
           </Button>
         </DialogFooter>

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import {
   AlertTriangle,
+  Loader2,
   Pause,
   Play,
   Plus,
@@ -13,12 +14,14 @@ import {
 import { Dialog, DialogPortal, DialogOverlay } from "@/components/ui/dialog";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { Kbd } from "@/components/ui/kbd";
 import { cn } from "@/lib/utils";
 import { getOrCreateUrl } from "@/lib/blobCache";
 import type { TaskItem } from "../types";
 import { calculateSampleTimes } from "../gridUtils";
 import { formatTimeExact } from "../utils";
 import { useLongPress } from "../hooks/useLongPress";
+import { useKeyboardShortcut } from "../hooks/useKeyboardShortcut";
 import GridPreview from "./GridPreview";
 import { templateFromUniform } from "../gridTemplate";
 import { useUiStore } from "../store";
@@ -139,6 +142,7 @@ export default function TimestampEditor({
   const fps = item.metadata?.fps ?? 30;
   const videoRef = useRef<HTMLVideoElement>(null);
   const seekbarRef = useRef<HTMLDivElement>(null);
+  const saveButtonRef = useRef<HTMLButtonElement>(null);
   const clickTimerRef = useRef<number | null>(null);
   const [isTouch, setIsTouch] = useState(false);
 
@@ -401,28 +405,12 @@ export default function TimestampEditor({
     [fps, seekBy],
   );
 
-  // Keyboard shortcuts: Space = play/pause, M = add marker, Arrow = seek.
-  // Escape is handled by the surrounding Dialog primitive.
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      const tag = (e.target as HTMLElement).tagName;
-      if (tag === "INPUT" || tag === "TEXTAREA") return;
-      if (e.key === " ") {
-        e.preventDefault();
-        togglePlay();
-      } else if (e.key === "m" || e.key === "M") {
-        e.preventDefault();
-        addMarkerAtCurrentTime();
-      } else if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
-        e.preventDefault();
-        // Ctrl: frame-by-frame (1/fps), Shift: 5s, default: 1s
-        const delta = e.ctrlKey ? 1 / fps : e.shiftKey ? 5 : 1;
-        seekBy(e.key === "ArrowLeft" ? -delta : delta);
-      }
-    };
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
-  }, [addMarkerAtCurrentTime, seekBy]);
+  const seekBack1s = useCallback(() => seekBy(-1), [seekBy]);
+  const seekForward1s = useCallback(() => seekBy(1), [seekBy]);
+  const seekBack5s = useCallback(() => seekBy(-5), [seekBy]);
+  const seekForward5s = useCallback(() => seekBy(5), [seekBy]);
+  const seekBackFrame = useCallback(() => seekBy(-1 / fps), [seekBy, fps]);
+  const seekForwardFrame = useCallback(() => seekBy(1 / fps), [seekBy, fps]);
 
   // Attach wheel listener to video and seekbar elements for scroll-seeking.
   // Use native addEventListener (not React synthetic events) so that
@@ -473,7 +461,7 @@ export default function TimestampEditor({
     }
   };
 
-  const togglePlay = () => {
+  const togglePlay = useCallback(() => {
     const v = videoRef.current;
     if (!v) return;
     if (v.paused) {
@@ -481,7 +469,40 @@ export default function TimestampEditor({
     } else {
       v.pause();
     }
-  };
+  }, []);
+
+  // Keyboard shortcuts via useKeyboardShortcut:
+  // Space = play/pause, M = add marker, Arrow = seek
+  // Escape is handled by the surrounding Dialog primitive.
+  useKeyboardShortcut([
+    { key: " ", callback: togglePlay, deps: [] },
+    {
+      key: "m",
+      callback: addMarkerAtCurrentTime,
+      deps: [addMarkerAtCurrentTime],
+    },
+    { key: "ArrowLeft", callback: seekBack1s, deps: [seekBack1s] },
+    { key: "ArrowRight", callback: seekForward1s, deps: [seekForward1s] },
+    { key: "ArrowLeft", shift: true, callback: seekBack5s, deps: [seekBack5s] },
+    {
+      key: "ArrowRight",
+      shift: true,
+      callback: seekForward5s,
+      deps: [seekForward5s],
+    },
+    {
+      key: "ArrowLeft",
+      ctrl: true,
+      callback: seekBackFrame,
+      deps: [seekBackFrame],
+    },
+    {
+      key: "ArrowRight",
+      ctrl: true,
+      callback: seekForwardFrame,
+      deps: [seekForwardFrame],
+    },
+  ]);
 
   const progressPct = duration > 0 ? (currentTime / duration) * 100 : 0;
 
@@ -500,7 +521,10 @@ export default function TimestampEditor({
         <DialogOverlay />
         <DialogPrimitive.Content
           className="bg-background fixed top-1/2 left-1/2 z-50 flex max-h-[92vh] w-[min(96vw,1100px)] -translate-x-1/2 -translate-y-1/2 flex-col gap-4 rounded-lg border p-4 shadow-lg"
-          onOpenAutoFocus={(e) => e.preventDefault()}
+          onOpenAutoFocus={(e) => {
+            e.preventDefault();
+            setTimeout(() => saveButtonRef.current?.focus(), 0);
+          }}
         >
           <DialogPrimitive.Title className="sr-only">
             Edit timestamps for {item.file.name}
@@ -589,19 +613,30 @@ export default function TimestampEditor({
 
               {/* Transport controls */}
               <div className="flex items-center gap-3">
-                <Button
-                  variant="outline"
-                  size="icon"
-                  onClick={togglePlay}
-                  disabled={!videoReady && !videoError}
-                  title={isPlaying ? "Pause (Space)" : "Play (Space)"}
-                >
-                  {isPlaying ? (
-                    <Pause className="size-4" />
-                  ) : (
-                    <Play className="size-4" />
-                  )}
-                </Button>
+                {videoReady || videoError ? (
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={togglePlay}
+                    disabled={videoError}
+                    title={isPlaying ? "Pause (Space)" : "Play (Space)"}
+                  >
+                    {isPlaying ? (
+                      <Pause className="size-4" />
+                    ) : (
+                      <Play className="size-4" />
+                    )}
+                  </Button>
+                ) : (
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    disabled
+                    title="Loading video..."
+                  >
+                    <Loader2 className="size-4 animate-spin" />
+                  </Button>
+                )}
                 <span className="font-mono text-sm tabular-nums">
                   {fmtT(currentTime)}{" "}
                   <span className="text-muted-foreground">/</span>{" "}
@@ -692,7 +727,7 @@ export default function TimestampEditor({
                 )}
               </div>
 
-              <div className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto px-3">
+              <div className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto px-3 py-2">
                 {markers.length === 0 ? (
                   <p className="text-muted-foreground p-2 text-xs">
                     {isTouch ? (
@@ -705,10 +740,7 @@ export default function TimestampEditor({
                       <>
                         No markers yet. Seek to a position and click{" "}
                         <strong>+&nbsp;Add&nbsp;Marker</strong>, or press{" "}
-                        <kbd className="bg-muted rounded border px-1 py-0.5 font-mono text-xs">
-                          M
-                        </kbd>
-                        .
+                        <Kbd>M</Kbd>.
                       </>
                     )}
                   </p>
@@ -720,13 +752,14 @@ export default function TimestampEditor({
                       <div
                         key={idx}
                         className={cn(
-                          "hover:bg-accent flex cursor-pointer items-center gap-2 rounded-md border px-2 py-1.5 text-sm transition-colors",
-                          isSelected && "bg-accent border-primary",
+                          "bg-muted/50 hover:bg-primary/50 flex cursor-pointer items-center gap-2 rounded-md border px-2 py-1.5 text-sm transition-colors",
+                          isSelected &&
+                            "bg-primary/75 text-primary-foreground border-primary ring-2 ring-foreground",
                           !isUsed && "opacity-60",
                         )}
                         onClick={() => seekToMarker(t, idx)}
                       >
-                        <span className="text-muted-foreground w-8 font-mono text-xs tabular-nums">
+                        <span className="text-foreground/75 w-8 font-mono text-xs tabular-nums">
                           #{idx + 1}
                         </span>
                         <span className="flex-1 font-mono text-xs tabular-nums">
@@ -766,19 +799,10 @@ export default function TimestampEditor({
                 </>
               ) : (
                 <>
-                  <kbd className="bg-muted rounded border px-1 py-0.5 font-mono text-xs">
-                    Space
-                  </kbd>{" "}
-                  Play/Pause &nbsp;·&nbsp;{" "}
-                  <kbd className="bg-muted rounded border px-1 py-0.5 font-mono text-xs">
-                    M
-                  </kbd>{" "}
-                  Add Marker &nbsp;·&nbsp;
-                  <kbd className="bg-muted rounded border px-1 py-0.5 font-mono text-xs">
-                    Ctrl
-                  </kbd>
-                  +Arrow for frame-step &nbsp;·&nbsp; Double-click seekbar to
-                  add marker &nbsp;·&nbsp; Right-click marker to remove
+                  <Kbd>Space</Kbd> Play/Pause &nbsp;·&nbsp; <Kbd>M</Kbd> Add
+                  Marker &nbsp;·&nbsp; <Kbd>Ctrl+Arrow</Kbd> for frame-step
+                  &nbsp;·&nbsp; Double-click seekbar to add marker &nbsp;·&nbsp;
+                  Right-click marker to remove
                 </>
               )}
             </p>
@@ -800,7 +824,11 @@ export default function TimestampEditor({
               <Button variant="secondary" onClick={onClose}>
                 Cancel
               </Button>
-              <Button variant="default" onClick={() => onSave(markers)}>
+              <Button
+                ref={saveButtonRef}
+                variant="default"
+                onClick={() => onSave(markers)}
+              >
                 Save Markers
               </Button>
             </div>

@@ -13,6 +13,7 @@ import type { ProcessorStatus } from "@/types";
 import { formatElapsed } from "../utils";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { Kbd } from "@/components/ui/kbd";
 import { Card, CardContent } from "@/components/ui/card";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { Progress } from "@/components/ui/progress";
@@ -103,6 +104,7 @@ export default function ProcessingPanel({
           >
             <Play className="size-4" />
             Start Processing
+            <Kbd className="ml-1 hidden lg:inline">Ctrl+Enter</Kbd>
           </Button>
           <Button
             variant="secondary"

@@ -19,7 +19,7 @@ function ItemGroup({ className, ...props }: React.ComponentProps<"div">) {
 }
 
 const itemVariants = cva(
-  "group/item relative flex rounded-md border bg-card p-0 shadow-sm hover:bg-accent/50 focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2",
+  "group/item relative flex rounded-md border p-0 shadow-sm focus:ring-1 focus-within:ring-ring",
   {
     variants: {
       disabled: {

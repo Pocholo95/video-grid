@@ -93,14 +93,14 @@ export default function GridPreview({
                 <div
                   key={cell.id}
                   className={cn(
-                    "grid-preview-cell flex items-center justify-center rounded border text-[10px] font-mono font-semibold tabular-nums py-1",
+                    "grid-preview-cell flex items-center justify-center rounded border text-[10px] font-mono font-semibold tabular-nums py-1 transition-colors",
                     "bg-muted/50 text-muted-foreground",
                     isUnassigned &&
                       "bg-destructive/10 text-destructive/65 border-destructive/20",
                     onClickCell &&
-                      "cursor-pointer hover:bg-accent hover:text-accent-foreground",
+                      "cursor-pointer bg-muted/50 hover:bg-primary/50 text-foreground",
                     isSelected &&
-                      "bg-primary text-primary-foreground border-primary ring-2 ring-foreground ring-offset-1",
+                      "bg-primary/75 text-primary-foreground border-primary ring-2 ring-foreground",
                   )}
                   style={{ flex: `${cell.w} 0 0` }}
                   title={`Cell ${num}${isUnassigned ? " (unassigned)" : ""}`}

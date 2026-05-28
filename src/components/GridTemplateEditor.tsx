@@ -1,4 +1,4 @@
-import React, { useCallback, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { autoAnimate } from "@formkit/auto-animate";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import {
@@ -280,6 +280,11 @@ export default function GridTemplateEditor({
   const dialogContentRef = useCallback((el: HTMLDivElement | null) => {
     if (el) autoAnimate(el);
   }, []);
+  const saveButtonRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    setTimeout(() => saveButtonRef.current?.focus(), 0);
+  }, []);
 
   return (
     <Dialog
@@ -505,6 +510,7 @@ export default function GridTemplateEditor({
               Cancel
             </Button>
             <Button
+              ref={saveButtonRef}
               variant="default"
               disabled={cellCount === 0}
               onClick={handleSave}

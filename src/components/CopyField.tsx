@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { ItemGroup, Item } from "@/components/ui/item-group";
+import { cn } from "@/lib/utils";
 
 interface CopyFieldProps {
   value: string;
@@ -38,7 +39,7 @@ export function CopyField({
     value,
     onFocus: (e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement>) =>
       e.target.select(),
-    className: "font-mono text-xs flex-1 pr-12",
+    className: "font-mono text-xs flex-1 pr-12 resize-none scrollbar-none",
   };
 
   return (
@@ -54,7 +55,10 @@ export function CopyField({
           size="icon"
           onClick={handleCopy}
           title={copied ? "Copied!" : "Copy to clipboard"}
-          className="absolute right-0 top-1/2 -translate-y-1/2 h-full w-10 z-40 bg-background/80 hover:bg-background text-xs shadow-sm transition-all group-hover/item:bg-accent/50"
+          className={cn(
+            "absolute right-0 top-0 h-full w-10 z-40 rounded-l-none rounded-r-md",
+            "hover:bg-accent text-xs transition-all",
+          )}
         >
           {copied ? <Check className="size-3" /> : <Copy className="size-3" />}
         </Button>
