@@ -7,37 +7,38 @@ import type { AppSettings, SavedOptions, SectionStates } from "../types";
 
 interface Props {
   opts: SavedOptions;
-  setOpts: (o: SavedOptions) => void;
+  setOpts: (
+    updater: SavedOptions | ((prev: SavedOptions) => SavedOptions),
+  ) => void;
   presets: AppSettings["presets"];
   setPresets: (p: AppSettings["presets"]) => void;
 }
 
-/**
- * Top-level Control Panel.
- *
- * This component is now a thin shell composing dedicated sub-files from
- * `./control/`. The only logic kept at this level is the derivation and
- * mutation of `opts.sectionStates`, since each section's expanded/collapsed
- * state is persisted (saved/restored with presets).
- */
 export default function ControlPanel({
   opts,
   setOpts,
   presets,
   setPresets,
 }: Props) {
-  // Section states are derived from opts so they are saved/restored with presets.
-  // Falls back to all expanded when the key is absent (e.g. older stored presets).
   const sections: SectionStates = opts.sectionStates ?? {
     grid: true,
     style: true,
     modes: true,
   };
 
+  // Function updater reads the latest store state, so multiple rapid toggles
+  // (e.g. Shift+click syncing siblings) don't suffer from stale closures.
   const toggleSection = (key: keyof SectionStates) => {
-    setOpts({
-      ...opts,
-      sectionStates: { ...sections, [key]: !sections[key] },
+    setOpts((prev) => {
+      const current = prev.sectionStates ?? {
+        grid: true,
+        style: true,
+        modes: true,
+      };
+      return {
+        ...prev,
+        sectionStates: { ...current, [key]: !current[key] },
+      };
     });
   };
 
@@ -56,18 +57,21 @@ export default function ControlPanel({
           setOpts={setOpts}
           expanded={sections.grid}
           onToggle={() => toggleSection("grid")}
+          groupKey="control-panel"
         />
         <OutputModesSection
           opts={opts}
           setOpts={setOpts}
           expanded={sections.modes}
           onToggle={() => toggleSection("modes")}
+          groupKey="control-panel"
         />
         <StyleSection
           opts={opts}
           setOpts={setOpts}
           expanded={sections.style}
           onToggle={() => toggleSection("style")}
+          groupKey="control-panel"
         />
       </CardContent>
     </Card>

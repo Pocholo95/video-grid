@@ -17,6 +17,7 @@ interface Props {
   setOpts: (o: SavedOptions) => void;
   expanded: boolean;
   onToggle: () => void;
+  groupKey?: string;
 }
 
 export default function OutputModesSection({
@@ -24,6 +25,7 @@ export default function OutputModesSection({
   setOpts,
   expanded,
   onToggle,
+  groupKey,
 }: Props) {
   const isAnimated = opts.animated ?? false;
 
@@ -40,6 +42,7 @@ export default function OutputModesSection({
       label="Output Modes"
       expanded={expanded}
       onToggle={onToggle}
+      groupKey={groupKey}
       bodyClassName="grid grid-cols-1 gap-4 border-t p-4 sm:grid-cols-2 sm:items-start"
     >
       {/* Left column: Timecode / Header / Preview / VR */}

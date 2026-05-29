@@ -184,8 +184,11 @@ describe("ControlPanel", () => {
     const { fireEvent } = await import("@testing-library/react");
     fireEvent.click(screen.getByTestId("grid-toggle"));
     expect(setOpts).toHaveBeenCalled();
-    const callArgs = setOpts.mock.calls[0][0] as SavedOptions;
-    expect(callArgs.sectionStates?.grid).toBe(false);
+    // setOpts now receives a function updater
+    const updaterFn = setOpts.mock.calls[0][0];
+    expect(typeof updaterFn).toBe("function");
+    const result = updaterFn(defaultOpts) as SavedOptions;
+    expect(result.sectionStates?.grid).toBe(false);
   });
 
   it("calls setOpts when modes section is toggled", async () => {
@@ -201,8 +204,10 @@ describe("ControlPanel", () => {
     const { fireEvent } = await import("@testing-library/react");
     fireEvent.click(screen.getByTestId("modes-toggle"));
     expect(setOpts).toHaveBeenCalled();
-    const callArgs = setOpts.mock.calls[0][0] as SavedOptions;
-    expect(callArgs.sectionStates?.modes).toBe(false);
+    const updaterFn = setOpts.mock.calls[0][0];
+    expect(typeof updaterFn).toBe("function");
+    const result = updaterFn(defaultOpts) as SavedOptions;
+    expect(result.sectionStates?.modes).toBe(false);
   });
 
   it("calls setOpts when style section is toggled", async () => {
@@ -218,7 +223,9 @@ describe("ControlPanel", () => {
     const { fireEvent } = await import("@testing-library/react");
     fireEvent.click(screen.getByTestId("style-toggle"));
     expect(setOpts).toHaveBeenCalled();
-    const callArgs = setOpts.mock.calls[0][0] as SavedOptions;
-    expect(callArgs.sectionStates?.style).toBe(false);
+    const updaterFn = setOpts.mock.calls[0][0];
+    expect(typeof updaterFn).toBe("function");
+    const result = updaterFn(defaultOpts) as SavedOptions;
+    expect(result.sectionStates?.style).toBe(false);
   });
 });

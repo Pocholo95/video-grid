@@ -25,6 +25,7 @@ interface Props {
   setOpts: (o: SavedOptions) => void;
   expanded: boolean;
   onToggle: () => void;
+  groupKey?: string;
 }
 
 export default function GridSection({
@@ -32,6 +33,7 @@ export default function GridSection({
   setOpts,
   expanded,
   onToggle,
+  groupKey,
 }: Props) {
   const [showTemplateEditor, setShowTemplateEditor] = useState(false);
   const [confirmDiscardTemplate, setConfirmDiscardTemplate] = useState(false);
@@ -84,6 +86,7 @@ export default function GridSection({
         label="Grid"
         expanded={expanded}
         onToggle={onToggle}
+        groupKey={groupKey}
         bodyClassName="sm:grid-cols-1 lg:grid-cols-2"
       >
         <Field>

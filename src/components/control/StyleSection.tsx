@@ -18,6 +18,7 @@ interface Props {
   setOpts: (o: SavedOptions) => void;
   expanded: boolean;
   onToggle: () => void;
+  groupKey?: string;
 }
 
 /**
@@ -31,9 +32,15 @@ export default function StyleSection({
   setOpts,
   expanded,
   onToggle,
+  groupKey,
 }: Props) {
   return (
-    <Section label="Style" expanded={expanded} onToggle={onToggle}>
+    <Section
+      label="Style"
+      expanded={expanded}
+      onToggle={onToggle}
+      groupKey={groupKey}
+    >
       {/* Background color */}
       <div className="col-span-2 md:col-span-1">
         <ColorPickerField

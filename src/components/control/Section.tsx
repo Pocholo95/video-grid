@@ -1,4 +1,3 @@
-import * as React from "react";
 import { ChevronDown } from "lucide-react";
 import {
   Collapsible,
@@ -6,28 +5,26 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import { cn } from "@/lib/utils";
+import { useSectionSync } from "@/hooks/useSectionSync";
 
 interface SectionProps {
-  /** Label shown in the default trigger header. Not used when renderTrigger is provided. */
   label?: string;
   expanded: boolean;
   onToggle: () => void;
   children: React.ReactNode;
-  /** Override the body container layout (defaults to a 2-col responsive grid). */
   bodyClassName?: string;
-  /** Custom trigger content. When provided, replaces the default label + chevron header. */
   renderTrigger?: (expanded: boolean) => React.ReactNode;
-  /** Additional classes on the outer container. */
   className?: string;
+  /**
+   * Group identifier for Shift+click sync.
+   * When Shift is held, all sections with the same groupKey will be set to
+   * the same expanded state via a CustomEvent.
+   */
+  groupKey?: string;
 }
 
 /**
  * A collapsible fieldset-style section used inside the ControlPanel.
- *
- * - Header is a full-width button with the section label and a chevron.
- * - Body is wrapped in a grid container so children form a 2-column layout
- *   on `sm` and up; pass `bodyClassName` to override.
- * - Pass `renderTrigger` for full control over the trigger content (used by TaskCard).
  */
 export default function Section({
   label,
@@ -37,10 +34,31 @@ export default function Section({
   bodyClassName,
   renderTrigger,
   className,
+  groupKey,
 }: SectionProps) {
+  const { handleOpenChange, shiftRef } = useSectionSync(
+    groupKey,
+    expanded,
+    onToggle,
+  );
+
+  const handlePointerDown = (e: React.PointerEvent<HTMLElement>) => {
+    shiftRef.current = e.shiftKey;
+    if (e.shiftKey) {
+      e.preventDefault();
+    }
+  };
+
   return (
-    <Collapsible open={expanded} onOpenChange={onToggle}>
-      <div className={cn("rounded-lg border shadow-sm", className)}>
+    <Collapsible
+      open={expanded}
+      onOpenChange={handleOpenChange}
+      data-group={groupKey}
+    >
+      <div
+        className={cn("rounded-lg border shadow-sm", className)}
+        onPointerDown={handlePointerDown}
+      >
         <CollapsibleTrigger asChild>
           {renderTrigger ? (
             <div
@@ -50,10 +68,9 @@ export default function Section({
                 "bg-muted/50 hover:bg-muted flex w-full cursor-pointer items-center gap-2 px-4 py-3 text-sm font-bold transition-colors",
                 expanded ? "rounded-t-lg" : "rounded-lg",
               )}
-              onKeyDown={(e) => {
+              onKeyDown={(e: React.KeyboardEvent) => {
                 if (e.key === "Enter" || e.key === " ") {
-                  e.preventDefault();
-                  onToggle();
+                  shiftRef.current = e.shiftKey;
                 }
               }}
             >

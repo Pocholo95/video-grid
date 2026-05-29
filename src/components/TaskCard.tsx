@@ -200,6 +200,7 @@ export default function TaskCard({
       <Section
         expanded={expanded}
         onToggle={() => setExpanded((v) => !v)}
+        groupKey="task-list"
         bodyClassName="flex flex-col gap-3 !grid-cols-1"
         className={cn(
           item.status === "error" && "border-destructive/50",
