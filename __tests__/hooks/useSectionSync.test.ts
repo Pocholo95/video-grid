@@ -120,5 +120,4 @@ describe("useSectionSync", () => {
 
     expect(onToggle).not.toHaveBeenCalled();
   });
-
 });
