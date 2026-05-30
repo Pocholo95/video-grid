@@ -27,6 +27,52 @@ trigger an upload.
 
 ---
 
+## Table of Contents
+
+- [Basic Usage](#basic-usage)
+- [Features](#features)
+- [Tasks Actions](#tasks-actions)
+- [Generation Options](#generation-options)
+- [Custom Grid Templates](#custom-grid-templates)
+- [Custom Timestamps](#custom-timestamps)
+- [Animated Thumbnail Grids](#animated-thumbnail-grids)
+- [VR Video](#vr-video)
+- [Presets](#presets)
+- [Settings](#settings)
+- [Copying Links](#copying-links)
+- [Keyboard Shortcuts](#keyboard-shortcuts)
+- [Built-in Presets](#built-in-presets)
+- [Troubleshooting](#troubleshooting)
+- [FFmpeg WASM Limitations](#ffmpeg-wasm--limitations-and-expectations)
+- [Browser Compatibility](#browser-compatibility)
+- [Development](#development)
+
+---
+
+## Basic Usage
+
+1. **Add videos:** Drag and drop video files into the drop zone, or click it
+   to select files from your filesystem.
+2. **Review analysis:** Each video is immediately analyzed and added to the
+   "Tasks" list with its detected properties. Add more files at any time.
+3. **Customize options:** _(optional)_ Adjust grid size, style, animation,
+   or VR settings as described in [Generation Options](#generation-options).
+4. **Start processing:** Click "▶️ Start Processing" to generate thumbnail
+   grids sequentially for all queued tasks.
+5. **Download/Upload/Requeue:** After processing, use the "Download JPG" (or
+   WebP) button to save the grid, or "Requeue" to process the same video
+   again with different settings.
+   If you have configured one or more [Upload destinations](#upload-destinations),
+   a third button captioned "Upload" will appear.
+
+> **Tip:** During long batches, if the options panel scrolls out of view, a
+> compact progress bar appears at the top of the page with batch progress,
+> item count, and quick-access buttons to cancel, requeue, or clear. Click the
+> expand arrow to reveal the full controls again without having to scroll back
+> to the top.
+
+---
+
 ## Features
 
 - **In-browser preview:** thumbnail previews of completed grids with a
@@ -53,8 +99,7 @@ trigger an upload.
   to set exact frame positions using a built-in video player with marker pins. See
   [Custom Timestamps](#custom-timestamps).
 - **Batch processing:** queue multiple tasks by adding video files and process
-  them one after.
-  another with combined progress tracking.
+  them one after another with combined progress tracking.
 - **Batch download:** completed tasks can be downloaded together as a
   ZIP archive.
 - **Upload to image hosts:** upload generated grids to one or more configured
@@ -74,27 +119,34 @@ trigger an upload.
 
 ---
 
-## Basic Usage
+## Tasks Actions
 
-1. **Add videos:** Drag and drop video files into the drop zone, or click it
-   to select files from your filesystem.
-2. **Review analysis:** Each video is immediately analyzed and added to the
-   "Tasks" list with its detected properties. Add more files at any time.
-3. **Customize options:** _(optional)_ Adjust grid size, style, animation,
-   or VR settings as described in [Generation Options](#generation-options).
-4. **Start processing:** Click "▶️ Start Processing" to generate thumbnail
-   grids sequentially for all queued tasks.
-5. **Download/Upload/Requeue:** After processing, use the "Download JPG" (or
-   WebP) button to save the grid, or "Requeue" to process the same video
-   again with different settings.
-   If you have configured one or more [Upload destinations](#upload-destinations),
-   a third button captioned "Upload" will appear.
+When at least one file has been analyzed, a **Tasks Actions** panel appears
+above the tasks list. Use the dropdown to select a format and click **Copy All**
+to copy links/formatted text for all uploaded outputs at once, one per line.
+
+At first only one format is available, no generation/upload is required, it's
+**BBCode — Title & Resolution** which produces `[b]filename resolution[/b]` lines
+ready to paste as a list of titles into a forum post for example.
+
+To unlock the other formats, you need to generate the thumbnails by processing the
+files, and then upload them to one or more destinations using the individual "Upload"
+buttons or the "Upload All" button that appears in the Tasks Actions panel. The
+formats are detailed under [Copying Links](#copying-links).
+
+Additionally, once multiple tasks are completed, a "Download All" button appears
+in this panel; when used, it offers you a compressed ZIP archive of all
+the completed tasks.
 
 ---
 
 ## Generation Options
 
-The controls are grouped into three fieldsets: **Grid**, **Output Modes**, and **Style**.
+The controls are grouped into three collapsible fieldsets: **Grid**, **Output Modes**, and **Style**.
+
+> **Tip:** Hold **Shift** while clicking any section header to expand or
+> collapse all sections in the same group at once — useful when you want to
+> quickly scan or adjust multiple settings. This works on Tasks sections too.
 
 ### Grid
 
@@ -117,10 +169,13 @@ The controls are grouped into three fieldsets: **Grid**, **Output Modes**, and *
 
 ### Style
 
-| Option               | Description                           | Default   |
-| -------------------- | ------------------------------------- | --------- |
-| **Background color** | Canvas and header background.         | `#000000` |
-| **Text color**       | Header text and timecode label color. | `#ffffff` |
+| Option                 | Description                                                                  | Default        |
+| ---------------------- | ---------------------------------------------------------------------------- | -------------- |
+| **Background color**   | Canvas and header background.                                                | `#000000`      |
+| **Text color**         | Header text and timecode label color.                                        | `#ffffff`      |
+| **Font family**        | Typeface used for header text and timecode overlays.                         | System default |
+| **Timecode font size** | Size of the timecode text in pixels. Toggle **Auto** to scale with the grid. | Auto           |
+| **Header font size**   | Size of the header text in pixels. Toggle **Auto** to scale with the grid.   | Auto           |
 
 ---
 
@@ -150,7 +205,16 @@ cells; more cells means narrower, shorter cells.
 - The **⠿** handle on the left of each row can be grabbed to drag the row to
   a different position in the stack.
 - **↺ Reset (?x?)** discards the current layout and restores a uniform grid
-  sized based on the non-custom collumns/row option.
+  sized based on the non-custom columns/rows options.
+
+### Grid Preview
+
+A compact, numbered preview of your current grid layout appears in the Grid
+section at all times. Cells are numbered in reading order — left-to-right
+within each row and top-to-bottom across rows — so you can quickly verify
+which timestamp will be sampled for each position without generating a grid.
+The preview updates live as you adjust columns, rows, or edit a custom
+template.
 
 ### Cell numbering and timestamps
 
@@ -181,13 +245,20 @@ specific video.
 - **Video player** with seekbar, play/pause (⏸️/▶️), and current time display
 - **Visual marker pins** on the seekbar — green (used in grid), orange (extra)
 - **Keyboard shortcuts**:
-  - `Space`: Play/Pause), `M`: Add Marker, `Esc`: Close
+  - `Space`: Play/Pause, `M`: Add Marker, `Esc`: Close
   - `Arrow Left`/`Arrow Right`: Seek 1 second. `Ctrl` modifier to go frame by
-    frames, `Shift` to go by 5 seconds.
+    frame, `Shift` to go by 5 seconds.
+- **Mouse wheel seeking:** scroll over the video player or seekbar to scrub
+  through the timeline — same speed as the arrow keys (you can use `Ctrl` and
+  `Shift` modifiers; see [Keyboard Shortcuts](#keyboard-shortcuts)).
 - **Mobile shortcuts**:
   - Double-tap seekbar: Add marker
   - Long-press marker: Delete marker
 - **Live marker list:** click to seek, ✕ to delete individual markers
+- **Interactive grid preview:** a numbered schematic of your active grid
+  layout appears on the right side. Click any cell to instantly seek the
+  video to the corresponding marker — useful for quickly checking each
+  frame without scrolling through the marker list.
 - **Smart counting:** shows how many markers fit your grid (total cell count
   from the active layout, uniform or custom), extras ignored, shortages use
   auto fallback
@@ -212,7 +283,7 @@ WebP instead of a static JPEG. Each grid cell shows a short looping video clip
 sampled from its timestamp (auto or custom), giving a quick visual overview
 of the entire video in motion.
 
-### How animated grids works
+### How animated grids work
 
 1. **Frame composition:** for each animation frame the app seeks the source
    video to the appropriate timestamp for every cell, draws it onto a canvas,
@@ -226,8 +297,6 @@ of the entire video in motion.
 
 The **Animation settings** panel is shown below the main options whenever
 animated mode is enabled.
-
-These appear only when **Animated output** is enabled.
 
 | Setting          | Description                                                                                         | Default |
 | ---------------- | --------------------------------------------------------------------------------------------------- | ------- |
@@ -316,19 +385,25 @@ included in saved presets — grid options, style, output modes, animation
 settings, VR mode, and any custom grid template. Custom timestamps are per-file
 and are not stored in presets.
 
+### Built-in Presets
+
+On first launch, a set of ready-to-use presets is added for
+common workflows. These are seeded only on a fresh install and can be
+modified, saved under new names, or deleted like any other preset.
+
 ---
 
 ## Settings
 
 A few app-wide settings are available through the **⚙️ Settings** icon in the header:
 
-| Setting                | Description                                                                                                                                             |
-| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Themes**             | Choose a visual style for the app (Dark, Light, Dimmed, or Classic). The change visually applies immediately to the UI but need to be saved to persist. |
-| **Show Previews**      | Toggle visibility of thumbnail previews in the tasks list.                                                                                              |
-| **Upload Destinatons** | Button that opens a new dialog window to manage the upload destinations for the generated files. See [Upload Destinations](#upload-destinations).       |
+| Setting                 | Description                                                                                                                                             |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Themes**              | Choose a visual style for the app (Dark, Light, Dimmed, or Classic). The change visually applies immediately to the UI but need to be saved to persist. |
+| **Show Previews**       | Toggle visibility of thumbnail previews in the tasks list.                                                                                              |
+| **Upload Destinations** | Button that opens a new dialog window to manage the upload destinations for the generated files. See [Upload Destinations](#upload-destinations).       |
 
-These settings are independent of presets, they persist separately and affect only the application's appearance and behavior, not your grid generation options.
+These settings are independent of presets; they persist separately and affect only the application's appearance and behavior, not your grid generation options.
 
 ### Upload Destinations
 
@@ -389,15 +464,43 @@ Each row has an individual **Copy** button. You can also **delete the image**
 from the host using the **🗑 Delete** link in the panel header — this opens the
 host's delete URL in a new tab.
 
-### Copy All
+---
 
-When at least one file has been analyzed, a **Copy all links** bar appears
-above the tasks list. Use the dropdown to select a format and click **Copy All**
-to copy links all uploaded outputs at once, one per line.
+## Keyboard Shortcuts
 
-The **Post Template** format produces a BBCode block per output: a bold title
-line (`[b]filename resolution[/b]`) followed by thumbnail links from every
-destination on the same line, ready to paste into a forum post.
+| Shortcut         | Action                                                             |
+| ---------------- | ------------------------------------------------------------------ |
+| `Ctrl` + `Enter` | Start processing the current batch from anywhere on the page       |
+| `Space`          | Play/pause video (inside the Timestamp Editor)                     |
+| `M`              | Add a marker at the current position (inside the Timestamp Editor) |
+| `Esc`            | Close the Timestamp Editor modal                                   |
+| `←` / `→`        | Seek 1 second (inside the Timestamp Editor)                        |
+| `Ctrl` + `←/→`   | Seek frame by frame (inside the Timestamp Editor)                  |
+| `Shift` + `←/→`  | Seek 5 seconds (inside the Timestamp Editor)                       |
+
+---
+
+## Troubleshooting
+
+### Corrupt or missing settings
+
+VidGrid-HTML stores presets, destinations and app settings in the browser's
+`localStorage`. In rare cases this data can become corrupt — for example after
+an abrupt browser shutdown or a failed write. If the app behaves strangely
+(presets disappear, settings don't save, options look wrong), try these steps:
+
+1. **Reload the page** — settings are automatically validated on each load,
+   and most issues self-repair.
+2. **Clear localStorage** — open your browser's developer tools (F12), go to
+   Application → Storage → Local Storage, and delete the `vidgrid-settings`
+   entry. The app will restart with fresh defaults on the next load.
+3. **Clear all site data** — as a last resort, clear all cookies and site data
+   for the page in your browser settings.
+
+### FFmpeg generations keep failing
+
+See the [FFmpeg WASM](#ffmpeg-wasm--limitations-and-expectations) section for
+detailed guidance on memory limits, codec support, and recovery steps.
 
 ---
 
@@ -428,8 +531,8 @@ real trade-offs:
   terminates the current FFmpeg process immediately and moves on to the next
   file in the queue, or ends the batch if the queue is empty.
 - **Reload the page:** Sometimes the last resort when your generations are failing
-  is to reload the page completely, unfortunatel WASM modules like FFmpeg can fail
-  in ways that are not recoverable otherwise, sorry for the inconvenience.
+  is to reload the page completely; unfortunately, WASM modules like FFmpeg can fail
+  in ways that are not recoverable otherwise, so sorry for the inconvenience.
 
 If you regularly work with formats that require FFmpeg (AVI, WMV, older MKV),
 consider re-muxing them to MP4/H.264 beforehand for the best experience.
@@ -443,7 +546,7 @@ Firefox 90+, Edge 90+, and Safari 16.4+ are supported.
 Also note that certain browsers support more video codecs natively, e.g.
 Chrome, and they will have a higher rate of success generating thumbnails.
 Animated WebP output requires the browser to support native video seeking, so
-the same codec support rules apply
+the same codec support rules apply.
 
 ---
 
@@ -468,6 +571,7 @@ See [RELEASE.md](./RELEASE.md) for deployment instructions
 - [Testing Library](https://testing-library.com/)/[vitest](https://vitest.dev/)/[happy-dom](https://github.com/capricorn86/happy-dom) — testing suite
 - [TailwindCSS](https://tailwindcss.com/)
 - [Radix UI](https://www.radix-ui.com/)
+- [@formkit/auto-animate](https://github.com/formkit/auto-animate) — smooth layout transitions
 - [Lucide](https://lucide.dev/)
 - [mediainfo.js](https://mediainfo.js.org/) — container/codec metadata
 - [@ffmpeg/ffmpeg](https://github.com/ffmpegwasm/ffmpeg.wasm) — animated WebP
