@@ -1,0 +1,247 @@
+// Service interfaces for the refactored architecture
+
+import type {
+  AppSettings,
+  VideoMetadata,
+  VrMode,
+  GridTemplate,
+  Position,
+} from "../types";
+
+/** Interface for FFmpeg service lifecycle and operations */
+export interface IFFmpegService {
+  /** Initialize FFmpeg WASM instance. Resolves when ready. Idempotent. */
+  init(): Promise<void>;
+  /** Check if instance is loaded and functional */
+  isReady(): boolean;
+  /** Execute an FFmpeg command */
+  exec(args: string[]): Promise<void>;
+  /** Write data to FFmpeg virtual filesystem */
+  writeData(path: string, data: Uint8Array): Promise<void>;
+  /** Read data from FFmpeg virtual filesystem */
+  readData(path: string): Promise<Uint8Array>;
+  /** List files in FFmpeg virtual filesystem */
+  listDir(path: string): Promise<unknown[]>;
+  /** Delete a file from virtual filesystem */
+  deleteFile(path: string): Promise<void>;
+  /** Terminate and release all resources */
+  destroy(): Promise<void>;
+  /** Re-initialize after termination */
+  reinit(): Promise<void>;
+  /** Register callback for FFmpeg stderr log lines (passes full array) */
+  onLog(callback: ((taskId: string, logs: string[]) => void) | null): void;
+  /** Register callback for FFmpeg progress events ({ progress: number }) */
+  onProgress(callback: ((data: { progress: number }) => void) | null): void;
+  /** Remove a previously registered progress callback */
+  offProgress(callback: ((data: { progress: number }) => void) | null): void;
+  /** Terminate FFmpeg instance (for between-task cleanup) */
+  reset(): Promise<void>;
+  /** Current task ID for log attribution */
+  setTaskId(id: string | null): void;
+  /** Get accumulated logs for a task and clear them */
+  getAndClearLogs(taskId: string): string[];
+  /** Check if FFmpeg is currently busy (for stale detection) */
+  getBusyState(): boolean;
+  /** Set abort controller for current operation; returns the controller */
+  setAbortController(): AbortController;
+  /** Abort current FFmpeg operation */
+  abortCurrent(): void;
+}
+
+/** Interface for MediaInfo service */
+export interface IMediaInfoService {
+  /** Initialize MediaInfo WASM instance. Idempotent. */
+  init(): Promise<void>;
+  /** Read video metadata from a File */
+  analyze(
+    file: File,
+    onProgress?: (pct: number, status: string) => void,
+  ): Promise<VideoMetadata>;
+  /** Release resources */
+  destroy(): void;
+}
+
+/** Interface for persistent storage backend (e.g., localStorage wrapper) */
+export interface IStorageProvider {
+  /** Retrieve a value by key; returns null if not present */
+  getItem(key: string): string | null;
+  /** Persist a string value under the given key */
+  setItem(key: string, value: string): void;
+  /** Remove an entry by key */
+  removeItem(key: string): void;
+}
+
+/** Wrapper that pairs a schema version with settings data for migration support */
+export interface VersionedSettings {
+  /** Numeric schema version of the stored settings */
+  schemaVersion: number;
+  /** Serialized application settings */
+  data: AppSettings;
+}
+
+/** Accumulator for batch-processing statistics */
+export interface BatchState {
+  /** Number of files completed in the current batch */
+  batchDone: number;
+  /** Total number of files in the current batch */
+  batchTotal: number;
+  /** Timestamp when the batch started (milliseconds), or null if idle */
+  batchStartTime: number | null;
+  /** Elapsed time for the last batch in milliseconds, or null if none */
+  batchDurationMs: number | null;
+  /** Count of successfully processed files */
+  succeeded: number;
+  /** Count of files that failed during processing */
+  errored: number;
+  /** Count of files the user cancelled */
+  cancelled: number;
+}
+
+/** UI-facing processor status (separated from processing logic) */
+export interface ProcessorUIState {
+  /** Status message displayed to the user */
+  text: string;
+  /** Semantic kind of the status message for styling */
+  textKind?: "info" | "success" | "warning" | "cancelled";
+  /** Current processing progress as a 0–100 percentage */
+  currentPct: number;
+  /** Whether the processor is actively working */
+  isProcessing: boolean;
+  /** Whether the processor appears stuck (no progress for a threshold) */
+  isStale: boolean;
+  /** Task ID considered stale, or null if no stale task */
+  staleTaskId: string | null;
+}
+
+/** Output produced by a single grid render operation */
+export interface GridRenderResult {
+  /** Suggested file name for the output */
+  outputName: string;
+  /** Size of the rendered output in bytes */
+  outputSize: number;
+  /** Binary blob containing the rendered image */
+  outputBlob: Blob;
+}
+
+/** Common cell rendering callback */
+export type CellDoneCallback = (
+  cellIdx: number,
+  totalCells: number,
+  timestampSec: number,
+) => void;
+
+/** Common warning callback */
+export type WarningCallback = (message: string) => void;
+
+/** Shared options for grid cell extraction (JPEG and WebP) */
+export interface CellExtractionOptions {
+  /** Output canvas width in pixels */
+  width: number;
+  /** Number of columns in the grid */
+  cols: number;
+  /** Number of rows in the grid */
+  rows: number;
+  /** Spacing in pixels between cells */
+  spacing: number;
+  /** Position of the timecode overlay on each cell */
+  tcPosition: Position;
+  /** Whether to render a header bar with file info */
+  header: boolean;
+  /** Background color of the canvas (hex string) */
+  bgColor: string;
+  /** Color of timecode and header text (hex string) */
+  textColor: string;
+  /** 360° VR cropping mode (e.g., left-eye, right-eye, or disabled) */
+  vrMode: VrMode;
+  /** Font family for timecode overlay and header text. */
+  fontFamily: string;
+  /** When true, timecode font size scales with canvas width. */
+  tcFontSizeAuto: boolean;
+  /** Explicit timecode font size in pixels. */
+  tcFontSize: number;
+  /** When true, header font size scales with canvas width. */
+  headerFontSizeAuto: boolean;
+  /** Explicit header font size in pixels. */
+  headerFontSize: number;
+  /** Custom grid layout template, or undefined for uniform grid */
+  gridTemplate: GridTemplate | undefined;
+  /** User-supplied timestamps to extract frames at, or undefined for auto-spaced */
+  customTimestamps: number[] | undefined;
+}
+
+/** Static JPEG grid rendering options */
+export interface StaticGridRenderOptions extends CellExtractionOptions {
+  /** Duration of source video in seconds (used for fallback) */
+  duration: number;
+}
+
+/** Animated WebP grid rendering options */
+export interface AnimatedGridRenderOptions extends StaticGridRenderOptions {
+  /** Duration in seconds of each cell's animation clip */
+  animDuration: number;
+  /** Output frame rate of the animated WebP */
+  animFps: number;
+  /** WebP compression method (0-6) */
+  webpMethod: number;
+  /** WebP output quality (5-100) */
+  webpQuality: number;
+}
+
+/** Return type for grid rendering methods */
+export interface GridRenderOutput {
+  /** Suggested file name for the rendered output */
+  outputName: string;
+  /** Size of the rendered output blob in bytes */
+  outputSize: number;
+  /** Binary blob of the final rendered image (JPEG or WebP) */
+  outputBlob: Blob;
+}
+
+/** Callback for static grid cell progress */
+export type StaticCellCallback = (
+  cellIndex: number,
+  totalCells: number,
+  timestampSec: number,
+) => void;
+
+/** Callback for animated grid cell progress */
+export type AnimatedCellCallback = (
+  composedCell: number,
+  totalCells: number,
+) => void;
+
+/** Callback for animated grid encoding progress (0-1 ratio) */
+export type EncodeProgressCallback = (ratio: number) => void;
+
+/** Interface for GridRenderer service */
+export interface IGridRenderer {
+  /**
+   * Render a static JPEG contact sheet for a single video file.
+   * Tries native browser seeking first, falls back to FFmpeg WASM.
+   */
+  renderStaticGrid(
+    file: File,
+    meta: VideoMetadata,
+    opts: StaticGridRenderOptions,
+    isCancelled: () => boolean,
+    onCellDone: StaticCellCallback,
+    onWarning: WarningCallback,
+  ): Promise<GridRenderOutput>;
+
+  /**
+   * Render an animated WebP contact sheet for a single video file.
+   * Requires native browser video support.
+   */
+  renderAnimatedGrid(
+    file: File,
+    meta: VideoMetadata,
+    opts: AnimatedGridRenderOptions,
+    isCancelled: () => boolean,
+    onCellDone: AnimatedCellCallback,
+    onEncodeProgress: EncodeProgressCallback,
+    onWarning: WarningCallback,
+  ): Promise<GridRenderOutput>;
+
+  /** Release resources (async to clean up cached FFmpeg virtual filesystem files) */
+  destroy(): Promise<void>;
+}

@@ -1,345 +1,210 @@
-import { useCallback, useRef, useState } from "react";
-import { saveAs } from "file-saver";
-import JSZip from "jszip";
+import { useCallback, useRef } from "react";
+import { Settings as SettingsIcon } from "lucide-react";
+import { autoAnimate } from "@formkit/auto-animate";
+import { yieldToBrowser } from "@/lib/utils";
 
-import { DEFAULTS, PROJECT_NAME } from "./constants";
-import {
-  loadAppSettings,
-  persistAppSettings,
-  persistDestinations,
-} from "./presets";
-import { useProcessor } from "./hooks/useProcessor";
-import { useUpload } from "./hooks/useUpload";
-
-import type {
-  AppSettings,
-  TaskItem,
-  SavedOptions,
-  UploadDestination,
-} from "./types";
+import { PROJECT_NAME } from "./constants";
+import { useTaskStore } from "@/store/taskStore";
+import { useProcessingStore } from "@/store/processingStore";
+import { useUiStore } from "@/store/uiStore";
+import { useSettingsStore } from "@/store/settingsStore";
+import { useProcessor } from "@/hooks/useProcessor";
+import { useUpload } from "@/hooks/useUpload";
+import { useKeyboardShortcut } from "@/hooks/useKeyboardShortcut";
 
 import ControlPanel from "./components/ControlPanel";
-import ProcessingPanel from "./components/ProcessingPanel";
-import TaskCard from "./components/TaskCard";
-import DestinationManager from "./components/DestinationManager";
+import TaskList from "./components/TaskList";
 import PreviewModal from "./components/PreviewModal";
-import CopyAllPanel from "./components/CopyAllPanel";
 import Footer from "./components/Footer";
+import Settings from "./components/Settings";
+import { Button } from "./components/ui/button";
 
 export default function App() {
-  // - Persisted app settings
-  const initialSettings = loadAppSettings();
+  // --- Stores ---
+  const items = useTaskStore((s) => s.items);
+  const setItems = useTaskStore((s) => s.setItems);
+  const updateItem = useTaskStore((s) => s.updateItem);
 
-  const [appSettings, setAppSettingsState] =
-    useState<AppSettings>(initialSettings);
-  const [opts, setOptsState] = useState<SavedOptions>(() => {
-    const { lastUsed, entries } = initialSettings.presets;
-    if (lastUsed && entries[lastUsed]) {
-      return entries[lastUsed];
+  const opts = useUiStore((s) => s.opts);
+  const setOpts = useUiStore((s) => s.setOpts);
+  const previewUrl = useUiStore((s) => s.previewUrl);
+  const setPreviewUrl = useUiStore((s) => s.setPreviewUrl);
+  const downloadAll = useUiStore((s) => s.downloadAll);
+
+  const settings = useSettingsStore((s) => s.settings);
+  const showSettingsDialog = useSettingsStore((s) => s.showSettingsDialog);
+  const handleOpenSettingsDialog = useSettingsStore(
+    (s) => s.handleOpenSettingsDialog,
+  );
+  const handleCancelSettings = useSettingsStore((s) => s.handleCancelSettings);
+  const saveAndCloseSettings = useSettingsStore((s) => s.saveAndCloseSettings);
+  const handleThemeChange = useSettingsStore((s) => s.handleThemeChange);
+  const handleShowPreviewChange = useSettingsStore(
+    (s) => s.handleShowPreviewChange,
+  );
+  const updateDestinations = useSettingsStore((s) => s.updateDestinations);
+  const updateSettings = useSettingsStore((s) => s.updateSettings);
+
+  // --- Hooks ---
+  const processor = useProcessor(updateItem);
+  const { requestCancel, forceCancel } = processor;
+  const isProcessing = useProcessingStore((s) => s.isProcessing);
+  const upload = useUpload();
+
+  // --- Keyboard shortcut: Ctrl+Enter to toggle Start/Cancel ---
+  const hasQueuedFiles = items.some((i) => i.status === "queued");
+  const allMetadataReady = items.length > 0 && items.every((i) => !!i.metadata);
+
+  const handleToggleProcessing = useCallback(() => {
+    if (isProcessing) {
+      requestCancel();
+    } else if (hasQueuedFiles && allMetadataReady) {
+      const queued = items.filter((it) => it.status === "queued");
+      processor.processAll(queued, opts);
     }
-    return { ...DEFAULTS };
+  }, [
+    isProcessing,
+    hasQueuedFiles,
+    allMetadataReady,
+    items,
+    opts,
+    requestCancel,
+    processor.processAll,
+  ]);
+
+  useKeyboardShortcut({
+    key: "Enter",
+    ctrl: true,
+    callback: handleToggleProcessing,
+    deps: [handleToggleProcessing],
   });
 
-  const setAppSettings = useCallback((s: AppSettings) => {
-    setAppSettingsState(s);
-    persistAppSettings(s);
+  // --- DOM refs ---
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const mainRef = useCallback((el: HTMLDivElement | null) => {
+    if (el) autoAnimate(el);
   }, []);
 
-  // - Destinations
-  const destinations = appSettings.destinations;
-  const [showDestManager, setShowDestManager] = useState(false);
-
-  const handleSaveDestinations = useCallback(
-    (dests: UploadDestination[]) => {
-      persistDestinations(dests);
-      setAppSettings({ ...appSettings, destinations: dests });
-    },
-    [appSettings, setAppSettings],
-  );
-  const enabledDests = destinations.filter((d) => d.enabled);
-
-  // - Task items
-  const [items, setItems] = useState<TaskItem[]>([]);
-
-  const updateItem = useCallback((id: string, patch: Partial<TaskItem>) => {
-    setItems((prev) =>
-      prev.map((it) => (it.id === id ? { ...it, ...patch } : it)),
-    );
-  }, []);
-
-  // Update per-item timestamps from the TimestampEditor.
-  const handleUpdateTimestamps = useCallback(
-    (id: string, mode: "auto" | "custom", markers: number[]) => {
-      setItems((prev) =>
-        prev.map((it) =>
-          it.id === id
-            ? { ...it, timestampMode: mode, customTimestamps: markers }
-            : it,
-        ),
-      );
-    },
-    [],
-  );
-
-  // Remove a single task from the list.
-  const handleRemoveItem = useCallback((id: string) => {
-    setItems((prev) => prev.filter((it) => it.id !== id));
-  }, []);
-
-  // Reset a completed/failed/cancelled task back to queued so it can be reprocessed.
-  const handleRequeueItem = useCallback((id: string) => {
-    setItems((prev) =>
-      prev.map((it) =>
-        it.id === id
-          ? {
-              ...it,
-              status: "queued" as const,
-              error: undefined,
-              outputBlob: undefined,
-              outputName: undefined,
-              outputSize: undefined,
-              processingStartedAt: undefined,
-              processingDurationMs: undefined,
-              uploads: undefined,
-            }
-          : it,
-      ),
-    );
-  }, []);
-
-  // Requeue all completed/failed/cancelled tasks back to queued.
-  const handleRequeueAll = useCallback(() => {
-    setItems((prev) =>
-      prev.map((it) =>
-        it.status === "done" ||
-        it.status === "error" ||
-        it.status === "cancelled"
-          ? {
-              ...it,
-              status: "queued" as const,
-              error: undefined,
-              outputBlob: undefined,
-              outputName: undefined,
-              outputSize: undefined,
-              processingStartedAt: undefined,
-              processingDurationMs: undefined,
-              uploads: undefined,
-            }
-          : it,
-      ),
-    );
-  }, []);
-
-  const setOpts = useCallback((o: SavedOptions) => setOptsState(o), []);
-
-  // - Processing
-  const {
-    isProcessing,
-    status,
-    analyseFiles,
-    processAll,
-    requestCancel,
-    resetState,
-  } = useProcessor(updateItem);
-
-  // File input ref - lifted here so Clear All can reset it.
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
-  // Add new files as tasks - existing tasks are preserved.
+  // --- File handling ---
   const handleFilesChange = useCallback(
     async (files: File[]) => {
-      const newItems = await analyseFiles(files);
-      setItems((prev) => [...prev, ...newItems]);
+      await processor.analyzeFiles(files, (item) => {
+        setItems((prev) => [...prev, item]);
+        return yieldToBrowser();
+      });
     },
-    [analyseFiles],
+    [processor.analyzeFiles, setItems],
   );
 
-  // Only process tasks that are currently queued.
-  const handleStart = useCallback(
-    () =>
-      processAll(
-        items.filter((it) => it.status === "queued"),
-        opts,
-      ),
-    [items, opts, processAll],
+  // --- Start processing ---
+  const handleStart = useCallback(async () => {
+    const queued = items.filter((it) => it.status === "queued");
+    await processor.processAll(queued, opts);
+  }, [items, opts, processor.processAll]);
+
+  // --- Cancel processing ---
+  const handleCancel = useCallback(() => {
+    requestCancel();
+  }, [requestCancel]);
+
+  // --- Upload handlers ---
+  const handleUploadItem = useCallback(
+    (id: string) => upload.uploadItem(id),
+    [upload.uploadItem],
   );
 
-  const handleClear = useCallback(() => {
-    setItems([]);
-    resetState();
-    if (fileInputRef.current) {
-      fileInputRef.current.value = "";
-    }
-  }, [resetState]);
+  const handleUploadAll = useCallback(() => {
+    upload.uploadAll(settings.destinations);
+  }, [upload.uploadAll, settings.destinations]);
 
-  // - Upload
-  const { isUploadingAll, uploadProgress, uploadItem, uploadAll } = useUpload(
-    items,
-    setItems,
+  // --- Clear ---
+  const onClear = useCallback(async () => {
+    setItems(() => []);
+    await yieldToBrowser();
+    await processor.resetState();
+    upload.resetUploadState();
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  }, [setItems, processor.resetState, upload.resetUploadState]);
+
+  // --- Preview ---
+  const handleClosePreview = useCallback(
+    () => setPreviewUrl(null),
+    [setPreviewUrl],
   );
-
-  // - Download all as ZIP
-  const [isZipping, setIsZipping] = useState(false);
-
-  const downloadAll = useCallback(async () => {
-    const done = items.filter(
-      (i) => i.status === "done" && i.outputBlob && i.outputName,
-    );
-    if (!done.length) return;
-    setIsZipping(true);
-    try {
-      const zip = new JSZip();
-      for (const item of done) zip.file(item.outputName!, item.outputBlob!);
-      const blob = await zip.generateAsync({ type: "blob" });
-      saveAs(blob, "vidgrid-outputs.zip");
-    } finally {
-      setIsZipping(false);
-    }
-  }, [items]);
-
-  // - Preview modal
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-
-  // - Derived values
-  const doneItems = items.filter(
-    (i) =>
-      (i.status === "done" || i.status === "processing") &&
-      i.outputBlob &&
-      i.outputName,
-  );
-
-  // "Start Processing" is only meaningful when there are queued tasks with metadata ready.
-  const queuedItems = items.filter((i) => i.status === "queued");
-  const hasQueuedFiles = queuedItems.length > 0;
-  const allMetaReady =
-    hasQueuedFiles && queuedItems.every((i) => i.metadata !== undefined);
-
-  const totalCells = Math.max(1, opts.cols) * Math.max(1, opts.rows);
-  const totalPossibleUploads = doneItems.length * enabledDests.length;
-  const completedUploads =
-    items.filter((item) =>
-      enabledDests.every((dest) => item.uploads?.[dest.id]?.status === "done"),
-    ).length * enabledDests.length;
-  const hasPendingUploads = completedUploads < totalPossibleUploads;
-
-  const requeuableItems = items.filter(
-    (i) =>
-      i.status === "done" || i.status === "error" || i.status === "cancelled",
-  );
-  const hasRequeuableItems = requeuableItems.length > 0;
 
   return (
-    <>
-      <header className="app-header">
-        <a href="/" className="brand-mark" aria-label="Go to homepage">
-          <img src="favicon.svg" alt="Logo" />
-        </a>
-        <div className="header-text">
-          <h1>{PROJECT_NAME}</h1>
-          <p className="subtitle">
-            Thumbnail Grids Generator for videos. Client-side only processing,
-            no upload required!
-          </p>
+    <div ref={mainRef} className="mx-auto flex max-w-6xl flex-col gap-3 p-4">
+      <header className="bg-card text-card-foreground flex items-start justify-between gap-4 rounded-xl border p-4 shadow-sm">
+        <div className="flex items-center gap-4 flex-1">
+          <a
+            href="/"
+            aria-label="Go to homepage"
+            className="focus-visible:ring-ring/50 inline-flex shrink-0 rounded-md focus-visible:ring-2 focus-visible:outline-none"
+          >
+            <img src="favicon.svg" alt="Logo" className="size-14 rounded-md" />
+          </a>
+          <div className="min-w-0 flex flex-col gap-1">
+            <h1 className="text-base min-[360px]:text-xl font-semibold leading-none tracking-tight text-nowrap">
+              {PROJECT_NAME}
+            </h1>
+            <p className="text-muted-foreground text-sm hidden min-[360px]:block">
+              Thumbnail Grids for Videos
+            </p>
+            <p className="text-muted-foreground text-sm hidden sm:block">
+              Client-side only processing, no upload required!
+            </p>
+          </div>
         </div>
+
+        <Button
+          onClick={handleOpenSettingsDialog}
+          variant={"outline"}
+          size={"icon"}
+          aria-label="Open settings"
+        >
+          <SettingsIcon className="size-4" />
+        </Button>
       </header>
+
+      <TaskList
+        onFilesChange={handleFilesChange}
+        onUploadAll={handleUploadAll}
+        onDownloadAll={downloadAll}
+        onPreview={setPreviewUrl}
+        onUpload={handleUploadItem}
+        onStart={handleStart}
+        onCancel={handleCancel}
+        onForceCancel={forceCancel}
+        onClear={onClear}
+      />
+
       <ControlPanel
         opts={opts}
         setOpts={setOpts}
-        presets={appSettings.presets}
-        setPresets={(p) => setAppSettings({ ...appSettings, presets: p })}
-        fileInputRef={fileInputRef}
-        onFilesChange={handleFilesChange}
+        presets={settings.presets}
+        setPresets={(p) => {
+          updateSettings({ presets: p });
+        }}
       />
-      <ProcessingPanel
-        status={status}
-        isProcessing={isProcessing}
-        hasFiles={hasQueuedFiles}
-        allMetadataReady={allMetaReady}
-        hasRequeuableItems={hasRequeuableItems}
-        onStart={handleStart}
-        onCancel={requestCancel}
-        onClear={handleClear}
-        onRequeueAll={handleRequeueAll}
-      />
-      <section className="panel">
-        <div className="tasks-header">
-          <h2>Tasks ({items.length})</h2>
-          <div className="tasks-actions-col">
-            <button
-              className="icon-btn dest-manager-btn"
-              title="Manage upload destinations"
-              onClick={() => setShowDestManager(true)}
-            >
-              <span className="dest-manager-icon">☁️</span>
-              <span className="dest-manager-text">
-                Upload Destinations{" "}
-                {destinations.length > 0
-                  ? `(${destinations.filter((d) => d.enabled).length}/${destinations.length})`
-                  : ""}
-              </span>
-            </button>
-            <div className="tasks-bulk-actions">
-              {enabledDests.length > 0 && doneItems.length > 0 && (
-                <button
-                  className="icon-btn primary upload-all-btn"
-                  disabled={isUploadingAll || !hasPendingUploads}
-                  onClick={() => uploadAll(destinations)}
-                  title={`Upload all to ${enabledDests.map((d) => d.name).join(", ")} ${
-                    hasPendingUploads ? "" : "(All uploads complete)"
-                  }`}
-                >
-                  {isUploadingAll
-                    ? `⏳ Uploading… (${uploadProgress.attempted}/${uploadProgress.total})`
-                    : `☁️ Upload All (${completedUploads}/${totalPossibleUploads})`}
-                </button>
-              )}
-              {doneItems.length > 1 && (
-                <button
-                  className="icon-btn primary"
-                  disabled={isZipping}
-                  onClick={downloadAll}
-                >
-                  {isZipping
-                    ? "⏳ Zipping…"
-                    : `⏬ Download All (${doneItems.length})`}
-                </button>
-              )}
-            </div>
-          </div>
-        </div>
-        {doneItems.length > 0 && <CopyAllPanel items={doneItems} />}
-        <div className="tasks">
-          {items.length === 0 ? (
-            <div className="empty">
-              No tasks yet. Add video files to get started.
-            </div>
-          ) : (
-            items.map((item) => (
-              <TaskCard
-                key={item.id}
-                item={item}
-                totalCells={totalCells}
-                showPreview={opts.preview}
-                destinations={destinations}
-                onPreview={setPreviewUrl}
-                onUpload={(id) => uploadItem(id, destinations)}
-                onUpdateTimestamps={handleUpdateTimestamps}
-                onRemove={handleRemoveItem}
-                onRequeue={handleRequeueItem}
-              />
-            ))
-          )}
-        </div>
-      </section>
-      <PreviewModal url={previewUrl} onClose={() => setPreviewUrl(null)} />
-      {showDestManager && (
-        <DestinationManager
-          destinations={destinations}
-          onSave={handleSaveDestinations}
-          onClose={() => setShowDestManager(false)}
-        />
+
+      {previewUrl && (
+        <PreviewModal url={previewUrl} onClose={handleClosePreview} />
       )}
+
       <Footer />
-    </>
+
+      {/* Settings Dialog with nested Upload Destinations */}
+      <Settings
+        open={showSettingsDialog}
+        theme={settings.theme}
+        showPreview={settings.showPreview}
+        destinations={settings.destinations}
+        onThemeChange={handleThemeChange}
+        onShowPreviewChange={handleShowPreviewChange}
+        onSaveAndClose={saveAndCloseSettings}
+        onCancel={handleCancelSettings}
+        updateDestinations={updateDestinations}
+      />
+    </div>
   );
 }

@@ -1,37 +1,64 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { Cloud, Pencil, Plus, Trash2 } from "lucide-react";
 import type { UploadDestination } from "../types";
 import { makeId } from "../utils";
-import { useScrollLock } from "../hooks/useScrollLock";
-
-interface Props {
-  destinations: UploadDestination[];
-  onSave: (destinations: UploadDestination[]) => void;
-  onClose: () => void;
-}
-
-const DEFAULT_URL = "https://api.imgbb.com/1/upload?key={key}";
+import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { cn } from "@/lib/utils";
+import { DEFAULT_DESTINATION_URL } from "@/constants";
 
 const EMPTY: Omit<UploadDestination, "id"> = {
   name: "",
   type: "chevereto",
   apiKey: "",
-  url: DEFAULT_URL,
+  url: DEFAULT_DESTINATION_URL,
   enabled: true,
 };
 
+interface Props {
+  open: boolean;
+  destinations: UploadDestination[];
+  onSave: (destinations: UploadDestination[]) => void;
+  onUpdate: (destinations: UploadDestination[]) => void;
+  onClose: () => void;
+}
+
 export default function DestinationManager({
+  open,
   destinations,
   onSave,
+  onUpdate,
   onClose,
 }: Props) {
-  useScrollLock();
-
   const [list, setList] = useState<UploadDestination[]>(() =>
     structuredClone(destinations),
   );
   const [editing, setEditing] = useState<UploadDestination | null>(null);
   const [draft, setDraft] = useState<Omit<UploadDestination, "id">>(EMPTY);
   const [error, setError] = useState("");
+
+  // Re‑initialize list from the latest saved settings every time dialog opens
+  useEffect(() => {
+    if (open) {
+      setList(structuredClone(destinations));
+    }
+  }, [open, destinations]);
 
   const openAdd = () => {
     setEditing({ id: "__new__", ...EMPTY });
@@ -90,8 +117,8 @@ export default function DestinationManager({
     }
 
     if (editing!.id === "__new__") {
-      setList((prev) => [
-        ...prev,
+      const newList = [
+        ...list,
         {
           id: makeId(),
           ...draft,
@@ -99,102 +126,130 @@ export default function DestinationManager({
           apiKey: draft.apiKey.trim(),
           url: trimmedUrl,
         },
-      ]);
+      ];
+      setList(newList);
+      onUpdate(newList); // Persist immediately
     } else {
-      setList((prev) =>
-        prev.map((d) =>
-          d.id === editing!.id
-            ? {
-                ...d,
-                ...draft,
-                name: draft.name.trim(),
-                apiKey: draft.apiKey.trim(),
-                url: trimmedUrl,
-              }
-            : d,
-        ),
+      const newList = list.map((d) =>
+        d.id === editing!.id
+          ? {
+              ...d,
+              ...draft,
+              name: draft.name.trim(),
+              apiKey: draft.apiKey.trim(),
+              url: trimmedUrl,
+            }
+          : d,
       );
+      setList(newList);
+      onUpdate(newList); // Persist immediately
     }
     setEditing(null);
     setError("");
   };
 
   const toggleEnabled = (id: string) => {
-    setList((prev) =>
-      prev.map((d) => (d.id === id ? { ...d, enabled: !d.enabled } : d)),
+    const newList = list.map((d) =>
+      d.id === id ? { ...d, enabled: !d.enabled } : d,
     );
+    setList(newList);
+    // Enabled state is persisted only when user clicks "Save & close" below
+    // (via onSave → updateDestinations → persistAppSettings)
   };
 
-  const removeItem = (id: string) =>
-    setList((prev) => prev.filter((d) => d.id !== id));
+  const removeItem = (id: string) => {
+    const newList = list.filter((d) => d.id !== id);
+    setList(newList);
+    onUpdate(newList); // Persist immediately
+    setEditing(null);
+    setError("");
+  };
+
+  const handleSaveAndClose = () => {
+    onSave(list);
+    onClose();
+  };
+
+  const handleDiscardAndClose = () => {
+    // Just close without saving - list will be reset on next open from parent
+    onClose();
+  };
 
   return (
-    <div
-      className="modal-backdrop"
-      onClick={(e) => e.target === e.currentTarget && onClose()}
+    <Dialog
+      open={open}
+      onOpenChange={(isOpen) => !isOpen && handleDiscardAndClose()}
     >
-      <div className="modal-box">
-        <div className="modal-header">
-          <h2>Upload Destinations</h2>
-          <button className="icon-btn" onClick={onClose} title="Close">
-            ✕
-          </button>
-        </div>
+      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Cloud className="size-5" />
+            <span>Upload Destinations</span>
+          </DialogTitle>
+        </DialogHeader>
 
-        <div className="dest-list">
+        <div className="flex flex-col gap-2">
           {list.length === 0 && (
-            <p className="empty-note">No destinations yet. Add one below.</p>
+            <p className="text-muted-foreground text-sm">
+              No destinations yet. Add one below.
+            </p>
           )}
           {list.map((d) => (
             <div
               key={d.id}
-              className={`dest-row${d.enabled ? "" : " dest-row--disabled"}`}
+              className={cn(
+                "bg-muted/30 flex flex-wrap items-center gap-3 rounded-md border p-3",
+                !d.enabled && "opacity-60",
+              )}
             >
-              <button
-                className={`icon-btn dest-toggle${d.enabled ? " dest-toggle--on" : ""}`}
-                title={
-                  d.enabled
-                    ? "Enabled — click to disable"
-                    : "Disabled — click to enable"
-                }
-                onClick={() => toggleEnabled(d.id)}
-              >
-                {d.enabled ? "✅" : "⬜"}
-              </button>
-              <span className="dest-type-badge">{d.type}</span>
-              <span className="dest-name">{d.name}</span>
-              <span className="dest-key-preview">{d.apiKey.slice(0, 8)}…</span>
-              <div className="dest-actions">
-                <button
-                  className="icon-btn"
+              <Switch
+                checked={d.enabled}
+                onCheckedChange={() => toggleEnabled(d.id)}
+              />
+              <span className="bg-secondary text-secondary-foreground rounded px-2 py-0.5 font-mono text-xs">
+                {d.type}
+              </span>
+              <span className="min-w-0 flex-1 truncate text-sm font-medium">
+                {d.name}
+              </span>
+              <span className="text-muted-foreground font-mono text-xs">
+                {d.apiKey.slice(0, 8)}…
+              </span>
+              <div className="flex shrink-0 gap-1">
+                <Button
+                  variant="ghost"
+                  size="icon"
                   onClick={() => openEdit(d)}
                   title="Edit"
                 >
-                  ✏️
-                </button>
-                <button
-                  className="icon-btn danger-btn"
+                  <Pencil className="size-4" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
                   onClick={() => removeItem(d.id)}
                   title="Delete"
+                  className="text-destructive hover:text-destructive"
                 >
-                  🗑️
-                </button>
+                  <Trash2 className="size-4" />
+                </Button>
               </div>
             </div>
           ))}
         </div>
 
         {editing && (
-          <div className="dest-edit-form">
-            <h3>
+          <div className="bg-card flex flex-col gap-4 rounded-md border p-4">
+            <h3 className="text-sm font-semibold">
               {editing.id === "__new__"
                 ? "Add destination"
                 : "Edit destination"}
             </h3>
 
-            <label className="field">
-              <span>Name</span>
-              <input
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="dest-name">Name</Label>
+              <Input
+                id="dest-name"
                 type="text"
                 value={draft.name}
                 maxLength={64}
@@ -203,43 +258,50 @@ export default function DestinationManager({
                   setDraft((p) => ({ ...p, name: e.target.value }))
                 }
               />
-            </label>
+            </div>
 
-            <label className="field">
-              <span>Type</span>
-              <select
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="dest-type">Type</Label>
+              <Select
                 value={draft.type}
-                onChange={(e) =>
-                  setDraft((p) => ({
-                    ...p,
-                    type: e.target.value as "chevereto",
-                  }))
+                onValueChange={(value) =>
+                  setDraft((p) => ({ ...p, type: value as "chevereto" }))
                 }
               >
-                <option value="chevereto">Chevereto</option>
-              </select>
-            </label>
+                <SelectTrigger id="dest-type">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="chevereto">Chevereto</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
 
-            <label className="field">
-              <span>Upload URL</span>
-              <input
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="dest-url">Upload URL</Label>
+              <Input
+                id="dest-url"
                 type="text"
                 value={draft.url}
-                placeholder={DEFAULT_URL}
+                placeholder={DEFAULT_DESTINATION_URL}
                 onChange={(e) =>
                   setDraft((p) => ({ ...p, url: e.target.value }))
                 }
                 autoComplete="off"
               />
-              <span style={{ fontSize: "0.8rem", color: "var(--muted)" }}>
-                Use <code>{"{key}"}</code> as a placeholder for the API key.
-                HTTPS required.
-              </span>
-            </label>
+              <p className="text-muted-foreground text-xs">
+                Use{" "}
+                <code className="bg-muted rounded px-1 py-0.5 font-mono">
+                  {"{key}"}
+                </code>{" "}
+                as a placeholder for the API key. HTTPS required.
+              </p>
+            </div>
 
-            <label className="field">
-              <span>API Key</span>
-              <input
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="dest-key">API Key</Label>
+              <Input
+                id="dest-key"
                 type="text"
                 value={draft.apiKey}
                 placeholder="Paste your API key"
@@ -248,42 +310,46 @@ export default function DestinationManager({
                 }
                 autoComplete="off"
               />
-            </label>
+            </div>
 
-            {error && <p className="form-error">{error}</p>}
+            {error && (
+              <p className="text-destructive text-sm font-medium">{error}</p>
+            )}
 
-            <div className="edit-actions">
-              <button className="icon-btn primary" onClick={confirmEdit}>
-                {editing.id === "__new__" ? "Add" : "Update"}
-              </button>
-              <button className="icon-btn" onClick={cancelEdit}>
+            <div className="flex justify-end gap-2">
+              <Button variant="secondary" onClick={cancelEdit}>
                 Cancel
-              </button>
+              </Button>
+              <Button variant="default" onClick={confirmEdit}>
+                {editing.id === "__new__" ? "Add" : "Update"}
+              </Button>
             </div>
           </div>
         )}
 
         {!editing && (
-          <button className="icon-btn add-dest-btn" onClick={openAdd}>
-            ＋ Add destination
-          </button>
+          <Button variant="outline" onClick={openAdd} className="w-full">
+            <Plus className="size-4" /> Add destination
+          </Button>
         )}
 
-        <div className="modal-footer">
-          <button
-            className="icon-btn primary"
-            onClick={() => {
-              onSave(list);
-              onClose();
-            }}
+        <DialogFooter>
+          <Button
+            variant="secondary"
+            onClick={handleDiscardAndClose}
+            disabled={editing !== null}
           >
-            Save &amp; close
-          </button>
-          <button className="icon-btn" onClick={onClose}>
             Discard changes
-          </button>
-        </div>
-      </div>
-    </div>
+          </Button>
+          <Button
+            variant="default"
+            onClick={handleSaveAndClose}
+            disabled={editing !== null}
+          >
+            Save & close
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

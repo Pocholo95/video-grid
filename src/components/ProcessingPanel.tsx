@@ -1,6 +1,32 @@
 import { useEffect, useState } from "react";
-import type { ProcessorStatus } from "../hooks/useProcessor";
+import {
+  AlertTriangle,
+  CircleCheck,
+  Info,
+  Play,
+  RotateCcw,
+  Square,
+  Trash2,
+} from "lucide-react";
+import type { LucideIcon } from "lucide-react";
+import type { ProcessorStatus } from "@/types";
 import { formatElapsed } from "../utils";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import { Kbd } from "@/components/ui/kbd";
+import { Card, CardContent } from "@/components/ui/card";
+import { Field, FieldLabel } from "@/components/ui/field";
+import { Progress } from "@/components/ui/progress";
+
+const STATUS_TEXT_ICON: Record<
+  NonNullable<ProcessorStatus["textKind"]>,
+  LucideIcon
+> = {
+  info: Info,
+  success: CircleCheck,
+  warning: AlertTriangle,
+  cancelled: Square,
+};
 
 interface Props {
   status: ProcessorStatus;
@@ -8,6 +34,10 @@ interface Props {
   hasFiles: boolean;
   allMetadataReady: boolean;
   hasRequeuableItems: boolean;
+  /** Effective batch total computed from items state for dynamic progress. */
+  effectiveBatchTotal: number;
+  /** Number of items that reached a terminal state (done/error/cancelled). */
+  effectiveBatchDone: number;
   onStart: () => void;
   onCancel: () => void;
   onClear: () => void;
@@ -21,7 +51,7 @@ interface Props {
  * @param status              - Current processor status snapshot.
  * @param isProcessing        - Whether a batch is actively running.
  * @param hasFiles            - Whether there are queued files ready to process.
- * @param allMetadataReady    - Whether all queued files have been analysed.
+ * @param allMetadataReady    - Whether all queued files have been analyzed.
  * @param hasRequeuableItems  - Whether at least one item can be requeued.
  * @param onStart             - Called when the user clicks Start Processing.
  * @param onCancel            - Called when the user clicks Cancel.
@@ -34,6 +64,8 @@ export default function ProcessingPanel({
   hasFiles,
   allMetadataReady,
   hasRequeuableItems,
+  effectiveBatchTotal,
+  effectiveBatchDone,
   onStart,
   onCancel,
   onClear,
@@ -47,10 +79,15 @@ export default function ProcessingPanel({
     return () => clearInterval(id);
   }, [status.batchStartTime]);
 
+  const effectiveTotal = effectiveBatchTotal;
+  const effectiveDone = effectiveBatchDone;
+
+  // Granular batch progress: completed files + current file's partial progress
+  // e.g. with 3 files: 1 done + file 2 at 40% = (1 + 0.4)/3 * 100 = 46.7%
+  const granularDone =
+    effectiveDone + (isProcessing ? status.currentPct / 100 : 0);
   const batchPct =
-    status.batchTotal > 0
-      ? Math.round((status.batchDone / status.batchTotal) * 100)
-      : 0;
+    effectiveTotal > 0 ? Math.round((granularDone / effectiveTotal) * 100) : 0;
 
   // Live elapsed string shown in the batch progress label while processing.
   const batchElapsedStr = status.batchStartTime
@@ -58,57 +95,80 @@ export default function ProcessingPanel({
     : "";
 
   return (
-    <div className="panel">
-      <div className="actions">
-        <button
-          className="icon-btn primary"
-          disabled={!hasFiles || !allMetadataReady || isProcessing}
-          onClick={onStart}
-        >
-          ▶️ Start Processing
-        </button>
-        <button
-          className="icon-btn"
-          disabled={!isProcessing}
-          onClick={onCancel}
-        >
-          ⏹️ Cancel
-        </button>
-        {hasRequeuableItems && (
-          <button
-            className="icon-btn"
-            disabled={isProcessing}
-            onClick={onRequeueAll}
+    <Card>
+      <CardContent className="flex flex-col gap-4">
+        <div className="flex flex-wrap gap-2">
+          <Button
+            disabled={!hasFiles || !allMetadataReady || isProcessing}
+            onClick={onStart}
           >
-            ↺ Requeue All
-          </button>
-        )}
-        <button className="icon-btn" disabled={isProcessing} onClick={onClear}>
-          🗑️ Clear All
-        </button>
-      </div>
-      <div className="progress-area">
-        <div className="progress-block">
-          <div className="progress-label">
-            <span>Current file</span>
-            <span>{Math.round(status.currentPct)}%</span>
-          </div>
-          <progress value={status.currentPct} max={100} />
+            <Play className="size-4" />
+            Start Processing
+            <Kbd className="ml-1 hidden lg:inline">Ctrl+Enter</Kbd>
+          </Button>
+          <Button
+            variant="secondary"
+            disabled={!isProcessing}
+            onClick={onCancel}
+          >
+            <Square className="size-4" />
+            Cancel
+          </Button>
+          {hasRequeuableItems && (
+            <Button
+              variant="secondary"
+              disabled={isProcessing}
+              onClick={onRequeueAll}
+            >
+              <RotateCcw className="size-4" />
+              Requeue All
+            </Button>
+          )}
+          <Button
+            variant="destructive"
+            disabled={isProcessing || (!hasFiles && !hasRequeuableItems)}
+            onClick={onClear}
+          >
+            <Trash2 className="size-4" />
+            Remove All Tasks
+          </Button>
         </div>
-        {status.batchTotal > 0 && (
-          <div className="progress-block">
-            <div className="progress-label">
+
+        <div className="flex flex-col gap-3">
+          <Field>
+            <FieldLabel className="text-muted-foreground flex w-full justify-between text-xs font-normal">
+              <span>Current file</span>
+              <span>{Math.round(status.currentPct)}%</span>
+            </FieldLabel>
+            <Progress value={status.currentPct} />
+          </Field>
+
+          <Field>
+            <FieldLabel className="text-muted-foreground flex w-full justify-between text-xs font-normal">
               <span>
-                Batch progress ({status.batchDone}/{status.batchTotal})
-                {batchElapsedStr}
+                {effectiveTotal > 0
+                  ? `Batch progress (${effectiveDone}/${effectiveTotal})${batchElapsedStr}`
+                  : "Batch progress"}
               </span>
               <span>{batchPct}%</span>
-            </div>
-            <progress value={batchPct} max={100} />
-          </div>
-        )}
-        <div className="status">{status.text}</div>
-      </div>
-    </div>
+            </FieldLabel>
+            <Progress value={batchPct} />
+          </Field>
+
+          {status.text &&
+            (() => {
+              const StatusIcon = STATUS_TEXT_ICON[status.textKind ?? "info"];
+              return (
+                <Alert className="py-1 px-3">
+                  <StatusIcon />
+                  <AlertDescription className="text-xs py-0.5 wrap-anywhere">
+                    {status.text}
+                  </AlertDescription>
+                </Alert>
+              );
+            })()}
+        </div>
+      </CardContent>
+    </Card>
   );
 }

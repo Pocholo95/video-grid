@@ -1,5 +1,6 @@
 import { DEBUG } from "./constants";
-import type { VideoMetadata } from "./types";
+import type { TaskItem, VideoMetadata } from "./types";
+import { resolutionLabel } from "./uploadUtils";
 
 // Logging - all calls are no-ops when DEBUG is false.
 export const log = (...a: unknown[]) => DEBUG && console.log("[VidGrid]", ...a);
@@ -40,18 +41,18 @@ export const formatTime = (seconds: number): string => {
 };
 
 /**
- * Formats a duration in seconds as `HH:MM:SS.f` (one decimal for tenths).
- * Useful for marker labels where sub-second precision matters.
+ * Formats a duration in seconds as `HH:MM:SS.mmm` (millisecond precision).
+ * Useful for marker labels where frame-level precision matters (up to 1000fps).
  *
  * @param seconds - Duration in seconds.
  */
 export const formatTimeExact = (seconds: number): string => {
-  if (!Number.isFinite(seconds) || seconds < 0) return "00:00:00.0";
+  if (!Number.isFinite(seconds) || seconds < 0) return "00:00:00.000";
   const h = Math.floor(seconds / 3600);
   const m = Math.floor((seconds % 3600) / 60);
   const s = seconds % 60;
   const pad = (n: number) => String(n).padStart(2, "0");
-  return `${pad(h)}:${pad(m)}:${s.toFixed(1).padStart(4, "0")}`;
+  return `${pad(h)}:${pad(m)}:${s.toFixed(3).padStart(6, "0")}`;
 };
 
 /**
@@ -79,6 +80,24 @@ export const formatElapsed = (ms: number): string => {
 
 /** Generates a random UUID string suitable for use as an item ID. */
 export const makeId = (): string => crypto.randomUUID();
+
+// Helper to generate unique filename if collision exists
+export function makeUniqueName(name: string, existing: Set<string>): string {
+  if (!existing.has(name)) return name;
+
+  const lastDot = name.lastIndexOf(".");
+  const hasExt = lastDot > -1;
+  const base = hasExt ? name.substring(0, lastDot) : name;
+  const ext = hasExt ? name.substring(lastDot) : "";
+
+  let i = 1;
+  let candidate = `${base}_${i}${ext}`;
+  while (existing.has(candidate)) {
+    i++;
+    candidate = `${base}_${i}${ext}`;
+  }
+  return candidate;
+}
 
 /**
  * Type guard that returns true when `meta` contains valid, usable video dimensions
@@ -119,4 +138,47 @@ export const hexToRgba = (hex: string, alpha: number = 1): string => {
   const g = parseInt(fullHex.slice(2, 4), 16);
   const b = parseInt(fullHex.slice(4, 6), 16);
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+};
+
+/**
+ * Validates and normalizes a hex color string.
+ * Returns a valid 7-char hex string (#RRGGBB) or the fallback.
+ *
+ * @param color - The color value to normalize (string or other type).
+ * @param fallback - The fallback color returned when the value is invalid.
+ * @returns A normalized 7-char hex string (#rrggbb) or the fallback.
+ */
+export function normalizeHex(color: unknown, fallback: string): string {
+  if (typeof color !== "string") return fallback;
+  const cleaned = color.replace(/^#/, "");
+  // Strip alpha if present (#rrggbbaa -> #rrggbb)
+  const hexPart = cleaned.length > 6 ? cleaned.slice(0, 6) : cleaned;
+  if (/^[0-9a-f]{6}$/i.test(hexPart)) {
+    return "#" + hexPart.toLowerCase();
+  }
+  if (/^[0-9a-f]{3}$/i.test(hexPart)) {
+    const expanded = hexPart
+      .split("")
+      .map((c) => c + c)
+      .join("");
+    return "#" + expanded.toLowerCase();
+  }
+  return fallback;
+}
+
+/**
+ * Build a BBCode "title + resolution" string for a single task item.
+ * Uses `resolutionLabel` to derive a standard resolution tag (e.g. "1080p")
+ * from the video metadata when available. Falls back to title-only when
+ * metadata is missing.
+ *
+ * @param item - The TaskItem to build a title for.
+ * @returns The formatted BBCode string.
+ */
+export const buildBbcodeTitle = (item: TaskItem): string => {
+  const name = (item.outputName ?? item.file.name)
+    .replace(/\.[^.]+$/, "")
+    .replace(/\.[^.]+$/, "");
+  const res = item.metadata ? resolutionLabel(item.metadata) : "";
+  return `[b]${name}${res ? ` ${res}` : ""}[/b]`;
 };

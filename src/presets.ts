@@ -1,50 +1,276 @@
-import { APP_STORAGE_KEY } from "./constants";
 import type {
   AppSettings,
+  GridCell,
   Presets,
   SavedOptions,
   UploadDestination,
 } from "./types";
+import { createVersionedStorage } from "./services/storage.service";
+import { APP_STORAGE_KEY, DEFAULTS } from "./constants";
+
+// ---------------------------------------------------------------------------
+// Built-in Presets
+// ---------------------------------------------------------------------------
+// Easily editable: add, remove, or tweak presets here.
+// Each preset defines only the fields that differ from DEFAULTS, so new fields
+// added to DEFAULTS automatically propagate to all presets.
+// Seeded only on a completely fresh install (no localStorage data).
+// ---------------------------------------------------------------------------
+
+/** Helper to build a row of cells. */
+function row(y: number, count: number): GridCell[] {
+  const w = 60 / count;
+  return Array.from({ length: count }, (_, i) => ({
+    id: `cell-${y}-${i}`,
+    x: i,
+    y,
+    w,
+    h: 1,
+  }));
+}
+
+/** A built-in preset: partial overrides merged with DEFAULTS at seed time. */
+type BuiltInPreset = { name: string; opts: Partial<SavedOptions> };
+
+export const BUILT_IN_PRESETS: BuiltInPreset[] = [
+  {
+    name: "Hero Shot",
+    opts: {
+      gridTemplate: {
+        cols: 60,
+        cells: [...row(0, 3), ...row(1, 1), ...row(2, 3)],
+      },
+    },
+  },
+  {
+    name: "Animated Hero Light",
+    opts: {
+      width: 1280,
+      animated: true,
+      webpMethod: 6,
+      webpQuality: 75,
+      gridTemplate: {
+        cols: 60,
+        cells: [...row(0, 3), ...row(1, 1), ...row(2, 3)],
+      },
+    },
+  },
+  {
+    name: "Balanced",
+    opts: {
+      gridTemplate: {
+        cols: 60,
+        cells: [...row(0, 1), ...row(1, 2), ...row(2, 1)],
+      },
+    },
+  },
+  {
+    name: "Gallery",
+    opts: {
+      cols: 4,
+      rows: 6,
+      gridTemplate: {
+        cols: 60,
+        cells: [...row(0, 4), ...row(1, 2), ...row(2, 1), ...row(3, 4)],
+      },
+    },
+  },
+  {
+    name: "Film Strip",
+    opts: {
+      width: 2560,
+      cols: 6,
+      rows: 2,
+      gridTemplate: {
+        cols: 60,
+        cells: [
+          ...row(0, 1),
+          ...row(1, 6),
+          ...row(2, 1),
+          ...row(3, 6),
+          ...row(4, 1),
+        ],
+      },
+    },
+  },
+  {
+    name: "Spotlight",
+    opts: {
+      cols: 2,
+      rows: 3,
+      gridTemplate: {
+        cols: 60,
+        cells: [...row(0, 2), ...row(1, 1), ...row(2, 2)],
+      },
+    },
+  },
+  {
+    name: "Storyboard",
+    opts: {
+      cols: 1,
+      rows: 8,
+    },
+  },
+  {
+    name: "Bento Box",
+    opts: {
+      cols: 2,
+      rows: 4,
+      gridTemplate: {
+        cols: 60,
+        cells: [...row(0, 2), ...row(1, 1), ...row(2, 1), ...row(3, 2)],
+      },
+    },
+  },
+  {
+    name: "Quick Preview",
+    opts: {
+      width: 1280,
+      rows: 2,
+    },
+  },
+  {
+    name: "4K Archive",
+    opts: {
+      width: 3840,
+      cols: 4,
+      rows: 6,
+      spacing: 4,
+    },
+  },
+  {
+    name: "VR Side-by-Side",
+    opts: {
+      vrMode: "sbs-left",
+    },
+  },
+  {
+    name: "VR Top-Bottom",
+    opts: {
+      vrMode: "tb-left",
+    },
+  },
+];
+
+// ---------------------------------------------------------------------------
+// Defaults & Storage
+// ---------------------------------------------------------------------------
 
 const DEFAULT: AppSettings = {
   presets: { entries: {}, lastUsed: null },
   destinations: [],
+  theme: "dark",
+  showPreview: true,
+};
+
+/**
+ * Ensure settings object has all required keys with safe defaults.
+ * This handles corrupt or incomplete settings (e.g., old data missing
+ * schema-migration keys) by merging with defaults for any missing fields.
+ */
+const ensureValidSettings = (settings: AppSettings): AppSettings => {
+  const presets =
+    settings.presets && typeof settings.presets === "object"
+      ? settings.presets
+      : {};
+  const entries: Presets =
+    "entries" in presets &&
+    presets.entries &&
+    typeof presets.entries === "object"
+      ? (presets.entries as Presets)
+      : DEFAULT.presets.entries;
+  return {
+    ...DEFAULT,
+    ...settings,
+    presets: {
+      ...DEFAULT.presets,
+      ...presets,
+      entries,
+    },
+  };
+};
+
+/**
+ * Singleton VersionedStorage instance for app settings.
+ * Handles schema versioning and migration automatically.
+ */
+const storage = createVersionedStorage();
+
+/**
+ * Seed built-in presets into localStorage if this is a completely fresh install
+ * (no app settings stored at all). Once the user has any settings — even if
+ * they delete all presets — we do not re-seed.
+ */
+export const seedBuiltInPresets = (): void => {
+  /* Only seed on a truly fresh install — no data in localStorage at all.
+     If the user deletes all presets manually, we respect that choice and do
+     NOT re-seed on the next load. */
+  const raw = localStorage.getItem(APP_STORAGE_KEY);
+  if (raw !== null) return;
+
+  const settings = ensureValidSettings(structuredClone(DEFAULT));
+  settings.presets.entries = Object.fromEntries(
+    BUILT_IN_PRESETS.map((p) => [
+      p.name,
+      { ...structuredClone(DEFAULTS), ...structuredClone(p.opts) },
+    ]),
+  );
+  storage.save(settings);
 };
 
 /**
  * Load the full AppSettings object from localStorage.
  * Returns a safe default if nothing is stored or parsing fails.
+ * Automatically runs schema migrations if needed.
  */
-export const loadAppSettings = (): AppSettings => {
-  try {
-    const raw = localStorage.getItem(APP_STORAGE_KEY);
-    if (!raw) return structuredClone(DEFAULT);
-    const parsed = JSON.parse(raw) as Partial<AppSettings>;
-    const destinations: UploadDestination[] = parsed.destinations ?? [];
-    return {
-      presets: {
-        entries: parsed.presets?.entries ?? {},
-        lastUsed: parsed.presets?.lastUsed ?? null,
-      },
-      destinations,
-    };
-  } catch {
-    return structuredClone(DEFAULT);
-  }
-};
+export const loadAppSettings = (): AppSettings =>
+  ensureValidSettings(storage.load(() => structuredClone(DEFAULT)));
 
 /**
  * Persist the full AppSettings object to localStorage.
+ * Wraps data in VersionedSettings with current schema version.
  *
  * @param settings - The settings object to store.
  */
 export const persistAppSettings = (settings: AppSettings): void => {
-  try {
-    localStorage.setItem(APP_STORAGE_KEY, JSON.stringify(settings));
-  } catch (e) {
-    console.warn("localStorage write failed:", e);
-  }
+  storage.save(settings);
 };
+
+// Preset display helpers
+
+/**
+ * Compute a human-readable summary string for a preset, e.g.
+ * "Static, 1920px, 3×4" or "Animated, 1280px, Custom: 3 | 1 | 3 (SBS)".
+ * Pure display concern — does not modify stored preset names.
+ */
+export function getPresetSummary(opts: SavedOptions): string {
+  const mode = opts.animated ? "Animated" : "Static";
+  const width = `${opts.width}px`;
+
+  let grid: string;
+  if (opts.gridTemplate && opts.gridTemplate.cells.length > 0) {
+    // Group cells by row and show cell count per row
+    const rowCounts: number[] = [];
+    const byRow = new Map<number, number>();
+    for (const cell of opts.gridTemplate.cells) {
+      byRow.set(cell.y, (byRow.get(cell.y) ?? 0) + 1);
+    }
+    for (let y = 0; y < byRow.size; y++) {
+      rowCounts.push(byRow.get(y) ?? 0);
+    }
+    grid = `Custom Grid: ${rowCounts.join(" | ")}`;
+  } else {
+    grid = `Grid: ${opts.cols}×${opts.rows}`;
+  }
+
+  let vr = "";
+  if (opts.vrMode && opts.vrMode !== "disabled") {
+    if (opts.vrMode.startsWith("sbs")) vr = "(SBS)";
+    else if (opts.vrMode.startsWith("tb")) vr = "(TB)";
+  }
+
+  return `${mode} · ${width} · ${grid}${vr ? ` · ${vr}` : ""}`;
+}
 
 // Preset helpers
 

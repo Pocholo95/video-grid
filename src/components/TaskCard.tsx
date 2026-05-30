@@ -1,14 +1,42 @@
-import { useEffect, useRef, useState } from "react";
-import type { TaskItem, UploadDestination } from "../types";
-import { formatElapsed, formatTime, humanSize } from "../utils";
-import UploadLinks from "./UploadLinks";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { AlertTriangle, ChevronDown, RotateCcw, Trash2 } from "lucide-react";
+import type { TaskItem } from "@/types";
+import { useUiStore, selectTotalCells } from "@/store/uiStore";
+import { useSettingsStore } from "@/store/settingsStore";
+import { formatElapsed } from "@/utils";
+import { useTick } from "@/lib/useTick";
+import { cn } from "@/lib/utils";
+import { getOrCreateUrl } from "@/lib/blobCache";
+
+// Sub-components
+import SourceInfoSection from "./TaskCard/SourceInfoSection";
+import FfmpegLogsSection from "./TaskCard/FfmpegLogsSection";
+import TimestampRow from "./TaskCard/TimestampRow";
+import PreviewSection from "./TaskCard/PreviewSection";
+import InfoPanel from "./TaskCard/InfoPanel";
+import UploadResultsSection from "./TaskCard/UploadResultsSection";
+
+// Shared components
 import TimestampEditor from "./TimestampEditor";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import Section from "./control/Section";
 
 interface Props {
+  /** 1-based position in the task list for display purposes. */
+  position?: number;
   item: TaskItem;
-  totalCells: number;
-  showPreview: boolean;
-  destinations: UploadDestination[];
   onPreview: (url: string) => void;
   onUpload: (id: string) => void;
   onUpdateTimestamps: (
@@ -18,49 +46,81 @@ interface Props {
   ) => void;
   onRemove: (id: string) => void;
   onRequeue: (id: string) => void;
+  handleEnablePreviews: () => void;
+  /** True when this specific task is detected as stale (stuck FFmpeg). */
+  isStale?: boolean;
+  /** Callback to force-kill FFmpeg for this task only. */
+  onForceCancel?: () => void;
 }
 
 export default function TaskCard({
+  position,
   item,
-  totalCells,
-  showPreview,
-  destinations,
   onPreview,
   onUpload,
   onUpdateTimestamps,
   onRemove,
   onRequeue,
+  handleEnablePreviews,
+  isStale,
+  onForceCancel,
 }: Props) {
+  // --- Read from Zustand stores directly ---
+  const totalCells = useUiStore(selectTotalCells);
+  const showPreview = useSettingsStore((s) => s.settings.showPreview);
+  const destinations = useSettingsStore((s) => s.settings.destinations);
+
   const urlRef = useRef<string | null>(null);
+  const mountedRef = useRef(true);
   const [blobUrl, setBlobUrl] = useState<string | null>(null);
   const [showEditor, setShowEditor] = useState(false);
+  const [pendingMarkers, setPendingMarkers] = useState<number[] | null>(null);
+  const [showPreviewDialog, setShowPreviewDialog] = useState(false);
+  const [expanded, setExpanded] = useState(true);
+  const [outputDimensions, setOutputDimensions] = useState<{
+    width: number;
+    height: number;
+  } | null>(null);
 
+  // Track mounted state to prevent setState on unmounted component
   useEffect(() => {
-    if (!item.outputBlob || !showPreview) {
-      if (urlRef.current) {
-        URL.revokeObjectURL(urlRef.current);
-        urlRef.current = null;
-      }
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
+
+  // --- Blob URL management (using blob cache) ---
+  useEffect(() => {
+    if (!item.outputBlob) {
+      // Blob gone, clear the local URL reference.
+      // The blob cache will release the URL when the task is removed.
+      urlRef.current = null;
       setBlobUrl(null);
+      setOutputDimensions(null);
       return;
     }
-    if (!urlRef.current) urlRef.current = URL.createObjectURL(item.outputBlob);
+    if (!urlRef.current) urlRef.current = getOrCreateUrl(item.outputBlob);
     setBlobUrl(urlRef.current);
-    return () => {
-      if (urlRef.current) {
-        URL.revokeObjectURL(urlRef.current);
-        urlRef.current = null;
+
+    // Read image dimensions from the blob
+    const img = new Image();
+    img.onload = () => {
+      if (mountedRef.current) {
+        setOutputDimensions({
+          width: img.naturalWidth,
+          height: img.naturalHeight,
+        });
       }
     };
-  }, [item.outputBlob, showPreview]);
+    img.src = urlRef.current;
+    return () => {
+      setOutputDimensions(null);
+    };
+  }, [item.outputBlob]);
 
-  // Live tick to refresh the elapsed display while this item is processing.
-  const [, forceUpdate] = useState(0);
-  useEffect(() => {
-    if (item.status !== "processing" || !item.processingStartedAt) return;
-    const id = setInterval(() => forceUpdate((n) => n + 1), 100);
-    return () => clearInterval(id);
-  }, [item.status, item.processingStartedAt]);
+  // --- Live tick using useTick (replaces manual setInterval) ---
+  useTick(item.status === "processing" && !!item.processingStartedAt, 100);
 
   // Compute status text with timing info.
   let statusText: string;
@@ -72,7 +132,6 @@ export default function TaskCard({
     statusText = item.status;
   }
 
-  const meta = item.metadata;
   const isDone = item.status === "done";
   const enabledDests = destinations.filter((d) => d.enabled);
 
@@ -92,212 +151,186 @@ export default function TaskCard({
   const isCustom = item.timestampMode === "custom";
   const markerCount = item.customTimestamps?.length ?? 0;
 
-  // Timestamp mode label shown in the card.
-  let tsLabel: string;
-  if (!isCustom) {
-    tsLabel = "Auto (evenly distributed)";
-  } else if (markerCount === 0) {
-    tsLabel = "Custom — no markers (uses auto)";
-  } else {
-    const used = Math.min(markerCount, totalCells);
-    const fallback = Math.max(0, totalCells - markerCount);
-    tsLabel =
-      `Custom — ${used} marker${used !== 1 ? "s" : ""}` +
-      (fallback > 0 ? ` + ${fallback} auto` : "");
-  }
-
-  const handleSaveMarkers = (markers: number[]) => {
-    const isDoneItem = item.status === "done";
-    const shouldRequeue =
-      isDoneItem &&
-      window.confirm(
-        "This task is already done. Requeue it with the new timestamps for processing?",
-      );
-
+  const applyMarkers = (markers: number[]) => {
     if (markers.length === 0) {
       onUpdateTimestamps(item.id, "auto", []);
     } else {
       onUpdateTimestamps(item.id, "custom", markers);
     }
+  };
 
-    if (shouldRequeue) onRequeue(item.id);
+  const handleSaveMarkers = (markers: number[]) => {
+    if (item.status === "done") {
+      setPendingMarkers(markers);
+      setShowEditor(false);
+      return;
+    }
+    applyMarkers(markers);
     setShowEditor(false);
   };
 
-  // Disabled while processing - can't open editor mid-batch.
-  const canEditTimestamps = item.status !== "processing" && !!item.metadata;
+  const handleRequeueConfirm = () => {
+    if (pendingMarkers != null) {
+      applyMarkers(pendingMarkers);
+      onRequeue(item.id);
+      setPendingMarkers(null);
+    }
+  };
 
-  // Tasks that have finished (one way or another) can be re-queued.
+  const handleRequeueDecline = () => {
+    if (pendingMarkers != null) {
+      applyMarkers(pendingMarkers);
+      setPendingMarkers(null);
+    }
+  };
+
+  const canEditTimestamps = item.status !== "processing" && !!item.metadata;
   const canRequeue =
     item.status === "done" ||
     item.status === "error" ||
     item.status === "cancelled";
 
+  const handleShowPreviewDialog = useCallback(
+    () => setShowPreviewDialog(true),
+    [],
+  );
+
   return (
     <>
-      <article
-        className={`task-card task-${item.status}${allDone ? " task-uploaded" : ""}`}
-      >
-        <div className="task-top">
-          <div className="task-top-text">
-            <h3 title={item.file.name}>{item.file.name}</h3>
-            {item.warning && <p className="warning">{item.warning}</p>}
-            {meta && (
-              <p className="small">
-                Duration: {formatTime(meta.duration)} &nbsp;·&nbsp;
-                {meta.width}×{meta.height} &nbsp;·&nbsp;
-                {meta.bitrate
-                  ? `${Math.round(meta.bitrate / 1000)} kbps`
-                  : "n/a"}{" "}
-                &nbsp;·&nbsp;
-                {humanSize(item.file.size)}
-              </p>
+      <Section
+        expanded={expanded}
+        onToggle={() => setExpanded((v) => !v)}
+        groupKey="task-list"
+        bodyClassName="flex flex-col gap-3 !grid-cols-1"
+        className={cn(
+          item.status === "error" && "border-destructive/50",
+          allDone && "border-emerald-500/40",
+        )}
+        renderTrigger={() => (
+          <>
+            {position != null && (
+              <Badge
+                variant="info"
+                className="text-xs uppercase shrink-0 font-mono p-1"
+              >
+                #{position}
+              </Badge>
             )}
-          </div>
-          <div className="task-top-actions">
-            <div className="badge">{item.status}</div>
-            <button
-              className="icon-btn task-remove-btn"
-              onClick={() => onRemove(item.id)}
+            <div className="min-w-0 flex-1">
+              <h3
+                className="truncate text-sm font-semibold"
+                title={item.file.name}
+              >
+                {item.file.name}
+              </h3>
+            </div>
+            <Badge variant={item.status} className="uppercase shrink-0">
+              {item.status}
+            </Badge>
+            <Button
+              variant="destructive"
+              size="icon"
+              onClick={(e) => {
+                e.stopPropagation();
+                onRemove(item.id);
+              }}
               disabled={item.status === "processing"}
               title="Remove this task"
+              className="h-6 w-6 p-1"
             >
-              ✕
-            </button>
-          </div>
-        </div>
-        {/* Timestamp row */}
-        <div className="ts-card-row">
-          <span
-            className={`ts-card-label${isCustom ? " ts-card-label--custom" : ""}`}
-          >
-            🎯 {tsLabel}
-          </span>
-          <button
-            className={`icon-btn ts-card-edit-btn${isCustom ? " ts-card-edit-btn--active" : ""}`}
-            disabled={!canEditTimestamps}
-            onClick={() => setShowEditor(true)}
-            title={
-              canEditTimestamps
-                ? "Edit timestamps for this file"
-                : "Timestamps can be edited after analysis completes"
-            }
-          >
-            Edit Timestamps
-          </button>
-        </div>
-        <div className="task-grid">
-          <div className="task-preview">
-            {blobUrl ? (
-              <img
-                src={blobUrl}
-                alt={`Preview for ${item.file.name}`}
-                onClick={() => onPreview(blobUrl)}
-                style={{ cursor: "zoom-in" }}
-              />
-            ) : (
-              <div className="preview-placeholder">
-                {showPreview
-                  ? item.status === "processing"
-                    ? "Processing…"
-                    : "No preview"
-                  : "Preview off"}
-              </div>
-            )}
-          </div>
-          <div className="task-info">
-            <p>
-              <strong>Task:</strong> {item.outputName ?? "—"}
-            </p>
-            <p>
-              <strong>Size:</strong>{" "}
-              {item.outputSize ? humanSize(item.outputSize) : "—"}
-            </p>
-            <p>
-              <strong>Status:</strong> {statusText}
-            </p>
-            {item.error && <p className="error">{item.error}</p>}
-            <div className="action-row">
-              {isDone && item.outputBlob && item.outputName ? (
-                <a
-                  href={blobUrl || "#"}
-                  download={item.outputName}
-                  className="icon-btn button-link"
-                  style={{ textDecoration: "none", display: "inline-block" }}
-                >
-                  ⬇️ Download{" "}
-                  {item.outputName.endsWith(".webp") ? "WebP" : "JPG"}
-                </a>
-              ) : (
-                <span className="muted">No task yet</span>
+              <Trash2 className="size-3" />
+            </Button>
+            <ChevronDown
+              className={cn(
+                "size-4 shrink-0 transition-transform duration-200",
+                expanded && "rotate-180",
               )}
-              {isDone && enabledDests.length > 0 && !allDone && (
-                <button
-                  className="icon-btn button-link upload-btn"
-                  onClick={() => onUpload(item.id)}
-                  disabled={!canUpload}
-                  title={`Upload to ${enabledDests.map((d) => d.name).join(", ")}`}
-                >
-                  ☁️ Upload
-                  {enabledDests.length === 1
-                    ? ` to ${enabledDests[0].name}`
-                    : ` (${enabledDests.length} destinations)`}
-                </button>
-              )}
-              {canRequeue && (
-                <button
-                  className="icon-btn"
-                  onClick={() => onRequeue(item.id)}
-                  title="Requeue this task to process it again"
-                >
-                  ↺ Requeue
-                </button>
-              )}
-            </div>
-            {/* Per-destination upload progress */}
-            {enabledDests.map((dest) => {
-              const state = item.uploads?.[dest.id];
-              if (!state || state.status === "idle") return null;
-              return (
-                <div key={dest.id} className="upload-progress-wrap">
-                  {state.status === "uploading" && (
-                    <>
-                      <div className="progress-label">
-                        <span>Uploading to {dest.name}…</span>
-                        <span>{state.progress}%</span>
-                      </div>
-                      <progress value={state.progress} max={100} />
-                    </>
-                  )}
-                  {state.status === "error" && state.error && (
-                    <p className="error">
-                      Upload to {dest.name} failed: {state.error}
-                    </p>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        </div>
-        {/* Per-destination upload results */}
-        {enabledDests.some((d) => item.uploads?.[d.id]?.status === "done") && (
-          <div className="upload-results">
-            {enabledDests.map((dest) => {
-              const state = item.uploads?.[dest.id];
-              if (state?.status !== "done" || !state.result) return null;
-              return (
-                <UploadLinks
-                  key={dest.id}
-                  destName={dest.name}
-                  result={state.result}
-                  filename={item.outputName ?? item.file.name}
-                  metadata={item.metadata}
-                />
-              );
-            })}
-          </div>
+            />
+          </>
         )}
-      </article>
+      >
+        {/* Source Info */}
+        {item.metadata && (
+          <SourceInfoSection
+            metadata={item.metadata}
+            filename={item.file.name}
+          />
+        )}
+
+        {/* Warning row */}
+        {item.warning && (
+          <Alert className="py-2 px-3">
+            <AlertTriangle />
+            <AlertDescription>{item.warning}</AlertDescription>
+          </Alert>
+        )}
+
+        {/* Error row */}
+        {item.error && (
+          <Alert variant="destructive" className="py-2 px-3">
+            <AlertTriangle />
+            <AlertDescription>{item.error}</AlertDescription>
+          </Alert>
+        )}
+
+        {/* Stale warning */}
+        {isStale && (
+          <Alert variant="destructive" className="py-2 px-3">
+            <AlertTriangle />
+            <AlertDescription>
+              FFmpeg processing might be stuck, if you don't see any progress in
+              the FFmpeg log after some time you can press the "Kill" button to
+              proceed.
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {/* FFmpeg Logs */}
+        {item.ffmpegLogs && item.ffmpegLogs.length > 0 && (
+          <FfmpegLogsSection
+            logs={item.ffmpegLogs}
+            isProcessing={item.status === "processing"}
+            isStale={isStale}
+            onForceCancel={onForceCancel}
+          />
+        )}
+
+        {/* Timestamp row */}
+        <TimestampRow
+          isCustom={isCustom}
+          markerCount={markerCount}
+          totalCells={totalCells}
+          canEdit={canEditTimestamps}
+          onEdit={() => setShowEditor(true)}
+        />
+
+        {/* Preview + info grid */}
+        <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+          <PreviewSection
+            item={item}
+            blobUrl={blobUrl}
+            showPreview={showPreview}
+            onPreview={onPreview}
+            onShowPreviewDialog={handleShowPreviewDialog}
+          />
+          <InfoPanel
+            item={item}
+            blobUrl={blobUrl}
+            statusText={statusText}
+            outputDimensions={outputDimensions}
+            destinations={destinations}
+            canUpload={canUpload}
+            canRequeue={canRequeue}
+            onUpload={() => onUpload(item.id)}
+            onRequeue={() => onRequeue(item.id)}
+          />
+        </div>
+
+        {/* Upload results */}
+        <UploadResultsSection item={item} destinations={destinations} />
+      </Section>
+
+      {/* Timestamp Editor Dialog */}
       {showEditor && item.metadata && (
         <TimestampEditor
           item={item}
@@ -305,6 +338,66 @@ export default function TaskCard({
           onSave={handleSaveMarkers}
           onClose={() => setShowEditor(false)}
         />
+      )}
+
+      {/* Requeue Confirmation Dialog */}
+      <AlertDialog
+        open={pendingMarkers !== null}
+        onOpenChange={(open) => {
+          if (!open) handleRequeueDecline();
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Requeue with new timestamps?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This task is already done. Requeue it with the new timestamps for
+              processing?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={handleRequeueDecline}>
+              Save markers only
+            </AlertDialogCancel>
+            <AlertDialogAction onClick={handleRequeueConfirm}>
+              <RotateCcw className="size-4" />
+              Save & Requeue
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Preview Enable Dialog */}
+      {showPreviewDialog && (
+        <AlertDialog
+          open={showPreviewDialog}
+          onOpenChange={setShowPreviewDialog}
+        >
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Enable previews?</AlertDialogTitle>
+              <AlertDialogDescription>
+                You have disabled previews in the settings.
+                <br />
+                Do you want to enable them again?
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel onClick={() => setShowPreviewDialog(false)}>
+                Cancel
+              </AlertDialogCancel>
+              <AlertDialogAction
+                className="bg-primary hover:bg-primary/90"
+                onClick={() => {
+                  handleEnablePreviews();
+                  setShowPreviewDialog(false);
+                }}
+              >
+                Enable Previews
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       )}
     </>
   );
