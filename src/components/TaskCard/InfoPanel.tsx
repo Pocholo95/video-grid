@@ -71,7 +71,12 @@ export default function InfoPanel({
           <Button asChild variant="outline" size="sm">
             <a href={blobUrl || "#"} download={item.outputName}>
               <Download className="size-4" />
-              Download {item.outputName.endsWith(".webp") ? "WebP" : "JPG"}
+              Download{" "}
+              {item.outputName.endsWith(".mp4")
+                ? "MP4"
+                : item.outputName.endsWith(".webp")
+                  ? "WebP"
+                  : "JPG"}
             </a>
           </Button>
         )}

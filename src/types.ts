@@ -244,6 +244,9 @@ export type SectionStates = {
 /** Available theme options for the app. */
 export type Theme = "dark" | "light" | "dimmed" | "classic";
 
+/** Output format for animated modes. */
+export type AnimFormat = "webp" | "mp4";
+
 /** Grid rendering options persisted with presets. */
 export type SavedOptions = {
   /** Output canvas width in pixels. */
@@ -262,11 +265,30 @@ export type SavedOptions = {
   textColor: string;
   /** Whether to render a header row with the filename. */
   header: boolean;
-  /** Whether to produce animated WebP output instead of static JPEG. */
+  /** Whether to produce animated output instead of static JPEG. */
   animated: boolean;
+  /**
+   * When true (and animated is true), uses 1-cell sequence mode where each
+   * segment plays sequentially instead of a grid layout. Grid controls are
+   * disabled but still visible.
+   */
+  animSequence: boolean;
+  /**
+   * Number of sequential segments in sequence mode. Each segment is rendered
+   * for the specified animDuration at the specified animFps.
+   */
+  animSegments: number;
+  /**
+   * Controls how segments are rendered in sequence mode.
+   * "static" = one frame per segment repeated for the duration (default).
+   * "video" = advances playback frame-by-frame during each segment.
+   */
+  sequenceMode: "static" | "video";
+  /** Output format for animated modes: WebP (animated) or MP4 (H.264). */
+  animFormat: AnimFormat;
   /** Duration in seconds of each cell's animation clip (animated mode only). */
   animDuration: number;
-  /** Frame rate of the animated WebP output. */
+  /** Frame rate of the animated output. */
   animFps: number;
   /** WebP compression method (0-6, higher = better quality but slower). */
   webpMethod: number;

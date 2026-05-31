@@ -20,12 +20,16 @@ export default function PreviewSection({
     <div className="bg-muted/50 flex min-h-35 items-center justify-center overflow-hidden rounded-md">
       {blobUrl && showPreview ? (
         <div className="max-h-65 overflow-hidden rounded-md m-2">
-          <img
-            src={blobUrl}
-            alt={`Preview for ${item.file.name}`}
-            onClick={() => onPreview(blobUrl)}
-            className="max-h-65 cursor-zoom-in object-contain"
-          />
+          {item.outputName?.endsWith(".mp4") ? (
+            <video src={blobUrl} controls className="max-h-65 object-contain" />
+          ) : (
+            <img
+              src={blobUrl}
+              alt={`Preview for ${item.file.name}`}
+              onClick={() => onPreview(blobUrl)}
+              className="max-h-65 cursor-zoom-in object-contain"
+            />
+          )}
         </div>
       ) : (
         <div

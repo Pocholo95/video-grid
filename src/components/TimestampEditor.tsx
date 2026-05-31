@@ -329,6 +329,7 @@ export default function TimestampEditor({
   const storeGridTpl = useUiStore((s) => s.opts?.gridTemplate);
   const storeCols = useUiStore((s) => s.opts?.cols);
   const storeRows = useUiStore((s) => s.opts?.rows);
+  const isSequenceMode = useUiStore((s) => s.opts?.animSequence ?? false);
   const gridTemplate = storeGridTpl?.cells?.length
     ? storeGridTpl
     : templateFromUniform(storeCols ?? 4, storeRows ?? 3);
@@ -689,20 +690,22 @@ export default function TimestampEditor({
 
             {/* Right: grid preview + marker list */}
             <div className="bg-muted/30 flex h-[30vh] shrink-0 flex-col gap-2 rounded-md border p-3 md:h-auto md:min-h-0 md:shrink">
-              {/* Grid structure preview */}
-              <div className="flex flex-col gap-1">
-                <span className="text-muted-foreground text-xs font-medium">
-                  Grid Layout
-                </span>
-                <div className="bg-card overflow-x-auto rounded-md border p-2">
-                  <GridPreview
-                    template={gridTemplate}
-                    selectedCellIndex={selectedMarker}
-                    onClickCell={handleGridCellClick}
-                    assignedCount={effectiveCount}
-                  />
+              {/* Grid structure preview — hidden in sequence mode */}
+              {!isSequenceMode && (
+                <div className="flex flex-col gap-1">
+                  <span className="text-muted-foreground text-xs font-medium">
+                    Grid Layout
+                  </span>
+                  <div className="bg-card overflow-x-auto rounded-md border p-2">
+                    <GridPreview
+                      template={gridTemplate}
+                      selectedCellIndex={selectedMarker}
+                      onClickCell={handleGridCellClick}
+                      assignedCount={effectiveCount}
+                    />
+                  </div>
                 </div>
-              </div>
+              )}
               <div className="flex items-center justify-between gap-2">
                 <span className="text-sm font-semibold">
                   Markers (

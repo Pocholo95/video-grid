@@ -35,6 +35,10 @@ export const DEFAULTS: SavedOptions = {
   textColor: "#ffffff",
   header: true,
   animated: false,
+  animSequence: false,
+  animSegments: 6,
+  sequenceMode: "video",
+  animFormat: "webp",
   animDuration: 3,
   animFps: 10,
   webpMethod: 5,
@@ -58,7 +62,7 @@ export const SEEK_TIMEOUT_MS = 10_000;
 export const VIDEO_OPEN_TIMEOUT_MS = 15_000;
 
 /** Timeout for a single FFmpeg WASM exec() call (e.g., frame extraction, encoding). */
-export const FFMPEG_EXEC_TIMEOUT_MS = 45_000;
+export const FFMPEG_EXEC_TIMEOUT_MS = 120_000;
 
 /**
  * If per-file progress does not advance for longer than this threshold,
@@ -78,7 +82,7 @@ export const MIN_CELL_WIDTH = 240;
 export const JPEG_QUALITY = 0.95;
 
 /** Current schema version for stored settings (used by migration system) */
-export const STORAGE_SCHEMA_VERSION = 2;
+export const STORAGE_SCHEMA_VERSION = 3;
 
 /** Destination Manager defaults */
 export const DEFAULT_DESTINATION_URL =

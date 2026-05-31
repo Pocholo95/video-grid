@@ -9,11 +9,13 @@ import type { IFFmpegService, IGridRenderer } from "../types/service";
 import type {
   StaticGridRenderOptions,
   AnimatedGridRenderOptions,
+  SequenceRenderOptions,
   GridRenderOutput,
   StaticCellCallback,
   AnimatedCellCallback,
   EncodeProgressCallback,
   WarningCallback,
+  SequenceSegmentCallback,
 } from "../types/service";
 import type { VideoMetadata, VrMode } from "../types";
 import {
@@ -422,24 +424,278 @@ export class GridRenderer implements IGridRenderer {
     }
 
     log(
-      `  [AnimWebP] Compositing done (${framesWritten} frames ` +
-        `written to FS). Starting FFmpeg WebP encode…`,
+      `  [AnimGrid] Compositing done (${framesWritten} frames ` +
+        `written to FS). Starting FFmpeg video encoding…`,
     );
 
     onEncodeProgress(0);
 
-    const webpBlob = await this.encodeAnimatedWebPFromFS(
-      frameNames,
-      framesWritten,
-      opts.animFps,
-      opts.webpQuality,
-      opts.webpMethod,
-      isCancelled,
-      onEncodeProgress,
+    let outputBlob: Blob;
+    let outputExt: string;
+
+    if (opts.format === "mp4") {
+      outputBlob = await this.encodeMp4FromFS(
+        frameNames,
+        framesWritten,
+        opts.animFps,
+        isCancelled,
+        onEncodeProgress,
+      );
+      outputExt = "mp4";
+    } else {
+      outputBlob = await this.encodeAnimatedWebPFromFS(
+        frameNames,
+        framesWritten,
+        opts.animFps,
+        opts.webpQuality,
+        opts.webpMethod,
+        isCancelled,
+        onEncodeProgress,
+      );
+      outputExt = "webp";
+    }
+
+    return {
+      outputName: `${file.name}.${outputExt}`,
+      outputSize: outputBlob.size,
+      outputBlob,
+    };
+  }
+
+  /** - Sequence Mode */
+
+  public async renderSequence(
+    file: File,
+    meta: VideoMetadata,
+    opts: SequenceRenderOptions,
+    isCancelled: () => boolean,
+    onSegmentDone: SequenceSegmentCallback,
+    onEncodeProgress: EncodeProgressCallback,
+    onWarning: WarningCallback,
+  ): Promise<GridRenderOutput> {
+    const duration = Math.max(1, meta.duration || 1);
+    const vrActive = opts.vrMode !== "disabled";
+    const segments = opts.segments;
+
+    const { headerCanvas, headerHeight } = prepareHeader(opts, file, meta);
+
+    /* In sequence mode, grid is always 1 cell (full width). */
+    const layoutOpts = {
+      width: opts.width,
+      cols: 1,
+      rows: 1,
+      spacing: 0,
+      gridTemplate: undefined,
+      vrMode: opts.vrMode,
+    };
+
+    const { cellSlots, canvasWidth, canvasHeight } = getGridLayout(
+      layoutOpts,
+      meta,
+      headerHeight,
+    );
+    const { x, y, cellW, cellH } = cellSlots[0];
+
+    /*
+     * Use custom timestamps from the Timestamp Editor if provided,
+     * otherwise calculate evenly-spaced timestamps across the video duration.
+     */
+    const timestamps =
+      opts.customTimestamps && opts.customTimestamps.length > 0
+        ? resolveTimestamps(
+            opts.customTimestamps,
+            opts.customTimestamps.length,
+            duration,
+          )
+        : calculateSampleTimes(segments, duration);
+
+    /* Each segment is displayed for animDuration seconds at animFps fps. */
+    const framesPerSegment = Math.max(
+      1,
+      Math.ceil(opts.animDuration * opts.animFps),
+    );
+    const frameDuration = 1 / opts.animFps;
+    const isVideoMode = opts.sequenceMode === "video";
+
+    const decoder = await setupVideoDecoder(file, meta, onWarning);
+    const video = decoder.video;
+    const videoCleanup = decoder.videoCleanup;
+
+    if (!decoder.canNativelyPlay) {
+      videoCleanup();
+      throw new Error(
+        "Sequence mode requires native browser video support. " +
+          "This format is not natively decodable — " +
+          "FFmpeg fallback is unavailable for animated output.",
+      );
+    }
+
+    const canvas = document.createElement("canvas");
+    const ctx = canvas.getContext("2d")!;
+
+    const frameNames: string[] = [];
+    let framesWritten = 0;
+
+    /* When custom timestamps are provided, use their count as the segment count. */
+    const actualSegments = timestamps.length;
+
+    try {
+      let globalFrameIdx = 0;
+      for (let seg = 0; seg < actualSegments; seg++) {
+        if (isCancelled()) {
+          throw new DOMException("Processing cancelled", "AbortError");
+        }
+
+        const segStart = timestamps[seg];
+
+        /* Render `framesPerSegment` frames for this segment. */
+        for (let f = 0; f < framesPerSegment; f++) {
+          /*
+           * In video mode, advance the seek time frame-by-frame so the video
+           * plays through the segment duration. In static mode, always seek to
+           * the segment start time so the same frame is held.
+           */
+          const tSec = isVideoMode
+            ? Math.min(segStart + f * frameDuration, duration - 0.001)
+            : segStart;
+
+          /* Seek to the target timestamp. */
+          try {
+            await seekVideo(video, tSec);
+          } catch (seekErr) {
+            const msg =
+              seekErr instanceof Error ? seekErr.message : String(seekErr);
+            errlog(`  [Sequence] seek failed at segment ${seg + 1}:`, msg);
+            onWarning(`Seek failed at segment ${seg + 1}: ${msg}`);
+          }
+
+          canvas.width = canvasWidth;
+          canvas.height = canvasHeight;
+          ctx.fillStyle = opts.bgColor;
+          ctx.fillRect(0, 0, canvasWidth, canvasHeight);
+          if (headerCanvas) {
+            ctx.drawImage(headerCanvas, 0, 0);
+          }
+
+          /* Draw the video frame. */
+          try {
+            if (vrActive) {
+              const vw = video.videoWidth || meta.width;
+              const vh = video.videoHeight || meta.height;
+              const { sx, sy, sw, sh } = getVrCropRect(
+                vw,
+                vh,
+                opts.vrMode as Exclude<VrMode, "disabled">,
+              );
+              ctx.drawImage(video, sx, sy, sw, sh, x, y, cellW, cellH);
+            } else {
+              ctx.drawImage(video, x, y, cellW, cellH);
+            }
+          } catch (drawErr) {
+            const msg =
+              drawErr instanceof Error ? drawErr.message : String(drawErr);
+            errlog(
+              `  [Sequence] draw failed at frame ${globalFrameIdx + 1}:`,
+              msg,
+            );
+            onWarning(`Draw failed at frame ${globalFrameIdx + 1}: ${msg}`);
+            drawErrorPlaceholder(ctx, x, y, cellW, cellH, opts.bgColor);
+          }
+
+          /* Draw timecode overlay. */
+          drawTimecodeOverlay(
+            ctx,
+            tSec,
+            x,
+            y,
+            cellW,
+            cellH,
+            canvasWidth,
+            opts.tcPosition,
+            opts.bgColor,
+            opts.textColor,
+            opts.fontFamily,
+            opts.tcFontSizeAuto,
+            opts.tcFontSize,
+          );
+
+          /* Write frame to FFmpeg FS. */
+          const frameBlob = await new Promise<Blob>((resolve) => {
+            canvas.toBlob((b) => resolve(b ?? new Blob()), "image/png");
+          });
+          const name = `seq_${String(globalFrameIdx).padStart(5, "0")}.png`;
+          frameNames.push(name);
+          await this.ffmpeg.writeData(
+            name,
+            new Uint8Array(await frameBlob.arrayBuffer()),
+          );
+          framesWritten++;
+          globalFrameIdx++;
+
+          canvas.width = 0;
+          canvas.height = 0;
+        }
+
+        /* Report segment progress. */
+        onSegmentDone(seg + 1, actualSegments, segStart);
+        log(
+          `  [Sequence] Segment ${seg + 1}/${actualSegments} completed ` +
+            `@ t=${formatTime(segStart)}s`,
+        );
+        await new Promise<void>((r) => setTimeout(r, 0));
+      }
+    } finally {
+      videoCleanup();
+    }
+
+    if (isCancelled() || framesWritten === 0) {
+      for (const name of frameNames) {
+        try {
+          await this.ffmpeg.deleteFile(name);
+        } catch {
+          /* ignore cleanup errors */
+        }
+      }
+      throw new DOMException(
+        "Processing cancelled before any frames were composed.",
+        "AbortError",
+      );
+    }
+
+    log(
+      `  [Sequence] Compositing done (${framesWritten} frames ` +
+        `written to FS). Starting FFmpeg encode…`,
     );
 
-    const outputName = `${file.name}.webp`;
-    return { outputName, outputSize: webpBlob.size, outputBlob: webpBlob };
+    onEncodeProgress(0);
+
+    /* Encode based on format. */
+    let outputBlob: Blob;
+    let outputName: string;
+
+    if (opts.format === "mp4") {
+      outputBlob = await this.encodeMp4FromFS(
+        frameNames,
+        framesWritten,
+        opts.animFps,
+        isCancelled,
+        onEncodeProgress,
+      );
+      outputName = `${file.name}.mp4`;
+    } else {
+      outputBlob = await this.encodeAnimatedWebPFromFS(
+        frameNames,
+        framesWritten,
+        opts.animFps,
+        opts.webpQuality,
+        opts.webpMethod,
+        isCancelled,
+        onEncodeProgress,
+      );
+      outputName = `${file.name}.webp`;
+    }
+
+    return { outputName, outputSize: outputBlob.size, outputBlob };
   }
 
   /** - Lifecycle */
@@ -540,6 +796,98 @@ export class GridRenderer implements IGridRenderer {
       }
 
       return null;
+    }
+  }
+
+  /**
+   * Encode PNG frame sequence into an MP4 using FFmpeg (libx264).
+   */
+  private async encodeMp4FromFS(
+    frameNames: string[],
+    totalFrames: number,
+    fps: number,
+    isCancelled: () => boolean,
+    onProgress: (ratio: number) => void,
+  ): Promise<Blob> {
+    if (isCancelled()) {
+      log(`  [FFmpeg/MP4] Cancel requested before encoding. Cleaning up.`);
+      for (const name of frameNames) {
+        try {
+          await this.ffmpeg.deleteFile(name);
+        } catch {
+          /* ignore */
+        }
+      }
+      throw new Error("Encoding cancelled by user before encode phase.");
+    }
+
+    const outputName = "seq_output.mp4";
+
+    const firstFrame = frameNames[0];
+    const padWidth = firstFrame.match(/_(\d+)\./)?.[1]?.length || 5;
+    const prefix = firstFrame.substring(
+      0,
+      firstFrame.indexOf(`_${"0".repeat(padWidth)}`),
+    );
+    const ext = firstFrame.substring(firstFrame.lastIndexOf("."));
+    const inputPattern = `${prefix}_%0${padWidth}d${ext}`;
+
+    const progressHandler = ({ progress }: { progress: number }) => {
+      onProgress(Math.min(Math.max(progress, 0), 1));
+    };
+    this.ffmpeg.onProgress(progressHandler);
+
+    try {
+      log(
+        `  [FFmpeg/MP4] Encoding ${totalFrames} frames ` +
+          `at ${fps} fps with libx264…`,
+      );
+      log(`  [FFmpeg/MP4] Input pattern: ${inputPattern}`);
+
+      await this.ffmpeg.exec([
+        "-framerate",
+        String(fps),
+        "-i",
+        inputPattern,
+        "-c:v",
+        "libx264",
+        "-pix_fmt",
+        "yuv420p",
+        "-movflags",
+        "+faststart",
+        "-an",
+        outputName,
+      ]);
+
+      const data = await this.ffmpeg.readData(outputName);
+      log(`  [FFmpeg/MP4] Encoding complete.`);
+      onProgress(1.0);
+
+      for (const name of frameNames) {
+        try {
+          await this.ffmpeg.deleteFile(name);
+        } catch {
+          /* ignore */
+        }
+      }
+      try {
+        await this.ffmpeg.deleteFile(outputName);
+      } catch {
+        /* ignore */
+      }
+
+      return new Blob([new Uint8Array(data)], { type: "video/mp4" });
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      errlog(`  [FFmpeg/MP4] encode failed:`, msg);
+
+      if (isAbortError(e)) {
+        throw new Error(`FFmpeg operation aborted: ${msg}`);
+      }
+
+      throw new Error(`FFmpeg MP4 encoding failed: ${msg}`);
+    } finally {
+      this.ffmpeg.offProgress(progressHandler);
     }
   }
 

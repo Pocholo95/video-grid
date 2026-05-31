@@ -4,7 +4,7 @@
  * Each migration function takes data at version N and returns data at version N+1.
  * New migrations are appended to the `migrations` array.
  *
- * Current schema version: 2 (defined in constants.ts as STORAGE_SCHEMA_VERSION)
+ * Current schema version: 3 (defined in constants.ts as STORAGE_SCHEMA_VERSION)
  */
 
 import type { AppSettings, Presets, SavedOptions } from "./types";
@@ -93,6 +93,54 @@ function migrateV1toV2(data: unknown): AppSettings {
   };
 }
 
+/**
+ * v2 → v3: Add animSequence, animSegments, and animFormat fields.
+ *
+ * Presets created before v3 lack the new sequence mode fields.
+ * This migration injects default values so existing presets continue
+ * to work correctly with the new sequence mode feature.
+ */
+function migrateV2toV3(data: unknown): AppSettings {
+  const settings = data as AppSettings;
+  if (!settings?.presets?.entries) return settings;
+
+  type LegacyPreset = Record<string, unknown>;
+
+  const migratedEntries: Presets = Object.fromEntries(
+    Object.entries(settings.presets.entries).map(([key, opts]) => {
+      const legacy = opts as LegacyPreset;
+
+      return [
+        key,
+        {
+          ...opts,
+          animSequence:
+            typeof legacy.animSequence === "boolean"
+              ? legacy.animSequence
+              : DEFAULTS.animSequence,
+          animSegments:
+            typeof legacy.animSegments === "number" &&
+            Number.isFinite(legacy.animSegments)
+              ? legacy.animSegments
+              : DEFAULTS.animSegments,
+          animFormat:
+            (legacy.animFormat as "webp" | "mp4") === "mp4"
+              ? "mp4"
+              : DEFAULTS.animFormat,
+        } as SavedOptions,
+      ];
+    }),
+  ) as Presets;
+
+  return {
+    ...settings,
+    presets: {
+      ...settings.presets,
+      entries: migratedEntries,
+    },
+  };
+}
+
 /** - Migration registry - ordered from oldest to newest - END */
 
 /**
@@ -101,6 +149,7 @@ function migrateV1toV2(data: unknown): AppSettings {
 const migrations: Array<(data: unknown) => AppSettings> = [
   migrateV0toV1,
   migrateV1toV2,
+  migrateV2toV3,
 ];
 
 /** - Public API */

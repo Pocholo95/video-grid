@@ -150,6 +150,32 @@ export const BUILT_IN_PRESETS: BuiltInPreset[] = [
       vrMode: "tb-left",
     },
   },
+  {
+    name: "Sequence WebP",
+    opts: {
+      width: 1024,
+      animated: true,
+      animSequence: true,
+      animSegments: 6,
+      animFormat: "webp",
+      animDuration: 3,
+      animFps: 10,
+      webpMethod: 6,
+      webpQuality: 75,
+    },
+  },
+  {
+    name: "Sequence MP4",
+    opts: {
+      width: 1024,
+      animated: true,
+      animSequence: true,
+      animSegments: 8,
+      animFormat: "mp4",
+      animDuration: 3,
+      animFps: 10,
+    },
+  },
 ];
 
 // ---------------------------------------------------------------------------
@@ -244,8 +270,17 @@ export const persistAppSettings = (settings: AppSettings): void => {
  * Pure display concern — does not modify stored preset names.
  */
 export function getPresetSummary(opts: SavedOptions): string {
-  const mode = opts.animated ? "Animated" : "Static";
+  const isSequence = opts.animated && opts.animSequence;
+  const mode = isSequence ? "Sequence" : opts.animated ? "Animated" : "Static";
   const width = `${opts.width}px`;
+
+  // Sequence mode shows segments instead of grid
+  if (isSequence) {
+    let fmt = "";
+    if (opts.animFormat === "mp4") fmt = " (MP4)";
+    else if (opts.animFormat === "webp") fmt = " (WebP)";
+    return `${mode} · ${width} · ${opts.animSegments} segments${fmt}`;
+  }
 
   let grid: string;
   if (opts.gridTemplate && opts.gridTemplate.cells.length > 0) {

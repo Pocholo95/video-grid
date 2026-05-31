@@ -101,6 +101,10 @@ export const useUiStore = create<UiState>()(
  * Use this selector for reactive access.
  */
 export const selectTotalCells = (state: UiState) => {
+  /* In sequence mode, total cells = number of segments. */
+  if (state.opts.animSequence) {
+    return Math.max(1, state.opts.animSegments ?? 1);
+  }
   if (state.opts.gridTemplate && state.opts.gridTemplate.cells.length > 0) {
     return state.opts.gridTemplate.cells.length;
   }

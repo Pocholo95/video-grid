@@ -35,9 +35,7 @@ trigger an upload.
 - [Generation Options](#generation-options)
 - [Custom Grid Templates](#custom-grid-templates)
 - [Custom Timestamps](#custom-timestamps)
-- [Animated Thumbnail Grids](#animated-thumbnail-grids)
-- [VR Video](#vr-video)
-- [Presets](#presets)
+- [Animated output](#animated-output)
 - [Settings](#settings)
 - [Copying Links](#copying-links)
 - [Keyboard Shortcuts](#keyboard-shortcuts)
@@ -86,9 +84,9 @@ trigger an upload.
 - **FFmpeg WASM fallback:** formats the browser cannot decode natively
   (e.g. AVI, WMV, certain MKV/H.265 files). A warning is shown on the file
   card during the analysis phase when this path will be taken.
-- **Animated WebP output:** generate an animated thumbnail grid where each
-  cell plays a short clip from its sampled timestamp. See
-  [Animated Thumbnail Grids](#animated-thumbnail-grids).
+- **Animated WebP/MP4 output:** generate an animated thumbnail grid or sequence
+  of still frames/video where each cell plays a short clip from its sampled
+  timestamp. See [Animated output](#animated-output).
 - **VR Video support:** crop one eye from Side-by-Side or Top-Bottom stereo
   VR video so thumbnails show a single, undoubled image. See
   [VR Video](#vr-video).
@@ -166,6 +164,8 @@ The controls are grouped into three collapsible fieldsets: **Grid**, **Output Mo
 | **Show header metadata** | Toggle the filename/info header row.                                                                                    | On       |
 | **VR Video**             | Crop one part of a stereo VR frame (SBS or TB layout), see [VR Video options](#vr-video-options)                        | Disabled |
 | **Animated output**      | Generate an animated WebP instead of a static JPEG. Reveals more options, see [Animation settings](#animation-settings) | Off      |
+| **Sequence mode**        | Single-cell sequential playback instead of a grid. See [Sequence mode](#animation-settings)                             | Off      |
+| **Output format**        | **WebP** for animated WebP; **MP4** for MP4 video output                                                                | WebP     |
 
 ### Style
 
@@ -276,48 +276,67 @@ specific video.
 
 ---
 
-## Animated Thumbnail Grids
+## Animated output
 
-When **Animated output (WebP)** is enabled, VidGrid-HTML generates an animated
-WebP instead of a static JPEG. Each grid cell shows a short looping video clip
+When **Animated output** is enabled, VidGrid-HTML generates an animated output
+instead of a static JPEG. The output is a short looping video clip
 sampled from its timestamp (auto or custom), giving a quick visual overview
 of the entire video in motion.
 
-### How animated grids work
+There are two modes for **Animated output**:
 
-1. **Frame composition:** for each animation frame the app seeks the source
-   video to the appropriate timestamp for every cell, draws it onto a canvas,
-   and exports the result as a PNG. This phase is driven entirely by the
-   browser's native video decoder.
-2. **WebP encoding:** once all canvas frames are composed, they are passed to
-   FFmpeg WASM which assembles them into a single animated WebP file using
-   libwebp.
+- **Animated grid** (default) shows multiple cells simultaneously, each playing
+  its own clip from a different timestamp. This uses the grid/custome grid.
+- **Sequence mode** (when this switch is enabled) shows one cell at a time,
+  playing segments sequentially from start to end of the video — like a fast
+  visual summary.
+
+Both modes are affected by the timestamps defined for each file in their
+respective [Timestamp Editor](#custom-timestamps).
 
 ### Animation settings
 
 The **Animation settings** panel is shown below the main options whenever
-animated mode is enabled.
+**Animated output** is enabled.
+
+Common options:
+
+| Setting           | Description                                                                            | Default |
+| ----------------- | -------------------------------------------------------------------------------------- | ------- |
+| **Output format** | **WebP** for animated WebP output; **MP4** for MP4 video output                        | WebP    |
+| **Duration (s)**  | Length of each cell/segment. The whole animation loops from the start                  | 3 s     |
+| **FPS**           | Frame rate of the animated output. Higher values are smoother but produce larger files | 10 fps  |
+
+Available for WEBP output format:
 
 | Setting          | Description                                                                                         | Default |
 | ---------------- | --------------------------------------------------------------------------------------------------- | ------- |
-| **Duration (s)** | Length of each cell's clip. The whole animation loops from the start                                | 3 s     |
-| **FPS**          | Frame rate of the animated WebP. Higher values are smoother but produce larger files                | 10 fps  |
 | **WebP method**  | Compression effort (0 = fastest, 6 = smallest file). Higher values slow down encoding significantly | 5       |
 | **WebP quality** | Output quality (5–100). Lower values produce smaller files with more visible artefacts              | 90      |
 
-### Requirements and limitations
+Available for Sequence Mode:
+
+| Setting         | Description                                                                                                            | Default |
+| --------------- | ---------------------------------------------------------------------------------------------------------------------- | ------- |
+| **Segments**    | Number of segments to extract from the video                                                                           | 6       |
+| **Render mode** | **Static (hold frame)** shows a single frame per segment for the duration; **Video (play segment)** plays each segment | Video   |
+
+#### Requirements and limitations
 
 - **Native browser decoding only:** Animated mode uses the browser's built-in
   `<video>` element to seek frames. Files that require the FFmpeg fallback
   (AVI, WMV, some MKV) are incompatible with animated mode. Disable animated
   mode and regenerate as a static JPEG if you need to cover those formats.
+- **MP4 output** uses FFmpeg WASM for encoding and may be slower than WebP.
+- **Memory usage** scales with the total frame count (segments × duration × FPS).
+  Keep segments and duration reasonable to avoid exhausting browser memory.
 - **Large output files:** Animated WebPs are significantly larger than static
-  JPEGs. A 3×4 grid at 3 s / 10 fps will composite 30 PNG frames before
-  encoding. Reduce FPS, duration, or quality and increase the WebP method to
-  keep file sizes manageable.
+  JPEGs or animated even MP4. A 3×4 grid at 3 s / 10 fps will composite 30 PNG
+  frames before encoding. Reduce the output width, FPS, duration, or quality
+  and increase the WebP method to keep file sizes manageable.
 - **Encoding time:** libwebp encoding through FFmpeg WASM is single-threaded.
   High method values (5–6) combined with large frame counts can take many
-  seconds or minutes.
+  seconds, up to a couple minutes on slower devices.
 - **Memory:** All composed PNG frames are held in browser memory before being
   handed to FFmpeg. Very high frame counts (long duration × high FPS) can
   exhaust available RAM.

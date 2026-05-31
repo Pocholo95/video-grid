@@ -113,6 +113,7 @@ export default function GridSection({
             max={48}
             onChange={(v) => setOpts({ ...opts, spacing: v })}
             suffix="px"
+            disabled={!!opts.animSequence}
           />
         </Field>
         {!isCustomTemplate && (
@@ -127,6 +128,7 @@ export default function GridSection({
                 onChange={(v) => setOpts({ ...opts, cols: v })}
                 unbounded
                 hardMax={50}
+                disabled={!!opts.animSequence}
               />
             </Field>
             <Field>
@@ -139,6 +141,7 @@ export default function GridSection({
                 onChange={(v) => setOpts({ ...opts, rows: v })}
                 unbounded
                 hardMax={50}
+                disabled={!!opts.animSequence}
               />
             </Field>
           </>
@@ -150,6 +153,7 @@ export default function GridSection({
               label="Custom grid template"
               checked={isCustomTemplate}
               onCheckedChange={handleToggleTemplate}
+              disabled={!!opts.animSequence}
             />
           </Field>
           {isCustomTemplate && opts.gridTemplate && (

@@ -175,16 +175,45 @@ export interface StaticGridRenderOptions extends CellExtractionOptions {
   duration: number;
 }
 
-/** Animated WebP grid rendering options */
+/** Animated grid rendering options (WebP or MP4) */
 export interface AnimatedGridRenderOptions extends StaticGridRenderOptions {
   /** Duration in seconds of each cell's animation clip */
   animDuration: number;
-  /** Output frame rate of the animated WebP */
+  /** Output frame rate of the animated output */
   animFps: number;
-  /** WebP compression method (0-6) */
+  /** WebP compression method (0-6) - used when format is webp */
   webpMethod: number;
-  /** WebP output quality (5-100) */
+  /** WebP output quality (5-100) - used when format is webp */
   webpQuality: number;
+  /** Output format: "webp" or "mp4" */
+  format: "webp" | "mp4";
+}
+
+/**
+ * Sequence mode rendering options.
+ * In sequence mode, the grid is always 1 cell wide (full width).
+ * Frames are extracted sequentially and composed into an animated WebP
+ * (or MP4) with the specified number of segments.
+ */
+export interface SequenceRenderOptions extends StaticGridRenderOptions {
+  /** Number of sequential segments (frames) to extract */
+  segments: number;
+  /**
+   * Controls how segments are rendered.
+   * "static" = one frame per segment repeated for the duration.
+   * "video" = advances playback frame-by-frame during each segment.
+   */
+  sequenceMode: "static" | "video";
+  /** Duration in seconds of each segment display */
+  animDuration: number;
+  /** Output frame rate of the animated output */
+  animFps: number;
+  /** WebP compression method (0-6) - used when format is webp */
+  webpMethod: number;
+  /** WebP output quality (5-100) - used when format is webp */
+  webpQuality: number;
+  /** Output format: "webp" or "mp4" */
+  format: "webp" | "mp4";
 }
 
 /** Return type for grid rendering methods */
@@ -213,6 +242,13 @@ export type AnimatedCellCallback = (
 /** Callback for animated grid encoding progress (0-1 ratio) */
 export type EncodeProgressCallback = (ratio: number) => void;
 
+/** Callback for sequence segment progress */
+export type SequenceSegmentCallback = (
+  segmentIndex: number,
+  totalSegments: number,
+  timestampSec: number,
+) => void;
+
 /** Interface for GridRenderer service */
 export interface IGridRenderer {
   /**
@@ -238,6 +274,20 @@ export interface IGridRenderer {
     opts: AnimatedGridRenderOptions,
     isCancelled: () => boolean,
     onCellDone: AnimatedCellCallback,
+    onEncodeProgress: EncodeProgressCallback,
+    onWarning: WarningCallback,
+  ): Promise<GridRenderOutput>;
+
+  /**
+   * Render a sequence-mode animated output (single full-width cell per segment).
+   * Extracts frames sequentially and composes them into an animated WebP or MP4.
+   */
+  renderSequence(
+    file: File,
+    meta: VideoMetadata,
+    opts: SequenceRenderOptions,
+    isCancelled: () => boolean,
+    onSegmentDone: SequenceSegmentCallback,
     onEncodeProgress: EncodeProgressCallback,
     onWarning: WarningCallback,
   ): Promise<GridRenderOutput>;
