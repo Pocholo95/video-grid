@@ -1,12 +1,10 @@
 /**
  * Tests for the useUpload hook.
  *
- * Verifies that useUpload correctly orchestrates upload logic:
- * - Destination filtering by enabled flag
- * - Status-based skipping (done/uploading)
- * - Sequential processing
- * - taskStore item lookups
- * - uploadAll destination override and fallback
+ * Verifies that useUpload correctly delegates to the upload store:
+ * - uploadItem delegates to store's uploadItem with destinations
+ * - uploadAll passes destinationsOverride or fallback
+ * - state exposure (isUploadingAll, uploadProgress)
  */
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
@@ -14,8 +12,7 @@ import { renderHook, act } from "@testing-library/react";
 import { useUpload } from "@/hooks/useUpload";
 import { useUploadStore } from "@/store/uploadStore";
 import { useSettingsStore } from "@/store/settingsStore";
-import { useTaskStore } from "@/store/taskStore";
-import type { UploadDestination, TaskItem } from "@/types";
+import type { UploadDestination } from "@/types";
 
 // Mock stores
 vi.mock("@/store/uploadStore", () => ({
@@ -26,26 +23,13 @@ vi.mock("@/store/settingsStore", () => ({
   useSettingsStore: vi.fn(),
 }));
 
-vi.mock("@/store/taskStore", () => ({
-  useTaskStore: vi.fn(),
-}));
-
-// Dynamic mock data so tests can control store behavior
-let mockUploadStoreState: {
-  isUploadingAll: boolean;
-  uploadProgress: { total: number; attempted: number };
-  resetUploadState: () => void;
-  uploadItemToDest: (itemId: string, dest: UploadDestination) => Promise<void>;
-  uploadAll: (dests: UploadDestination[]) => Promise<void>;
-};
-
-let mockSettingsDestinations: UploadDestination[];
-let mockTaskItems: TaskItem[];
-
 describe("useUpload", () => {
   const mockUploadItemToDest = vi.fn().mockResolvedValue(undefined);
+  const mockStoreUploadItem = vi.fn().mockResolvedValue(undefined);
   const mockUploadAll = vi.fn().mockResolvedValue(undefined);
   const mockResetUploadState = vi.fn();
+
+  let mockSettingsDestinations: UploadDestination[];
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -58,34 +42,31 @@ describe("useUpload", () => {
         apiKey: "key",
         url: "https://example.com",
         enabled: true,
+        allowedExtensions: "",
+        maxSizeMb: 0,
       },
     ];
 
-    mockTaskItems = [];
-
-    mockUploadStoreState = {
+    const mockState = {
       isUploadingAll: false,
       uploadProgress: { total: 0, attempted: 0 },
       resetUploadState: mockResetUploadState,
       uploadItemToDest: mockUploadItemToDest,
+      uploadItem: mockStoreUploadItem,
       uploadAll: mockUploadAll,
     };
 
     vi.mocked(useUploadStore).mockImplementation(
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (selector: any) => {
-        if (typeof selector === "function")
-          return selector(mockUploadStoreState);
-
-        return mockUploadStoreState[
-          selector as keyof typeof mockUploadStoreState
-        ];
+        if (typeof selector === "function") return selector(mockState);
+        return mockState[selector as keyof typeof mockState];
       },
     );
 
     // uploadAll calls useUploadStore.getState() directly
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (vi.mocked(useUploadStore).getState as any) = () => mockUploadStoreState;
+    (vi.mocked(useUploadStore).getState as any) = () => mockState;
 
     vi.mocked(useSettingsStore).mockImplementation(
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -99,175 +80,47 @@ describe("useUpload", () => {
         return state;
       },
     );
+  });
 
-    vi.mocked(useTaskStore).mockImplementation(
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (selector: any) => {
-        const state = { items: mockTaskItems };
-        if (typeof selector === "function") return selector(state);
-        return state[selector as keyof typeof state];
-      },
-    );
+  describe("state exposure", () => {
+    it("exposes isUploadingAll from store", () => {
+      const { result } = renderHook(() => useUpload());
+      expect(result.current.isUploadingAll).toBe(false);
+    });
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (vi.mocked(useTaskStore).getState as any) = () => ({
-      items: mockTaskItems,
-      setItems: vi.fn(),
-      updateItem: vi.fn(),
-      handleUpdateTimestamps: vi.fn(),
-      handleRemoveItem: vi.fn(),
-      handleRemoveItems: vi.fn(),
-      handleRequeueItem: vi.fn(),
-      handleRequeueAll: vi.fn(),
-      addItem: vi.fn(),
-      addItems: vi.fn(),
-      hasQueuedFiles: false,
-      allMetadataReady: true,
-      hasRequeuableItems: false,
-      effectiveBatchDone: 0,
-      effectiveBatchTotal: 0,
+    it("exposes uploadProgress from store", () => {
+      const { result } = renderHook(() => useUpload());
+      expect(result.current.uploadProgress).toEqual({
+        total: 0,
+        attempted: 0,
+      });
     });
   });
 
   describe("uploadItem", () => {
-    it("filters destinations by enabled flag", async () => {
-      mockSettingsDestinations = [
-        {
-          id: "d1",
-          name: "Enabled",
-          type: "chevereto",
-          apiKey: "k",
-          url: "https://a.com",
-          enabled: true,
-        },
-        {
-          id: "d2",
-          name: "Disabled",
-          type: "chevereto",
-          apiKey: "k",
-          url: "https://b.com",
-          enabled: false,
-        },
-      ];
-
-      mockTaskItems = [
-        {
-          id: "item1",
-          file: new File([""], "test.mp4"),
-          status: "done",
-          outputBlob: new Blob([""]),
-          outputName: "grid.jpg",
-        },
-      ];
-
+    it("delegates to store uploadItem with destinations", async () => {
       const { result } = renderHook(() => useUpload());
 
       await act(async () => {
         await result.current.uploadItem("item1");
       });
 
-      expect(mockUploadItemToDest).toHaveBeenCalledTimes(1);
-      expect(mockUploadItemToDest).toHaveBeenCalledWith(
+      expect(mockStoreUploadItem).toHaveBeenCalledTimes(1);
+      expect(mockStoreUploadItem).toHaveBeenCalledWith(
         "item1",
-        expect.objectContaining({ id: "d1" }),
-      );
-      expect(mockUploadItemToDest).not.toHaveBeenCalledWith(
-        "item1",
-        expect.objectContaining({ id: "d2" }),
+        mockSettingsDestinations,
       );
     });
 
-    it("skips destinations where upload status is done", async () => {
-      mockTaskItems = [
-        {
-          id: "item1",
-          file: new File([""], "test.mp4"),
-          status: "done",
-          outputBlob: new Blob([""]),
-          outputName: "grid.jpg",
-          uploads: {
-            d1: { status: "done", progress: 100 },
-          },
-        },
-      ];
-
+    it("does not call uploadItemToDest directly", async () => {
       const { result } = renderHook(() => useUpload());
 
       await act(async () => {
         await result.current.uploadItem("item1");
       });
 
+      // The hook delegates to store.uploadItem, not to uploadItemToDest
       expect(mockUploadItemToDest).not.toHaveBeenCalled();
-    });
-
-    it("skips destinations where upload status is uploading", async () => {
-      mockTaskItems = [
-        {
-          id: "item1",
-          file: new File([""], "test.mp4"),
-          status: "done",
-          outputBlob: new Blob([""]),
-          outputName: "grid.jpg",
-          uploads: {
-            d1: { status: "uploading", progress: 50 },
-          },
-        },
-      ];
-
-      const { result } = renderHook(() => useUpload());
-
-      await act(async () => {
-        await result.current.uploadItem("item1");
-      });
-
-      expect(mockUploadItemToDest).not.toHaveBeenCalled();
-    });
-
-    it("processes destinations sequentially", async () => {
-      const callOrder: string[] = [];
-      mockUploadItemToDest.mockImplementation(
-        async (_itemId: string, dest: UploadDestination) => {
-          callOrder.push(dest.id);
-        },
-      );
-
-      mockSettingsDestinations = [
-        {
-          id: "d1",
-          name: "First",
-          type: "chevereto",
-          apiKey: "k",
-          url: "https://a.com",
-          enabled: true,
-        },
-        {
-          id: "d2",
-          name: "Second",
-          type: "chevereto",
-          apiKey: "k",
-          url: "https://b.com",
-          enabled: true,
-        },
-      ];
-
-      mockTaskItems = [
-        {
-          id: "item1",
-          file: new File([""], "test.mp4"),
-          status: "done",
-          outputBlob: new Blob([""]),
-          outputName: "grid.jpg",
-        },
-      ];
-
-      const { result } = renderHook(() => useUpload());
-
-      await act(async () => {
-        await result.current.uploadItem("item1");
-      });
-
-      expect(mockUploadItemToDest).toHaveBeenCalledTimes(2);
-      expect(callOrder).toEqual(["d1", "d2"]);
     });
   });
 
@@ -281,6 +134,8 @@ describe("useUpload", () => {
           apiKey: "k",
           url: "https://custom.com",
           enabled: true,
+          allowedExtensions: "",
+          maxSizeMb: 0,
         },
       ];
 

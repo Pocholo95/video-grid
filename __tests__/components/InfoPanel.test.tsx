@@ -36,23 +36,30 @@ vi.mock("@radix-ui/react-popover", () => ({
   ),
 }));
 
-const mockDestinations: UploadDestination[] = [
-  {
+/**
+ * Create a mock destination with all required fields.
+ * By default allows all extensions and has no size limit so most test
+ * outputs are eligible for upload.
+ */
+function makeDest(
+  overrides: Partial<UploadDestination> = {},
+): UploadDestination {
+  return {
     id: "dest1",
     name: "ImgBB",
     type: "chevereto",
     apiKey: "key1",
     url: "https://imgbb.com/upload?key={key}",
     enabled: true,
-  },
-  {
-    id: "dest2",
-    name: "Postimages",
-    type: "chevereto",
-    apiKey: "key2",
-    url: "https://postimages.org/upload?key={key}",
-    enabled: true,
-  },
+    allowedExtensions: "",
+    maxSizeMb: 0,
+    ...overrides,
+  };
+}
+
+const mockDestinations: UploadDestination[] = [
+  makeDest({ id: "dest1", name: "ImgBB" }),
+  makeDest({ id: "dest2", name: "Postimages" }),
 ];
 
 const mockHandlers = {
@@ -95,12 +102,21 @@ describe("InfoPanel - upload button logic", () => {
     expect(screen.queryByTestId("popover-root")).toBeNull();
   });
 
-  it("shows popover upload button for MP4 done tasks", () => {
+  it("shows popover upload button for ineligible done tasks", () => {
+    // Use destinations that only allow .jpg (not .webp)
+    const jpgOnlyDests: UploadDestination[] = [
+      makeDest({
+        id: "dest1",
+        name: "ImgBB",
+        allowedExtensions: ".jpg",
+      }),
+    ];
+
     const item = createTestTaskItem({
       status: "done",
-      outputName: "output.mp4",
-      outputBlob: new Blob(["test"], { type: "video/mp4" }),
-      outputSize: 98765,
+      outputName: "output.webp",
+      outputBlob: new Blob(["test"], { type: "image/webp" }),
+      outputSize: 12345,
     });
 
     render(
@@ -109,7 +125,7 @@ describe("InfoPanel - upload button logic", () => {
         blobUrl="blob://test"
         statusText="done"
         outputDimensions={{ width: 1920, height: 1080 }}
-        destinations={mockDestinations}
+        destinations={jpgOnlyDests}
         canUpload={true}
         canRequeue={false}
         onUpload={mockHandlers.onUpload}
@@ -122,9 +138,6 @@ describe("InfoPanel - upload button logic", () => {
 
     // Should have popover content with explanation
     expect(screen.getByTestId("popover-content")).toBeTruthy();
-    expect(
-      screen.getByText(/MP4 files cannot be uploaded to image hosts/i),
-    ).toBeTruthy();
   });
 
   it("does not show upload button or popover when no destinations enabled", () => {
@@ -185,23 +198,21 @@ describe("InfoPanel - upload button logic", () => {
   });
 
   it("shows popover with correct destination count for single destination", () => {
-    const item = createTestTaskItem({
-      status: "done",
-      outputName: "output.mp4",
-      outputBlob: new Blob(["test"], { type: "video/mp4" }),
-      outputSize: 98765,
-    });
-
+    // Use a destination that only allows .jpg, so .webp is ineligible
     const singleDest: UploadDestination[] = [
-      {
+      makeDest({
         id: "dest1",
         name: "ImgBB",
-        type: "chevereto",
-        apiKey: "key1",
-        url: "https://imgbb.com/upload?key={key}",
-        enabled: true,
-      },
+        allowedExtensions: ".jpg",
+      }),
     ];
+
+    const item = createTestTaskItem({
+      status: "done",
+      outputName: "output.webp",
+      outputBlob: new Blob(["test"], { type: "image/webp" }),
+      outputSize: 12345,
+    });
 
     render(
       <InfoPanel
@@ -222,11 +233,17 @@ describe("InfoPanel - upload button logic", () => {
   });
 
   it("shows popover with destination count for multiple destinations", () => {
+    // Destinations only allow .jpg so .webp is ineligible
+    const jpgOnlyDests: UploadDestination[] = [
+      makeDest({ id: "dest1", name: "ImgBB", allowedExtensions: ".jpg" }),
+      makeDest({ id: "dest2", name: "Postimages", allowedExtensions: ".jpg" }),
+    ];
+
     const item = createTestTaskItem({
       status: "done",
-      outputName: "output.mp4",
-      outputBlob: new Blob(["test"], { type: "video/mp4" }),
-      outputSize: 98765,
+      outputName: "output.webp",
+      outputBlob: new Blob(["test"], { type: "image/webp" }),
+      outputSize: 12345,
     });
 
     render(
@@ -235,7 +252,7 @@ describe("InfoPanel - upload button logic", () => {
         blobUrl="blob://test"
         statusText="done"
         outputDimensions={{ width: 1920, height: 1080 }}
-        destinations={mockDestinations}
+        destinations={jpgOnlyDests}
         canUpload={true}
         canRequeue={false}
         onUpload={mockHandlers.onUpload}
@@ -249,22 +266,26 @@ describe("InfoPanel - upload button logic", () => {
 });
 
 describe("InfoPanel - mutual exclusivity", () => {
-  it("regular upload and MP4 popover are never both visible", () => {
-    // MP4 case - only popover
-    const mp4Item = createTestTaskItem({
+  it("regular upload and ineligible popover are never both visible", () => {
+    // Ineligible case - only popover (dest only allows .jpg, output is .webp)
+    const jpgOnlyDests: UploadDestination[] = [
+      makeDest({ id: "dest1", name: "ImgBB", allowedExtensions: ".jpg" }),
+    ];
+
+    const ineligibleItem = createTestTaskItem({
       status: "done",
-      outputName: "output.mp4",
-      outputBlob: new Blob(["test"], { type: "video/mp4" }),
-      outputSize: 98765,
+      outputName: "output.webp",
+      outputBlob: new Blob(["test"], { type: "image/webp" }),
+      outputSize: 12345,
     });
 
     const { container, unmount } = render(
       <InfoPanel
-        item={mp4Item}
+        item={ineligibleItem}
         blobUrl="blob://test"
         statusText="done"
         outputDimensions={{ width: 1920, height: 1080 }}
-        destinations={mockDestinations}
+        destinations={jpgOnlyDests}
         canUpload={true}
         canRequeue={false}
         onUpload={mockHandlers.onUpload}
@@ -279,8 +300,8 @@ describe("InfoPanel - mutual exclusivity", () => {
 
     unmount();
 
-    // JPG case - only regular upload button
-    const jpgItem = createTestTaskItem({
+    // Eligible case - only regular upload button
+    const eligibleItem = createTestTaskItem({
       status: "done",
       outputName: "output.jpg",
       outputBlob: new Blob(["test"], { type: "image/jpeg" }),
@@ -289,7 +310,7 @@ describe("InfoPanel - mutual exclusivity", () => {
 
     render(
       <InfoPanel
-        item={jpgItem}
+        item={eligibleItem}
         blobUrl="blob://test"
         statusText="done"
         outputDimensions={{ width: 1920, height: 1080 }}
@@ -369,11 +390,16 @@ describe("InfoPanel - upload progress", () => {
 
 describe("InfoPanel - popover content", () => {
   it("popover contains 'Upload unavailable' heading", () => {
+    // Dest only allows .jpg so .webp is ineligible
+    const jpgOnlyDests: UploadDestination[] = [
+      makeDest({ id: "dest1", name: "ImgBB", allowedExtensions: ".jpg" }),
+    ];
+
     const item = createTestTaskItem({
       status: "done",
-      outputName: "output.mp4",
-      outputBlob: new Blob(["test"], { type: "video/mp4" }),
-      outputSize: 98765,
+      outputName: "output.webp",
+      outputBlob: new Blob(["test"], { type: "image/webp" }),
+      outputSize: 12345,
     });
 
     render(
@@ -382,7 +408,7 @@ describe("InfoPanel - popover content", () => {
         blobUrl="blob://test"
         statusText="done"
         outputDimensions={{ width: 1920, height: 1080 }}
-        destinations={mockDestinations}
+        destinations={jpgOnlyDests}
         canUpload={true}
         canRequeue={false}
         onUpload={mockHandlers.onUpload}
@@ -390,6 +416,156 @@ describe("InfoPanel - popover content", () => {
       />,
     );
 
+    expect(screen.getByText("Upload unavailable")).toBeTruthy();
+  });
+});
+
+describe("InfoPanel - MP4 eligibility", () => {
+  it("shows regular upload button when destination allows mp4 extension", () => {
+    // Destination explicitly allows mp4
+    const mp4AllowedDests: UploadDestination[] = [
+      makeDest({
+        id: "dest1",
+        name: "MyHost",
+        allowedExtensions: "jpg,webp,mp4",
+        maxSizeMb: 0,
+      }),
+    ];
+
+    const item = createTestTaskItem({
+      status: "done",
+      outputName: "output.mp4",
+      outputBlob: new Blob(["test"], { type: "video/mp4" }),
+      outputSize: 500000,
+    });
+
+    render(
+      <InfoPanel
+        item={item}
+        blobUrl="blob://test"
+        statusText="done"
+        outputDimensions={null}
+        destinations={mp4AllowedDests}
+        canUpload={true}
+        canRequeue={false}
+        onUpload={mockHandlers.onUpload}
+        onRequeue={mockHandlers.onRequeue}
+      />,
+    );
+
+    // Should have regular upload button (not popover)
+    expect(screen.getByText(/Upload to MyHost/i)).toBeTruthy();
+    expect(screen.queryByTestId("popover-root")).toBeNull();
+  });
+
+  it("shows popover when destination does not allow mp4 extension", () => {
+    // Destination only allows jpg,webp (no mp4)
+    const imageOnlyDests: UploadDestination[] = [
+      makeDest({
+        id: "dest1",
+        name: "ImgHost",
+        allowedExtensions: "jpg,webp",
+        maxSizeMb: 32,
+      }),
+    ];
+
+    const item = createTestTaskItem({
+      status: "done",
+      outputName: "output.mp4",
+      outputBlob: new Blob(["test"], { type: "video/mp4" }),
+      outputSize: 500000,
+    });
+
+    render(
+      <InfoPanel
+        item={item}
+        blobUrl="blob://test"
+        statusText="done"
+        outputDimensions={null}
+        destinations={imageOnlyDests}
+        canUpload={false}
+        canRequeue={false}
+        onUpload={mockHandlers.onUpload}
+        onRequeue={mockHandlers.onRequeue}
+      />,
+    );
+
+    // Should have popover (no regular upload button)
+    expect(screen.getByTestId("popover-root")).toBeTruthy();
+    expect(screen.getByText("Upload unavailable")).toBeTruthy();
+  });
+
+  it("shows upload button when destination allows all extensions (empty string)", () => {
+    // Empty allowedExtensions means allow all
+    const allowAllDests: UploadDestination[] = [
+      makeDest({
+        id: "dest1",
+        name: "AnyHost",
+        allowedExtensions: "",
+        maxSizeMb: 0,
+      }),
+    ];
+
+    const item = createTestTaskItem({
+      status: "done",
+      outputName: "output.mp4",
+      outputBlob: new Blob(["test"], { type: "video/mp4" }),
+      outputSize: 500000,
+    });
+
+    render(
+      <InfoPanel
+        item={item}
+        blobUrl="blob://test"
+        statusText="done"
+        outputDimensions={null}
+        destinations={allowAllDests}
+        canUpload={true}
+        canRequeue={false}
+        onUpload={mockHandlers.onUpload}
+        onRequeue={mockHandlers.onRequeue}
+      />,
+    );
+
+    // Should have regular upload button
+    expect(screen.getByText(/Upload to AnyHost/i)).toBeTruthy();
+    expect(screen.queryByTestId("popover-root")).toBeNull();
+  });
+
+  it("blocks upload when file size exceeds destination max", () => {
+    // 32 MB limit, file is 50 MB
+    const sizeLimitedDests: UploadDestination[] = [
+      makeDest({
+        id: "dest1",
+        name: "SmallHost",
+        allowedExtensions: "",
+        maxSizeMb: 32,
+      }),
+    ];
+
+    const item = createTestTaskItem({
+      status: "done",
+      outputName: "output.jpg",
+      outputBlob: new Blob(["test"], { type: "image/jpeg" }),
+      outputSize: 50 * 1024 * 1024, // 50 MB
+    });
+
+    render(
+      <InfoPanel
+        item={item}
+        blobUrl="blob://test"
+        statusText="done"
+        outputDimensions={{ width: 1920, height: 1080 }}
+        destinations={sizeLimitedDests}
+        canUpload={false}
+        canRequeue={false}
+        onUpload={mockHandlers.onUpload}
+        onRequeue={mockHandlers.onRequeue}
+      />,
+    );
+
+    // Should have popover (size exceeds limit)
+    expect(screen.getByTestId("popover-root")).toBeTruthy();
     expect(screen.getByText("Upload unavailable")).toBeTruthy();
   });
 });

@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { immer } from "zustand/middleware/immer";
 import { uploadBlob } from "@/upload";
 import { UPLOAD_DELAY_MS } from "@/constants";
+import { isUploadEligible } from "@/uploadUtils";
 import type {
   DestinationUploadState,
   TaskItem,
@@ -84,13 +85,7 @@ export const useUploadStore = create<UploadState>()(
     uploadItemToDest: async (itemId, dest) => {
       const items = useTaskStore.getState().items;
       const item = items.find((i) => i.id === itemId);
-      // Skip MP4 outputs - they cannot be uploaded to image hosts
-      if (
-        !item?.outputBlob ||
-        !item.outputName ||
-        item.outputName.endsWith(".mp4")
-      )
-        return;
+      if (!item?.outputBlob || !item.outputName) return;
 
       useTaskStore.getState().setItems((prev) =>
         patchUpload(prev, itemId, dest.id, {
@@ -138,6 +133,12 @@ export const useUploadStore = create<UploadState>()(
         const item = items.find((i) => i.id === itemId);
         const state = item?.uploads?.[dest.id];
         if (state?.status === "done" || state?.status === "uploading") continue;
+        // Skip destinations that don't accept this file's type or size
+        if (
+          item?.outputName &&
+          !isUploadEligible(item.outputName, item.outputSize, dest)
+        )
+          continue;
         await uploadToDest(itemId, dest);
       }
     },
@@ -149,13 +150,8 @@ export const useUploadStore = create<UploadState>()(
       if (!enabled.length) return;
 
       const items = useTaskStore.getState().items;
-      // Exclude MP4 outputs from bulk upload (they can't be uploaded to image hosts)
       const pending = items.filter(
-        (i) =>
-          i.status === "done" &&
-          i.outputBlob &&
-          i.outputName &&
-          !i.outputName.endsWith(".mp4"),
+        (i) => i.status === "done" && i.outputBlob && i.outputName,
       );
       if (!pending.length) return;
 
@@ -174,6 +170,16 @@ export const useUploadStore = create<UploadState>()(
             const currentItem = currentItems.find((i) => i.id === item.id);
             const uploadState = currentItem?.uploads?.[dest.id];
             if (uploadState?.status === "done") continue;
+            // Skip destinations that don't accept this file's type or size
+            if (
+              currentItem?.outputName &&
+              !isUploadEligible(
+                currentItem.outputName,
+                currentItem.outputSize,
+                dest,
+              )
+            )
+              continue;
 
             if (attempted > 0) await sleep(UPLOAD_DELAY_MS);
 

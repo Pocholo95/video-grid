@@ -6,8 +6,14 @@
 
 import { describe, it, expect } from "vitest";
 import { migrateSettings, needsMigration } from "@/migrations";
-import { DEFAULTS, FONT_FACES, STORAGE_SCHEMA_VERSION } from "@/constants";
-import type { AppSettings, SavedOptions } from "@/types";
+import {
+  DEFAULTS,
+  FONT_FACES,
+  STORAGE_SCHEMA_VERSION,
+  DEFAULT_DEST_ALLOWED_EXTENSIONS,
+  DEFAULT_DEST_MAX_SIZE_MB,
+} from "@/constants";
+import type { AppSettings, SavedOptions, UploadDestination } from "@/types";
 import { createTestOpts, createTestPresets } from "./helpers/mockServices";
 
 /** - Helper factories */
@@ -246,5 +252,133 @@ describe("needsMigration", () => {
     expect(needsMigration(1)).toBe(true);
     expect(needsMigration(STORAGE_SCHEMA_VERSION)).toBe(false);
     expect(needsMigration(999)).toBe(false);
+  });
+});
+
+/** - v3 → v4: destination allowedExtensions and maxSizeMb */
+
+describe("migrateSettings v3 → v4", () => {
+  function makeLegacyDest(
+    overrides: Record<string, unknown> = {},
+  ): UploadDestination {
+    return {
+      id: "d1",
+      name: "Host A",
+      url: "https://a.test",
+      enabled: true,
+      type: "chevereto",
+      apiKey: "key123",
+      allowedExtensions: DEFAULT_DEST_ALLOWED_EXTENSIONS,
+      maxSizeMb: DEFAULT_DEST_MAX_SIZE_MB,
+      ...overrides,
+    };
+  }
+
+  function makeSettings(destinations: UploadDestination[]): AppSettings {
+    return {
+      presets: createTestPresets(),
+      destinations,
+      theme: "dark",
+      showPreview: true,
+    };
+  }
+
+  it("adds default allowedExtensions and maxSizeMb to legacy destinations", () => {
+    // Simulate legacy destinations (v3 shape without new fields)
+    const legacyDests = [
+      {
+        id: "d1",
+        name: "Host A",
+        url: "https://a.test",
+        enabled: true,
+        type: "chevereto",
+        apiKey: "key1",
+      },
+      {
+        id: "d2",
+        name: "Host B",
+        url: "https://b.test",
+        enabled: false,
+        type: "chevereto",
+        apiKey: "key2",
+      },
+    ] as unknown as UploadDestination[];
+
+    const settings = makeSettings(legacyDests);
+    const result = migrateSettings(settings, 3);
+
+    expect(result.destinations[0].allowedExtensions).toBe(
+      DEFAULT_DEST_ALLOWED_EXTENSIONS,
+    );
+    expect(result.destinations[0].maxSizeMb).toBe(DEFAULT_DEST_MAX_SIZE_MB);
+    expect(result.destinations[1].allowedExtensions).toBe(
+      DEFAULT_DEST_ALLOWED_EXTENSIONS,
+    );
+    expect(result.destinations[1].maxSizeMb).toBe(DEFAULT_DEST_MAX_SIZE_MB);
+  });
+
+  it("preserves existing allowedExtensions and maxSizeMb when valid", () => {
+    const settings = makeSettings([
+      makeLegacyDest({
+        allowedExtensions: "jpg,png,gif",
+        maxSizeMb: 10,
+      }),
+    ]);
+    const result = migrateSettings(settings, 3);
+
+    expect(result.destinations[0].allowedExtensions).toBe("jpg,png,gif");
+    expect(result.destinations[0].maxSizeMb).toBe(10);
+  });
+
+  it("replaces empty allowedExtensions with default", () => {
+    const settings = makeSettings([
+      makeLegacyDest({ allowedExtensions: "   ", maxSizeMb: 20 }),
+    ]);
+    const result = migrateSettings(settings, 3);
+
+    expect(result.destinations[0].allowedExtensions).toBe(
+      DEFAULT_DEST_ALLOWED_EXTENSIONS,
+    );
+    expect(result.destinations[0].maxSizeMb).toBe(20);
+  });
+
+  it("replaces NaN maxSizeMb with default", () => {
+    const settings = makeSettings([
+      makeLegacyDest({
+        allowedExtensions: ".webp",
+        maxSizeMb: NaN,
+      }) as unknown as UploadDestination,
+    ]);
+    const result = migrateSettings(settings, 3);
+
+    expect(result.destinations[0].allowedExtensions).toBe(".webp");
+    expect(result.destinations[0].maxSizeMb).toBe(DEFAULT_DEST_MAX_SIZE_MB);
+  });
+
+  it("handles empty destinations array", () => {
+    const settings = makeSettings([]);
+    const result = migrateSettings(settings, 3);
+
+    expect(result.destinations).toEqual([]);
+  });
+
+  it("handles missing destinations gracefully", () => {
+    const settings = {
+      presets: createTestPresets(),
+      theme: "dark",
+      showPreview: true,
+    } as unknown as AppSettings;
+    const result = migrateSettings(settings, 3);
+
+    expect(result.destinations).toBeUndefined();
+  });
+
+  it("preserves maxSizeMb of 0 (unlimited)", () => {
+    const settings = makeSettings([
+      makeLegacyDest({ allowedExtensions: "jpg", maxSizeMb: 0 }),
+    ]);
+    const result = migrateSettings(settings, 3);
+
+    expect(result.destinations[0].maxSizeMb).toBe(0);
   });
 });

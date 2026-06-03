@@ -72,6 +72,8 @@ const mockDestination: UploadDestination = {
   apiKey: "test_api_key",
   url: "https://api.example.com/upload?key={key}",
   enabled: true,
+  allowedExtensions: "",
+  maxSizeMb: 0,
 };
 
 describe("uploadBlob", () => {
@@ -373,6 +375,8 @@ describe("uploadBlob", () => {
       apiKey: "",
       url: "",
       enabled: false,
+      allowedExtensions: "",
+      maxSizeMb: 0,
     };
 
     await expect(

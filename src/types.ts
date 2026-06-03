@@ -169,6 +169,15 @@ export type UploadDestination = {
   url: string;
   /** Whether uploads to this destination are active. */
   enabled: boolean;
+  /**
+   * Comma-separated list of allowed file extensions (e.g. ".jpg,.webp").
+   * Output files must match one of these extensions to be uploadable.
+   */
+  allowedExtensions: string;
+  /**
+   * Maximum allowed file size in MB for uploads. 0 means no limit.
+   */
+  maxSizeMb: number;
 };
 
 // - Per-destination upload state on a task item

@@ -3,6 +3,7 @@ import { AlertTriangle, ChevronDown, RotateCcw, Trash2 } from "lucide-react";
 import type { SavedOptions, TaskItem } from "@/types";
 import { useUiStore, selectTotalCells } from "@/store/uiStore";
 import { useSettingsStore } from "@/store/settingsStore";
+import { isUploadEligible } from "@/uploadUtils";
 import { formatElapsed } from "@/utils";
 import { useTick } from "@/lib/useTick";
 import { cn } from "@/lib/utils";
@@ -145,20 +146,22 @@ export default function TaskCard({
   const isDone = item.status === "done";
   const enabledDests = destinations.filter((d) => d.enabled);
 
-  const anyUploading = enabledDests.some(
+  // Filter to only destinations eligible for this task's output
+  const eligibleDests = enabledDests.filter((d) =>
+    isUploadEligible(item.outputName, item.outputSize, d),
+  );
+
+  const anyUploading = eligibleDests.some(
     (d) => item.uploads?.[d.id]?.status === "uploading",
   );
   const allDone =
-    enabledDests.length > 0 &&
-    enabledDests.every((d) => item.uploads?.[d.id]?.status === "done");
-  // MP4 outputs cannot be uploaded to Chevereto hosts
-  const isMp4Output = item.outputName?.endsWith(".mp4");
+    eligibleDests.length > 0 &&
+    eligibleDests.every((d) => item.uploads?.[d.id]?.status === "done");
 
   const canUpload =
     isDone &&
     !!item.outputBlob &&
-    !isMp4Output &&
-    enabledDests.length > 0 &&
+    eligibleDests.length > 0 &&
     !anyUploading &&
     !allDone;
 

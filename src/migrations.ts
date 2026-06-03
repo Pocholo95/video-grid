@@ -8,7 +8,13 @@
  */
 
 import type { AppSettings, Presets, SavedOptions } from "./types";
-import { STORAGE_SCHEMA_VERSION, DEFAULTS, FONT_FACES } from "./constants";
+import {
+  STORAGE_SCHEMA_VERSION,
+  DEFAULTS,
+  FONT_FACES,
+  DEFAULT_DEST_ALLOWED_EXTENSIONS,
+  DEFAULT_DEST_MAX_SIZE_MB,
+} from "./constants";
 
 /** - Migration functions */
 
@@ -16,6 +22,42 @@ import { STORAGE_SCHEMA_VERSION, DEFAULTS, FONT_FACES } from "./constants";
 function migrateV0toV1(data: unknown): AppSettings {
   // If data is already at v0 format (raw AppSettings object), return as-is.
   return data as AppSettings;
+}
+
+/**
+ * v3 → v4: Add allowedExtensions and maxSizeMb fields to upload destinations.
+ *
+ * Destinations created before v4 lack per-host upload constraints.
+ * This migration injects default values so existing destinations continue
+ * to work correctly.
+ */
+function migrateV3toV4(data: unknown): AppSettings {
+  const settings = data as AppSettings;
+  if (!settings?.destinations) return settings;
+
+  type LegacyDest = Record<string, unknown>;
+
+  const migratedDests = settings.destinations.map((dest) => {
+    const legacy = dest as LegacyDest;
+    return {
+      ...dest,
+      allowedExtensions:
+        typeof legacy.allowedExtensions === "string" &&
+        legacy.allowedExtensions.trim()
+          ? legacy.allowedExtensions
+          : DEFAULT_DEST_ALLOWED_EXTENSIONS,
+      maxSizeMb:
+        typeof legacy.maxSizeMb === "number" &&
+        Number.isFinite(legacy.maxSizeMb)
+          ? legacy.maxSizeMb
+          : DEFAULT_DEST_MAX_SIZE_MB,
+    };
+  });
+
+  return {
+    ...settings,
+    destinations: migratedDests,
+  };
 }
 
 /**
@@ -150,6 +192,7 @@ const migrations: Array<(data: unknown) => AppSettings> = [
   migrateV0toV1,
   migrateV1toV2,
   migrateV2toV3,
+  migrateV3toV4,
 ];
 
 /** - Public API */

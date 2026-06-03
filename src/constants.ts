@@ -87,11 +87,17 @@ export const MIN_CELL_WIDTH = 240;
 export const JPEG_QUALITY = 0.95;
 
 /** Current schema version for stored settings (used by migration system) */
-export const STORAGE_SCHEMA_VERSION = 3;
+export const STORAGE_SCHEMA_VERSION = 4;
 
 /** Destination Manager defaults */
 export const DEFAULT_DESTINATION_URL =
   "https://api.imgbb.com/1/upload?key={key}";
+
+/** Default allowed file extensions for upload destinations (comma-separated) */
+export const DEFAULT_DEST_ALLOWED_EXTENSIONS = "jpg,webp";
+
+/** Default max file size for upload destinations in MB (0 = unlimited) */
+export const DEFAULT_DEST_MAX_SIZE_MB = 32;
 
 /** Upload requests timeout/delay in milliseconds */
 export const UPLOAD_TIMEOUT_MS = 30_000;

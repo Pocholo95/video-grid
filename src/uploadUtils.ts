@@ -1,4 +1,70 @@
-import type { UploadResult, VideoMetadata } from "./types";
+import type { UploadDestination, UploadResult, VideoMetadata } from "./types";
+
+/**
+ * Parse a comma-separated extensions string into a normalized set of
+ * lowercase extensions (each starting with ".").
+ */
+/**
+ * Parse a comma-separated extensions string into a normalized set of
+ * lowercase extensions (each starting with "."). Empty string means
+ * "allow all extensions".
+ */
+export function parseAllowedExtensions(
+  raw: string | undefined,
+): Set<string> | null {
+  if (raw === undefined) return null; // treat missing as allow all
+  const trimmed = raw.trim();
+  if (trimmed === "") return null; // null means allow all
+  return new Set(
+    trimmed
+      .split(",")
+      .map((ext) => ext.trim().toLowerCase())
+      .filter(Boolean)
+      .map((ext) => (ext.startsWith(".") ? ext : `.${ext}`)),
+  );
+}
+
+/**
+ * Check whether a task's output file is eligible for upload to a given
+ * destination based on extension and file size constraints.
+ *
+ * @param outputName - The task's output filename.
+ * @param outputSize - The task's output file size in bytes (0 | undefined = unknown).
+ * @param destination - The upload destination to check against.
+ * @returns true if the file matches the destination's allowed extensions and
+ *          size constraints.
+ */
+export function isUploadEligible(
+  outputName: string | undefined,
+  outputSize: number | undefined,
+  destination: UploadDestination,
+): boolean {
+  if (!outputName) return false;
+
+  // Extract file extension (lowercase, with leading dot)
+  const match = outputName.toLowerCase().match(/\.([^.]+)$/);
+  if (!match) return false;
+  const ext = `.${match[1]}`;
+  const allowed = parseAllowedExtensions(destination.allowedExtensions);
+
+  // null (empty string) means allow all extensions
+  if (allowed !== null && !allowed.has(ext)) {
+    return false;
+  }
+
+  // Check file size against destination's max (0 = unlimited, undefined = unlimited)
+  const sizeLimit = destination.maxSizeMb ?? 0;
+  if (
+    sizeLimit > 0 &&
+    outputSize !== undefined &&
+    outputSize > 0 &&
+    outputSize > sizeLimit * 1024 * 1024
+  ) {
+    return false;
+  }
+
+  return true;
+}
 
 export type LinkFormat = {
   key: string;
