@@ -1128,6 +1128,7 @@ export class GridRenderer implements IGridRenderer {
         (targetW ? ` -> ${targetW}x${targetH}` : ""),
     );
 
+    let bitmap: ImageBitmap | null = null;
     try {
       await this.ffmpeg.exec(args);
 
@@ -1139,7 +1140,7 @@ export class GridRenderer implements IGridRenderer {
       const blob = new Blob([new Uint8Array(data)], {
         type: "image/jpeg",
       });
-      const bitmap = await createImageBitmap(blob);
+      bitmap = await createImageBitmap(blob);
 
       try {
         await this.ffmpeg.deleteFile(name);
@@ -1149,6 +1150,7 @@ export class GridRenderer implements IGridRenderer {
 
       return bitmap;
     } catch (e) {
+      bitmap?.close();
       const msg = e instanceof Error ? e.message : String(e);
       errlog(`  [FFmpeg] Single frame extraction failed:`, msg);
 
