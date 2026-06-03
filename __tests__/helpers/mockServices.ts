@@ -94,10 +94,9 @@ export function createMockFFmpegService(
     reinit: async () => {
       ready = true;
     },
-    onLog: (cb) => {
-      if (cb) {
-        // no-op, callbacks tracked via taskLogs
-      }
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    onLog: (_cb) => {
+      // no-op, callbacks tracked via taskLogs
     },
     onProgress: (cb) => {
       if (cb) onProgressCbs.push(cb);
@@ -118,6 +117,8 @@ export function createMockFFmpegService(
     getBusyState: () => false,
     setAbortController: () => new AbortController(),
     abortCurrent: () => {},
+    setLoggingEnabled: () => {},
+    appendLog: () => {},
     ...overrides,
   };
 }

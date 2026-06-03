@@ -1,8 +1,8 @@
 import { UPLOAD_TIMEOUT_MS } from "./constants";
 import type { UploadDestination, UploadResult } from "./types";
 
-interface CheveretoResponse {
-  success: boolean;
+interface CheveretoSuccessResponse {
+  success: true;
   data: {
     url: string;
     url_viewer: string;
@@ -10,8 +10,18 @@ interface CheveretoResponse {
     medium?: { url?: string | null };
     thumb?: { url: string | null };
   };
-  error?: { message: string };
 }
+
+interface CheveretoErrorResponse {
+  status_code: number;
+  error: {
+    message: string;
+    code?: number;
+  };
+  status_txt?: string;
+}
+
+type CheveretoResponse = CheveretoSuccessResponse | CheveretoErrorResponse;
 
 /**
  * Builds the upload URL by substituting the `{key}` placeholder with the
@@ -104,18 +114,22 @@ const uploadToChevereto = async (
     xhr.onload = () => {
       clearTimeout(timeoutId);
 
-      if (xhr.status === 400) {
-        reject(
-          new Error("Chevereto rejected the request — check your API key"),
-        );
+      // Try to parse the JSON response regardless of HTTP status
+      let json: CheveretoResponse;
+      try {
+        json = JSON.parse(xhr.responseText) as CheveretoResponse;
+      } catch {
+        reject(new Error(`Chevereto HTTP ${xhr.status} — invalid response`));
         return;
       }
-      if (xhr.status === 429) {
-        reject(
-          new Error("Chevereto rate limit hit — wait a moment and try again"),
-        );
+
+      // Handle error responses (Chevereto error format has status_code + error object)
+      if ("error" in json && json.error?.message) {
+        reject(new Error(json.error.message));
         return;
       }
+
+      // Handle unexpected non-200 status without structured error
       if (xhr.status !== 200) {
         reject(new Error(`Chevereto HTTP ${xhr.status}`));
         return;
@@ -123,24 +137,16 @@ const uploadToChevereto = async (
 
       onProgress(100);
 
-      try {
-        const json = JSON.parse(xhr.responseText) as CheveretoResponse;
-
-        if (json.success) {
-          resolve({
-            directUrl: json.data.url,
-            pageUrl: json.data.url_viewer,
-            mediumUrl: json.data.medium?.url ?? undefined,
-            thumbUrl: json.data.thumb?.url ?? json.data.url,
-            deleteUrl: json.data.delete_url,
-          });
-        } else {
-          reject(
-            new Error(json.error?.message ?? "Chevereto returned an error"),
-          );
-        }
-      } catch {
-        reject(new Error("Invalid JSON response from Chevereto host"));
+      if ("success" in json && json.success) {
+        resolve({
+          directUrl: json.data.url,
+          pageUrl: json.data.url_viewer,
+          mediumUrl: json.data.medium?.url ?? undefined,
+          thumbUrl: json.data.thumb?.url ?? json.data.url,
+          deleteUrl: json.data.delete_url,
+        });
+      } else {
+        reject(new Error("Chevereto returned an error"));
       }
     };
 

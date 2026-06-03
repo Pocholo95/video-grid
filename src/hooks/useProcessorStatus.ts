@@ -37,8 +37,11 @@ export function useProcessorStatus(
    * the processor updates the current task's ffmpegLogs array immediately.
    */
   useEffect(() => {
-    ffmpegService.onLog((taskId, logs) => {
-      updateItem(taskId, { ffmpegLogs: [...logs] });
+    ffmpegService.onLog((taskId, logs, totalLines) => {
+      updateItem(taskId, {
+        ffmpegLogs: [...logs],
+        ffmpegTotalLines: totalLines,
+      });
     });
     return () => {
       ffmpegService.onLog(null);

@@ -97,26 +97,31 @@ export default function TaskList({
     [destinations],
   );
 
+  // Exclude MP4 outputs from upload tracking (they can't be uploaded to image hosts)
   const doneItems = useMemo(
     () =>
       items.filter(
         (i) =>
           (i.status === "done" || i.status === "processing") &&
           i.outputBlob &&
-          i.outputName,
+          i.outputName &&
+          !i.outputName.endsWith(".mp4"),
       ),
     [items],
   );
 
   const totalPossibleUploads = doneItems.length * enabledDests.length;
 
+  // Count completed uploads excluding MP4 outputs (they can't be uploaded)
   const completedUploads = useMemo(
     () =>
-      items.filter((item) =>
-        enabledDests.every(
-          (dest) => item.uploads?.[dest.id]?.status === "done",
-        ),
-      ).length * enabledDests.length,
+      items
+        .filter((item) => !item.outputName?.endsWith(".mp4"))
+        .filter((item) =>
+          enabledDests.every(
+            (dest) => item.uploads?.[dest.id]?.status === "done",
+          ),
+        ).length * enabledDests.length,
     [items, enabledDests],
   );
 

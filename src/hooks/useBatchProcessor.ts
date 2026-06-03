@@ -169,16 +169,16 @@ export function useBatchProcessor(
                 useProcessingStore.getState().touchProgress();
               };
 
-              const onEncodeProgress = (ratio: number) => {
+              const onEncodeProgress = (data: {
+                ratio: number;
+                phase: string;
+              }) => {
+                const { ratio, phase } = data;
                 const pct = ANIMATED_COMPOSE_PCT + ratio * ANIMATED_ENCODE_PCT;
-                const fmt = opts.animFormat === "mp4" ? "MP4" : "WebP";
-                const phaseLabel =
-                  ratio < 0.5
-                    ? `preparing frames (${Math.round((ratio / 0.5) * 100)}%)`
-                    : `encoding ${fmt} (${Math.round(((ratio - 0.5) / 0.5) * 100)}%)`;
+                const pctLabel = Math.round(ratio * 100);
                 useProcessingStore.getState().setStatus((prev) => ({
                   ...prev,
-                  text: `"${item.file.name}" — ${phaseLabel}`,
+                  text: `"${item.file.name}" — ${phase} (${pctLabel}%)`,
                   currentPct: pct,
                   batchDone: succeeded + errored,
                   batchTotal: items.length,
@@ -211,16 +211,16 @@ export function useBatchProcessor(
                 useProcessingStore.getState().touchProgress();
               };
 
-              const onEncodeProgress = (ratio: number) => {
+              const onEncodeProgress = (data: {
+                ratio: number;
+                phase: string;
+              }) => {
+                const { ratio, phase } = data;
                 const pct = ANIMATED_COMPOSE_PCT + ratio * ANIMATED_ENCODE_PCT;
-                const fmt = opts.animFormat === "mp4" ? "MP4" : "WebP";
-                const phaseLabel =
-                  ratio < 0.5
-                    ? `preparing frames (${Math.round((ratio / 0.5) * 100)}%)`
-                    : `encoding ${fmt} (${Math.round(((ratio - 0.5) / 0.5) * 100)}%)`;
+                const pctLabel = Math.round(ratio * 100);
                 useProcessingStore.getState().setStatus((prev) => ({
                   ...prev,
-                  text: `"${item.file.name}" — ${phaseLabel}`,
+                  text: `"${item.file.name}" — ${phase} (${pctLabel}%)`,
                   currentPct: pct,
                   batchDone: succeeded + errored,
                   batchTotal: items.length,

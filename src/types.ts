@@ -230,6 +230,12 @@ export type TaskItem = {
    * Populated when FFmpeg is used for frame extraction or encoding.
    */
   ffmpegLogs?: string[];
+  /**
+   * Total number of FFmpeg log lines produced before buffer trimming.
+   * Shown alongside the visible line count so the user knows how much
+   * output was generated even if the buffer was capped.
+   */
+  ffmpegTotalLines?: number;
 };
 
 // - Settings / Options
@@ -282,8 +288,9 @@ export type SavedOptions = {
    * Controls how segments are rendered in sequence mode.
    * "static" = one frame per segment repeated for the duration (default).
    * "video" = advances playback frame-by-frame during each segment.
+   * "video_with_audio" = uses FFmpeg to cut/merge segments with audio preserved.
    */
-  sequenceMode: "static" | "video";
+  sequenceMode: "static" | "video" | "video_with_audio";
   /** Output format for animated modes: WebP (animated) or MP4 (H.264). */
   animFormat: AnimFormat;
   /** Duration in seconds of each cell's animation clip (animated mode only). */

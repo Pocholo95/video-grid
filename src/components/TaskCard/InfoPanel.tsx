@@ -3,6 +3,11 @@ import { Button } from "@/components/ui/button";
 import { CopyField } from "@/components/CopyField";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { Progress } from "@/components/ui/progress";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import type { TaskItem } from "@/types";
 import type { UploadDestination } from "@/types";
 import { buildBbcodeTitle, humanSize } from "@/utils";
@@ -35,6 +40,9 @@ export default function InfoPanel({
   const allDone =
     enabledDests.length > 0 &&
     enabledDests.every((d) => item.uploads?.[d.id]?.status === "done");
+
+  // MP4 outputs cannot be uploaded to Chevereto hosts
+  const isMp4Output = item.outputName?.endsWith(".mp4");
 
   // BBCode video title
   const bbcodeVideoTitle = buildBbcodeTitle(item);
@@ -80,7 +88,7 @@ export default function InfoPanel({
             </a>
           </Button>
         )}
-        {isDone && enabledDests.length > 0 && !allDone && (
+        {isDone && !isMp4Output && enabledDests.length > 0 && !allDone && (
           <Button
             variant="default"
             size="sm"
@@ -94,6 +102,25 @@ export default function InfoPanel({
               ? ` to ${enabledDests[0].name}`
               : ` (${enabledDests.length} destinations)`}
           </Button>
+        )}
+        {isMp4Output && enabledDests.length > 0 && (
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="default" size="sm" className="opacity-60">
+                <Cloud className="size-4" />
+                Upload
+                {enabledDests.length === 1
+                  ? ` to ${enabledDests[0].name}`
+                  : ` (${enabledDests.length} destinations)`}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-64" side="top" align="start">
+              <p className="text-sm font-medium">Upload unavailable</p>
+              <p className="text-muted-foreground text-xs mt-1">
+                MP4 files cannot be uploaded to image hosts.
+              </p>
+            </PopoverContent>
+          </Popover>
         )}
         {canRequeue && (
           <Button

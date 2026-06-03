@@ -84,7 +84,13 @@ export const useUploadStore = create<UploadState>()(
     uploadItemToDest: async (itemId, dest) => {
       const items = useTaskStore.getState().items;
       const item = items.find((i) => i.id === itemId);
-      if (!item?.outputBlob || !item.outputName) return;
+      // Skip MP4 outputs - they cannot be uploaded to image hosts
+      if (
+        !item?.outputBlob ||
+        !item.outputName ||
+        item.outputName.endsWith(".mp4")
+      )
+        return;
 
       useTaskStore.getState().setItems((prev) =>
         patchUpload(prev, itemId, dest.id, {
@@ -143,8 +149,13 @@ export const useUploadStore = create<UploadState>()(
       if (!enabled.length) return;
 
       const items = useTaskStore.getState().items;
+      // Exclude MP4 outputs from bulk upload (they can't be uploaded to image hosts)
       const pending = items.filter(
-        (i) => i.status === "done" && i.outputBlob && i.outputName,
+        (i) =>
+          i.status === "done" &&
+          i.outputBlob &&
+          i.outputName &&
+          !i.outputName.endsWith(".mp4"),
       );
       if (!pending.length) return;
 

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AlertTriangle, ChevronDown, RotateCcw, Trash2 } from "lucide-react";
-import type { TaskItem } from "@/types";
+import type { SavedOptions, TaskItem } from "@/types";
 import { useUiStore, selectTotalCells } from "@/store/uiStore";
 import { useSettingsStore } from "@/store/settingsStore";
 import { formatElapsed } from "@/utils";
@@ -69,6 +69,16 @@ export default function TaskCard({
   const totalCells = useUiStore(selectTotalCells);
   const showPreview = useSettingsStore((s) => s.settings.showPreview);
   const destinations = useSettingsStore((s) => s.settings.destinations);
+  const opts = useUiStore((s) => s.opts);
+
+  /**
+   * Determine if this task will use FFmpeg processing based on current options.
+   * Animated mode always uses FFmpeg for encoding (WebP or MP4).
+   * Static grid mode doesn't always need FFmpeg — it only uses it as a fallback
+   * when native browser video decoding fails, which we can't predict in advance.
+   * The FFmpeg logs section will still appear for static mode once logs populate.
+   */
+  const needsFfmpeg = (o: SavedOptions): boolean => o.animated;
 
   const urlRef = useRef<string | null>(null);
   const mountedRef = useRef(true);
@@ -141,9 +151,13 @@ export default function TaskCard({
   const allDone =
     enabledDests.length > 0 &&
     enabledDests.every((d) => item.uploads?.[d.id]?.status === "done");
+  // MP4 outputs cannot be uploaded to Chevereto hosts
+  const isMp4Output = item.outputName?.endsWith(".mp4");
+
   const canUpload =
     isDone &&
     !!item.outputBlob &&
+    !isMp4Output &&
     enabledDests.length > 0 &&
     !anyUploading &&
     !allDone;
@@ -285,15 +299,17 @@ export default function TaskCard({
           </Alert>
         )}
 
-        {/* FFmpeg Logs */}
-        {item.ffmpegLogs && item.ffmpegLogs.length > 0 && (
+        {/* FFmpeg Logs — shown when processing + FFmpeg needed, or when logs exist */}
+        {(item.status === "processing" && needsFfmpeg(opts)) ||
+        (item.ffmpegLogs && item.ffmpegLogs.length > 0) ? (
           <FfmpegLogsSection
-            logs={item.ffmpegLogs}
+            logs={item.ffmpegLogs ?? []}
+            totalLines={item.ffmpegTotalLines}
             isProcessing={item.status === "processing"}
             isStale={isStale}
             onForceCancel={onForceCancel}
           />
-        )}
+        ) : null}
 
         {/* Timestamp row */}
         <TimestampRow

@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { DEFAULTS } from "../../constants";
 import { Info } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
@@ -35,6 +36,28 @@ export default function OutputModesSection({
 }: Props) {
   const isAnimated = opts.animated ?? false;
   const isSequence = isAnimated && (opts.animSequence ?? false);
+  const isVideoWithAudio =
+    isSequence &&
+    (opts.sequenceMode ?? DEFAULTS.sequenceMode) === "video_with_audio";
+
+  // Reactively enforce constraints when "Video with audio" is active.
+  // This ensures the UI state is consistent even if the user toggles sequence
+  // mode off, changes options, and re-enables it.
+  useEffect(() => {
+    if (!isVideoWithAudio) return;
+    const needsChange =
+      opts.header !== false ||
+      opts.tcPosition !== "disabled" ||
+      opts.animFormat !== "mp4";
+    if (needsChange) {
+      setOpts({
+        ...opts,
+        header: false,
+        tcPosition: "disabled",
+        animFormat: "mp4",
+      });
+    }
+  }, [isVideoWithAudio, opts, setOpts]);
 
   const checkField = (key: "header" | "animated" | "animSequence") => ({
     checked: opts[key] ?? false,
@@ -65,6 +88,7 @@ export default function OutputModesSection({
           <Switch
             id="cp-chk-header"
             label="Show header metadata"
+            disabled={isVideoWithAudio}
             {...checkField("header")}
           />
         </Field>
@@ -72,6 +96,7 @@ export default function OutputModesSection({
           <FieldLabel htmlFor="cp-tc-pos">Timecode position</FieldLabel>
           <Select
             value={opts.tcPosition}
+            disabled={isVideoWithAudio}
             onValueChange={(v) =>
               setOpts({ ...opts, tcPosition: v as SavedOptions["tcPosition"] })
             }
@@ -176,15 +201,48 @@ export default function OutputModesSection({
             {/* Sequence render mode - only shown in sequence mode */}
             {isSequence && (
               <Field>
-                <FieldLabel htmlFor="cp-seq-mode">Render mode</FieldLabel>
+                <div className="flex items-center gap-2">
+                  <FieldLabel htmlFor="cp-seq-mode">Render mode</FieldLabel>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <button
+                        type="button"
+                        className="size-5 flex items-center justify-center rounded-full text-muted-foreground hover:text-foreground transition-colors"
+                        aria-label="About Render mode options"
+                      >
+                        <Info className="size-3.5" />
+                      </button>
+                    </PopoverTrigger>
+                    <PopoverContent className="max-w-72 text-xs leading-relaxed">
+                      <p className="font-medium mb-1">Render mode options</p>
+                      <ul className="space-y-1">
+                        <li>
+                          <strong>Static:</strong> Captures one frame per
+                          segment and holds it for the duration. Fast, no audio.
+                        </li>
+                        <li>
+                          <strong>Video:</strong> Plays each segment
+                          frame-by-frame with canvas composition. No audio.
+                        </li>
+                        <li>
+                          <strong>Video with audio:</strong> Uses FFmpeg to cut
+                          and merge video segments directly, preserving audio.
+                          Header and timecode overlays are disabled in this
+                          mode.
+                        </li>
+                      </ul>
+                    </PopoverContent>
+                  </Popover>
+                </div>
                 <Select
                   value={opts.sequenceMode ?? DEFAULTS.sequenceMode}
-                  onValueChange={(v) =>
+                  onValueChange={(v) => {
+                    const mode = v as SavedOptions["sequenceMode"];
                     setOpts({
                       ...opts,
-                      sequenceMode: v as SavedOptions["sequenceMode"],
-                    })
-                  }
+                      sequenceMode: mode,
+                    });
+                  }}
                 >
                   <SelectTrigger id="cp-seq-mode" className="w-full">
                     <SelectValue />
@@ -192,6 +250,9 @@ export default function OutputModesSection({
                   <SelectContent>
                     <SelectItem value="static">Static (hold frame)</SelectItem>
                     <SelectItem value="video">Video (play segment)</SelectItem>
+                    <SelectItem value="video_with_audio">
+                      Video with audio
+                    </SelectItem>
                   </SelectContent>
                 </Select>
               </Field>
@@ -201,6 +262,7 @@ export default function OutputModesSection({
               <FieldLabel htmlFor="cp-anim-format">Output format</FieldLabel>
               <Select
                 value={opts.animFormat ?? DEFAULTS.animFormat}
+                disabled={isVideoWithAudio}
                 onValueChange={(v) =>
                   setOpts({
                     ...opts,

@@ -476,32 +476,52 @@ export default function TimestampEditor({
   // Space = play/pause, M = add marker, Arrow = seek
   // Escape is handled by the surrounding Dialog primitive.
   useKeyboardShortcut([
-    { key: " ", callback: togglePlay, deps: [] },
+    { key: " ", callback: togglePlay, deps: [], scope: "timestamp-editor" },
     {
       key: "m",
       callback: addMarkerAtCurrentTime,
       deps: [addMarkerAtCurrentTime],
+      scope: "timestamp-editor",
     },
-    { key: "ArrowLeft", callback: seekBack1s, deps: [seekBack1s] },
-    { key: "ArrowRight", callback: seekForward1s, deps: [seekForward1s] },
-    { key: "ArrowLeft", shift: true, callback: seekBack5s, deps: [seekBack5s] },
+    {
+      key: "ArrowLeft",
+      callback: seekBack1s,
+      deps: [seekBack1s],
+      scope: "timestamp-editor",
+    },
+    {
+      key: "ArrowRight",
+      callback: seekForward1s,
+      deps: [seekForward1s],
+      scope: "timestamp-editor",
+    },
+    {
+      key: "ArrowLeft",
+      shift: true,
+      callback: seekBack5s,
+      deps: [seekBack5s],
+      scope: "timestamp-editor",
+    },
     {
       key: "ArrowRight",
       shift: true,
       callback: seekForward5s,
       deps: [seekForward5s],
+      scope: "timestamp-editor",
     },
     {
       key: "ArrowLeft",
       ctrl: true,
       callback: seekBackFrame,
       deps: [seekBackFrame],
+      scope: "timestamp-editor",
     },
     {
       key: "ArrowRight",
       ctrl: true,
       callback: seekForwardFrame,
       deps: [seekForwardFrame],
+      scope: "timestamp-editor",
     },
   ]);
 
@@ -521,6 +541,7 @@ export default function TimestampEditor({
       <DialogPortal>
         <DialogOverlay />
         <DialogPrimitive.Content
+          data-dialog-scope="timestamp-editor"
           className="bg-background fixed top-1/2 left-1/2 z-50 flex max-h-[92vh] w-[min(96vw,1100px)] -translate-x-1/2 -translate-y-1/2 flex-col gap-4 rounded-lg border p-4 shadow-lg"
           onOpenAutoFocus={(e) => {
             e.preventDefault();

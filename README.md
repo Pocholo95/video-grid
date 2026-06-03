@@ -36,10 +36,12 @@ trigger an upload.
 - [Custom Grid Templates](#custom-grid-templates)
 - [Custom Timestamps](#custom-timestamps)
 - [Animated output](#animated-output)
+- [Sequence mode - Video with audio](#sequence-mode---video-with-audio)
+- [VR Video](#vr-video)
+- [Presets](#presets)
+- [Uploading](#uploading)
 - [Settings](#settings)
-- [Copying Links](#copying-links)
 - [Keyboard Shortcuts](#keyboard-shortcuts)
-- [Built-in Presets](#built-in-presets)
 - [Troubleshooting](#troubleshooting)
 - [FFmpeg WASM Limitations](#ffmpeg-wasm--limitations-and-expectations)
 - [Browser Compatibility](#browser-compatibility)
@@ -87,6 +89,8 @@ trigger an upload.
 - **Animated WebP/MP4 output:** generate an animated thumbnail grid or sequence
   of still frames/video where each cell plays a short clip from its sampled
   timestamp. See [Animated output](#animated-output).
+- **Video with audio sequence:** generate an MP4 sequence that preserves the
+  video's original audio track. See [Sequence mode - Video with audio](#sequence-mode---video-with-audio).
 - **VR Video support:** crop one eye from Side-by-Side or Top-Bottom stereo
   VR video so thumbnails show a single, undoubled image. See
   [VR Video](#vr-video).
@@ -188,7 +192,7 @@ free-form layout: any number of rows, each with any number of cells.
 ### How it works
 
 The template editor opens as a modal. Rows stack vertically on screen; within
-each row, cells share the full output width equally — there is no manual width
+each row, cells share the full output width equally; there is no manual width
 control. The height of every cell in a row is derived automatically from the
 cell width and the video's aspect ratio, so the output is always
 pixel-perfect with no distortion. Fewer cells per row means wider, taller
@@ -286,7 +290,7 @@ of the entire video in motion.
 There are two modes for **Animated output**:
 
 - **Animated grid** (default) shows multiple cells simultaneously, each playing
-  its own clip from a different timestamp. This uses the grid/custome grid.
+  its own clip from a different timestamp. This uses the grid/custom grid.
 - **Sequence mode** (when this switch is enabled) shows one cell at a time,
   playing segments sequentially from start to end of the video — like a fast
   visual summary.
@@ -316,10 +320,18 @@ Available for WEBP output format:
 
 Available for Sequence Mode:
 
-| Setting         | Description                                                                                                            | Default |
-| --------------- | ---------------------------------------------------------------------------------------------------------------------- | ------- |
-| **Segments**    | Number of segments to extract from the video                                                                           | 6       |
-| **Render mode** | **Static (hold frame)** shows a single frame per segment for the duration; **Video (play segment)** plays each segment | Video   |
+| Setting         | Description                                       | Default |
+| --------------- | ------------------------------------------------- | ------- |
+| **Segments**    | Number of segments to extract from the video      | 6       |
+| **Render mode** | Defines the type of animation within the sequence | Video   |
+
+Render modes for Sequence animations:
+
+| Render Mode          | What it does                                             | Audio? |
+| -------------------- | -------------------------------------------------------- | ------ |
+| **Static**           | Holds one frame per segment for the duration             | No     |
+| **Video**            | Plays each segment frame-by-frame via canvas composition | No     |
+| **Video with audio** | Cuts and merges video segments with FFmpeg               | Yes    |
 
 #### Requirements and limitations
 
@@ -331,7 +343,7 @@ Available for Sequence Mode:
 - **Memory usage** scales with the total frame count (segments × duration × FPS).
   Keep segments and duration reasonable to avoid exhausting browser memory.
 - **Large output files:** Animated WebPs are significantly larger than static
-  JPEGs or animated even MP4. A 3×4 grid at 3 s / 10 fps will composite 30 PNG
+  JPEGs or even animated MP4. A 3×4 grid at 3 s / 10 fps will composite 30 PNG
   frames before encoding. Reduce the output width, FPS, duration, or quality
   and increase the WebP method to keep file sizes manageable.
 - **Encoding time:** libwebp encoding through FFmpeg WASM is single-threaded.
@@ -340,6 +352,31 @@ Available for Sequence Mode:
 - **Memory:** All composed PNG frames are held in browser memory before being
   handed to FFmpeg. Very high frame counts (long duration × high FPS) can
   exhaust available RAM.
+
+---
+
+## Sequence mode - Video with audio
+
+When you select **Video with audio** as the render mode in Sequence mode,
+VidGrid-HTML uses FFmpeg to cut short video segments directly from the source
+file and merge them into a single MP4 — **preserving the original audio track**.
+This is useful when you want a quick visual summary of a video that also
+retains its sound, dialogue, or music.
+
+Limitations:
+
+- Certain codecs or encoding settings for source video simply cannot be cut
+  reliably with FFmpeg and will either fail or partially fail. In this case
+  using other **Render mode** options might help, but they do not include audio.
+
+### Important notes
+
+- **Disabled options**: Grid size/Custom grid, Cell spacing, Header metadata,
+  and Timecode position are not available in this mode because FFmpeg cuts the
+  raw video directly; there is no canvas to draw text on.
+- **Output is always MP4.** WebP is not available for this mode.
+- **Custom timestamps work:** if you've set custom markers in the Timestamp
+  Editor, those positions are used as segment start points.
 
 ---
 
@@ -412,6 +449,45 @@ modified, saved under new names, or deleted like any other preset.
 
 ---
 
+## Uploading
+
+Once one or more destinations are added and enabled (see [Settings](#settings))
+and processing is complete:
+
+- Each task card shows a **☁️ Upload** button. Clicking it uploads that grid
+  to all enabled destinations.
+- The **☁️ Upload All** button in the tasks header uploads every completed
+  grid to all enabled destinations in sequence, with a short delay between
+  requests to respect rate limits.
+  Upload progress is shown per-destination on each task card. Once complete,
+  the card expands a link panel for each destination (see below).
+
+### Copying Links
+
+After a successful upload, each task item shows a collapsible link panel
+(one per destination). Expand it with the destination name button to access the
+following link formats:
+
+| Format                     | Description                                                            |
+| -------------------------- | ---------------------------------------------------------------------- |
+| **BBCode — full image**    | `[img]...[/img]` tag                                                   |
+| **BBCode — medium**        | Medium-size image linking to the viewer page (when provided by host)   |
+| **BBCode — thumbnail**     | Thumbnail linking to the viewer page                                   |
+| **BBCode — Post Template** | Forum-style BBCode block with title and thumbnail (see Copy All below) |
+| **Direct URL**             | Full-resolution image link                                             |
+| **Viewer page**            | Host viewer/page URL                                                   |
+| **Markdown**               | `![alt](url)`                                                          |
+| **HTML img**               | `<img src="..." alt="..." />`                                          |
+
+Each row has an individual **Copy** button. You can also **delete the image**
+from the host using the **🗑 Delete** link in the panel header — this opens the
+host's delete URL in a new tab.
+
+This also enables more options in the [Task Actions](#tasks-actions) panel to
+copy the same formats but for all the completed (and uploaded) tasks.
+
+---
+
 ## Settings
 
 A few app-wide settings are available through the **⚙️ Settings** icon in the header:
@@ -446,42 +522,6 @@ manager. From there you can:
   cancel.
   Destinations are stored in `localStorage` alongside presets and persist between
   sessions.
-
-### Uploading
-
-Once one or more destinations are added and enabled (see [Settings](#settings))
-and processing is complete:
-
-- Each task card shows a **☁️ Upload** button. Clicking it uploads that grid
-  to all enabled destinations.
-- The **☁️ Upload All** button in the tasks header uploads every completed
-  grid to all enabled destinations in sequence, with a short delay between
-  requests to respect rate limits.
-  Upload progress is shown per-destination on each task card. Once complete,
-  the card expands a link panel for each destination (see below).
-
----
-
-## Copying Links
-
-After a successful upload, each task item shows a collapsible link panel
-(one per destination). Expand it with the destination name button to access the
-following link formats:
-
-| Format                     | Description                                                            |
-| -------------------------- | ---------------------------------------------------------------------- |
-| **BBCode — full image**    | `[img]...[/img]` tag                                                   |
-| **BBCode — medium**        | Medium-size image linking to the viewer page (when provided by host)   |
-| **BBCode — thumbnail**     | Thumbnail linking to the viewer page                                   |
-| **BBCode — Post Template** | Forum-style BBCode block with title and thumbnail (see Copy All below) |
-| **Direct URL**             | Full-resolution image link                                             |
-| **Viewer page**            | Host viewer/page URL                                                   |
-| **Markdown**               | `![alt](url)`                                                          |
-| **HTML img**               | `<img src="..." alt="..." />`                                          |
-
-Each row has an individual **Copy** button. You can also **delete the image**
-from the host using the **🗑 Delete** link in the panel header — this opens the
-host's delete URL in a new tab.
 
 ---
 

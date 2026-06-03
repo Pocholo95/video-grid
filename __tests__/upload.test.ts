@@ -213,41 +213,83 @@ describe("uploadBlob", () => {
     expect(result.thumbUrl).toBe("https://cdn.example.com/image.png");
   });
 
-  it("rejects with error on HTTP 400", async () => {
+  it("rejects with API error message on HTTP 400", async () => {
     const blob = new Blob(["test"], { type: "image/png" });
     mockXHR.status = 400;
+    mockXHR.responseText = JSON.stringify({
+      status_code: 400,
+      error: { message: "Invalid API v1 key.", code: 100 },
+      status_txt: "Bad Request",
+    });
 
     const promise = uploadBlob(blob, "test.png", mockDestination, () => {});
     await vi.runAllTimersAsync();
     mockXHR._triggerLoad();
 
-    await expect(promise).rejects.toThrow(
-      "Chevereto rejected the request — check your API key",
-    );
+    await expect(promise).rejects.toThrow("Invalid API v1 key.");
   });
 
-  it("rejects with error on HTTP 429", async () => {
+  it("rejects with API error message on HTTP 429", async () => {
     const blob = new Blob(["test"], { type: "image/png" });
     mockXHR.status = 429;
+    mockXHR.responseText = JSON.stringify({
+      status_code: 429,
+      error: { message: "Rate limit exceeded. Try again in 60s.", code: 429 },
+      status_txt: "Too Many Requests",
+    });
 
     const promise = uploadBlob(blob, "test.png", mockDestination, () => {});
     await vi.runAllTimersAsync();
     mockXHR._triggerLoad();
 
     await expect(promise).rejects.toThrow(
-      "Chevereto rate limit hit — wait a moment and try again",
+      "Rate limit exceeded. Try again in 60s.",
     );
   });
 
-  it("rejects with error on unknown HTTP status", async () => {
+  it("rejects with HTTP status on error when response is not valid JSON", async () => {
     const blob = new Blob(["test"], { type: "image/png" });
     mockXHR.status = 500;
+    mockXHR.responseText = "Internal Server Error";
 
     const promise = uploadBlob(blob, "test.png", mockDestination, () => {});
     await vi.runAllTimersAsync();
     mockXHR._triggerLoad();
 
-    await expect(promise).rejects.toThrow("Chevereto HTTP 500");
+    await expect(promise).rejects.toThrow(
+      "Chevereto HTTP 500 — invalid response",
+    );
+  });
+
+  it("rejects with HTTP status on error when JSON has no error message", async () => {
+    const blob = new Blob(["test"], { type: "image/png" });
+    mockXHR.status = 503;
+    mockXHR.responseText = JSON.stringify({
+      status_code: 503,
+      status_txt: "Service Unavailable",
+    });
+
+    const promise = uploadBlob(blob, "test.png", mockDestination, () => {});
+    await vi.runAllTimersAsync();
+    mockXHR._triggerLoad();
+
+    await expect(promise).rejects.toThrow("Chevereto HTTP 503");
+  });
+
+  it("rejects with API error message for file type rejection", async () => {
+    const blob = new Blob(["test"], { type: "image/png" });
+    mockXHR.status = 400;
+    mockXHR.responseText = JSON.stringify({
+      status_code: 400,
+      error: { message: "File type not allowed: mp4", code: 105 },
+      status_txt: "Bad Request",
+    });
+
+    const promise = uploadBlob(blob, "test.png", mockDestination, () => {});
+    await vi.runAllTimersAsync();
+    mockXHR._triggerLoad();
+
+    await expect(promise).rejects.toThrow("File type not allowed: mp4");
   });
 
   it("rejects on network error", async () => {
@@ -318,7 +360,7 @@ describe("uploadBlob", () => {
     mockXHR._triggerLoad();
 
     await expect(promise).rejects.toThrow(
-      "Invalid JSON response from Chevereto host",
+      "Chevereto HTTP 200 — invalid response",
     );
   });
 
