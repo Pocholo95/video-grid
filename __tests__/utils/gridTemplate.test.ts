@@ -83,7 +83,7 @@ describe("gridTemplate", () => {
       duration: 100,
       width: 1920,
       height: 1080,
-      bitrate: 5000,
+      videoBitrate: 5000,
     };
 
     it("returns rects for all cells", () => {

@@ -14,7 +14,13 @@ import type {
   VideoMetadata,
   VrMode,
 } from "./types";
-import { errlog, formatTime, hexToRgba, humanSize, warn } from "./utils";
+import {
+  buildMetadataLines,
+  errlog,
+  formatTime,
+  hexToRgba,
+  warn,
+} from "./utils";
 
 export type CellSlot = { x: number; y: number; cellW: number; cellH: number };
 
@@ -194,16 +200,9 @@ export const createHeaderCanvas = (
   headerFontSize: number,
 ): HTMLCanvasElement => {
   const vrActive = vrMode !== "disabled";
-  const vrHeaderNote = vrActive ? `VR Video: ${vrModeLabel(vrMode)}` : null;
 
-  const infoLines = [
-    `Filename: ${file.name}`,
-    `Size: ${humanSize(file.size)}`,
-    `Resolution: ${meta.width > 0 ? `${meta.width}×${meta.height}` : "Unknown"}`,
-    `Duration: ${formatTime(meta.duration)}`,
-    `Bitrate: ${meta.bitrate ? `${Math.round(meta.bitrate / 1000)} kbps` : "Unknown"} @ ${meta.fps ?? "Unknown "}fps - Codec: ${meta.codec ?? "Unknown"}`,
-  ];
-  if (vrHeaderNote) infoLines.push(vrHeaderNote);
+  const infoLines = buildMetadataLines(meta, file.name, file.size);
+  if (vrActive) infoLines.push(`VR Video: ${vrModeLabel(vrMode)}`);
 
   const safeHeaderFontSize = Number.isFinite(headerFontSize)
     ? headerFontSize

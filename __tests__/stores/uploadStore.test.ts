@@ -433,9 +433,9 @@ describe("uploadStore uploadAll (no fake timers)", () => {
 
     const items = useTaskStore.getState().items;
     // A should be uploaded (eligible)
-    expect(items.find((i) => i.id === "a")?.uploads?.["dest-jpg3"]?.status).toBe(
-      "done",
-    );
+    expect(
+      items.find((i) => i.id === "a")?.uploads?.["dest-jpg3"]?.status,
+    ).toBe("done");
     // B should be skipped (ineligible - .png not in allowed extensions)
     expect(items.find((i) => i.id === "b")?.uploads?.["dest-jpg3"]).toBe(
       undefined,

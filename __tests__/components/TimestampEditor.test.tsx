@@ -136,7 +136,7 @@ function createMockTaskItem(overrides?: Partial<TaskItem>): TaskItem {
       width: 1920,
       height: 1080,
       fps: 30,
-      bitrate: 5000,
+      videoBitrate: 5000,
     },
     timestampMode: "auto",
     outputBlob: new Blob([""]),
@@ -337,7 +337,7 @@ describe("TimestampEditor", () => {
           width: 1920,
           height: 1080,
           fps: 30,
-          bitrate: 5000,
+          videoBitrate: 5000,
         },
       });
 

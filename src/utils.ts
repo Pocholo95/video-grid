@@ -26,18 +26,33 @@ export const humanSize = (bytes: number): string => {
 };
 
 /**
+ * Breaks a duration in seconds into hours, minutes, and raw seconds.
+ * Returns `null` for non-finite or negative values.
+ *
+ * @param seconds - Duration in seconds.
+ */
+const splitTime = (
+  seconds: number,
+): { h: number; m: number; s: number } | null => {
+  if (!Number.isFinite(seconds) || seconds < 0) return null;
+  return {
+    h: Math.floor(seconds / 3600),
+    m: Math.floor((seconds % 3600) / 60),
+    s: seconds % 60,
+  };
+};
+
+/**
  * Formats a duration in seconds as `HH:MM:SS`.
  * Returns `"00:00:00"` for non-finite or negative values.
  *
  * @param seconds - Duration in seconds.
  */
 export const formatTime = (seconds: number): string => {
-  if (!Number.isFinite(seconds) || seconds < 0) return "00:00:00";
-  const h = Math.floor(seconds / 3600);
-  const m = Math.floor((seconds % 3600) / 60);
-  const s = Math.floor(seconds % 60);
+  const t = splitTime(seconds);
+  if (!t) return "00:00:00";
   const pad = (n: number) => String(n).padStart(2, "0");
-  return `${pad(h)}:${pad(m)}:${pad(s)}`;
+  return `${pad(t.h)}:${pad(t.m)}:${pad(Math.floor(t.s))}`;
 };
 
 /**
@@ -47,12 +62,10 @@ export const formatTime = (seconds: number): string => {
  * @param seconds - Duration in seconds.
  */
 export const formatTimeExact = (seconds: number): string => {
-  if (!Number.isFinite(seconds) || seconds < 0) return "00:00:00.000";
-  const h = Math.floor(seconds / 3600);
-  const m = Math.floor((seconds % 3600) / 60);
-  const s = seconds % 60;
+  const t = splitTime(seconds);
+  if (!t) return "00:00:00.000";
   const pad = (n: number) => String(n).padStart(2, "0");
-  return `${pad(h)}:${pad(m)}:${s.toFixed(3).padStart(6, "0")}`;
+  return `${pad(t.h)}:${pad(t.m)}:${t.s.toFixed(3).padStart(6, "0")}`;
 };
 
 /**
@@ -181,4 +194,67 @@ export const buildBbcodeTitle = (item: TaskItem): string => {
     .replace(/\.[^.]+$/, "");
   const res = item.metadata ? resolutionLabel(item.metadata) : "";
   return `[b]${name}${res ? ` ${res}` : ""}[/b]`;
+};
+
+/**
+ * Formats a bitrate value into a human-readable string.
+ * Uses Mbps for values >= 1 Mbps, otherwise kbps.
+ *
+ * @param bps - Bitrate in bits per second (0 or undefined returns null).
+ */
+export const formatBitrate = (bps?: number): string | null => {
+  if (!bps || bps <= 0) return null;
+  if (bps >= 1_000_000) {
+    return `${(bps / 1_000_000).toFixed(2)} Mbps`;
+  }
+  return `${Math.round(bps / 1_000)} kbps`;
+};
+
+/**
+ * Builds formatted metadata display lines for the canvas header and
+ * SourceInfoSection. Both consumers use this same function to ensure
+ * identical formatting.
+ *
+ * @param meta - Video metadata.
+ * @param filename - Source filename (optional, omitted when undefined).
+ * @param fileSize - Source file size in bytes (optional, omitted when 0/undefined).
+ */
+export const buildMetadataLines = (
+  meta: VideoMetadata,
+  filename?: string,
+  fileSize?: number,
+): string[] => {
+  const lines: string[] = [];
+
+  if (filename) lines.push(`Filename: ${filename}`);
+  if (fileSize && fileSize > 0) lines.push(`Size: ${humanSize(fileSize)}`);
+
+  lines.push(
+    `Resolution: ${meta.width > 0 ? `${meta.width}×${meta.height}` : "Unknown"}`,
+  );
+  lines.push(`Duration: ${formatTime(meta.duration)}`);
+
+  // Video bitrate line
+  const videoBps = formatBitrate(meta.videoBitrate);
+  const videoTrackSuffix =
+    meta.videoTracks && meta.videoTracks > 1
+      ? ` (${meta.videoTracks} tracks)`
+      : "";
+  lines.push(
+    `Video Bitrate: ${videoBps ?? "Unknown"} @ ${meta.fps ?? "Unknown"}fps - Codec: ${meta.codec ?? "Unknown"}${videoTrackSuffix}`,
+  );
+
+  // Audio bitrate line
+  if (meta.audioBitrate) {
+    const audioBps = formatBitrate(meta.audioBitrate);
+    const audioTrackSuffix =
+      meta.audioTracks && meta.audioTracks > 1
+        ? ` (${meta.audioTracks} tracks)`
+        : "";
+    lines.push(
+      `Audio Bitrate: ${audioBps ?? "Unknown"} - Codec: ${meta.audioCodec ?? "Unknown"}${audioTrackSuffix}`,
+    );
+  }
+
+  return lines;
 };

@@ -19,9 +19,13 @@ export const defaultMockMeta: VideoMetadata = {
   duration: 120,
   width: 1920,
   height: 1080,
-  bitrate: 5000,
+  videoBitrate: 5000,
   fps: 30,
   codec: "h264",
+  videoTracks: 1,
+  audioBitrate: 128000,
+  audioCodec: "aac",
+  audioTracks: 1,
 };
 
 /**

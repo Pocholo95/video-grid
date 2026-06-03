@@ -52,7 +52,7 @@ describe("MediaInfoService", () => {
         duration: 0,
         width: 0,
         height: 0,
-        bitrate: 0,
+        videoBitrate: 0,
       });
     });
 
@@ -75,7 +75,7 @@ describe("MediaInfoService", () => {
       expect(result).toHaveProperty("duration");
       expect(result).toHaveProperty("width");
       expect(result).toHaveProperty("height");
-      expect(result).toHaveProperty("bitrate");
+      expect(result).toHaveProperty("videoBitrate");
     });
   });
 

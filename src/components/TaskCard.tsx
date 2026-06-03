@@ -271,6 +271,7 @@ export default function TaskCard({
           <SourceInfoSection
             metadata={item.metadata}
             filename={item.file.name}
+            fileSize={item.file.size}
           />
         )}
 

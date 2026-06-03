@@ -52,12 +52,20 @@ export type VideoMetadata = {
   width: number;
   /** Native height of the video in pixels. */
   height: number;
-  /** Bitrate in bits per second. */
-  bitrate: number;
+  /** Video bitrate in bits per second. */
+  videoBitrate: number;
   /** Frames per second, when detectable. */
   fps?: number;
   /** Video codec identifier, when detectable. */
   codec?: string;
+  /** Number of video tracks. */
+  videoTracks?: number;
+  /** Audio bitrate in bits per second (first/default track). */
+  audioBitrate?: number;
+  /** Audio codec identifier (first/default track), when detectable. */
+  audioCodec?: string;
+  /** Number of audio tracks. */
+  audioTracks?: number;
 };
 
 // - VR video
