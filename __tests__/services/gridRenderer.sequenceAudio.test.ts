@@ -320,7 +320,7 @@ describe("GridRenderer - video_with_audio sequence mode", () => {
       }
     });
 
-    it("uses -avoid_negative_ts make_zero for concat compatibility", async () => {
+    it("uses -vsync cfr and -shortest for Firefox concat compatibility", async () => {
       const file = new File([""], "test.mp4", { type: "video/mp4" });
       const meta = createTestMeta({ duration: 120 });
       const opts = createAudioSequenceOpts({ segments: 2 });
@@ -339,9 +339,13 @@ describe("GridRenderer - video_with_audio sequence mode", () => {
         onWarning,
       );
 
+      // First 2 calls are segment cuts - should have -vsync cfr and -shortest
       for (let i = 0; i < 2; i++) {
-        expect(execCalls[i]).toContain("-avoid_negative_ts");
-        expect(execCalls[i]).toContain("make_zero");
+        expect(execCalls[i]).toContain("-vsync");
+        expect(execCalls[i]).toContain("cfr");
+        expect(execCalls[i]).toContain("-shortest");
+        // Should NOT contain -avoid_negative_ts (removed for Firefox compatibility)
+        expect(execCalls[i]).not.toContain("-avoid_negative_ts");
       }
     });
   });
