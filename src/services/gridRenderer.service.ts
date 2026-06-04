@@ -903,6 +903,8 @@ export class GridRenderer implements IGridRenderer {
             vfChain,
             "-r",
             String(opts.animFps),
+            "-vsync",
+            "cfr",
             "-c:v",
             "libx264",
             "-preset",
@@ -913,12 +915,13 @@ export class GridRenderer implements IGridRenderer {
             "20",
             "-c:a",
             "aac",
+            "-ac",
+            "2",
             "-b:a",
             "128k",
             "-pix_fmt",
             "yuv420p",
-            "-avoid_negative_ts",
-            "make_zero",
+            "-shortest",
             "-movflags",
             "+faststart",
             "-f",
@@ -1011,6 +1014,8 @@ export class GridRenderer implements IGridRenderer {
 
         /* Segments are already encoded with libx264+yuv420p+aac. */
         await this.ffmpeg.exec([
+          "-fflags",
+          "+genpts",
           "-f",
           "concat",
           "-safe",
