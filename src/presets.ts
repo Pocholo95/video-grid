@@ -151,7 +151,22 @@ export const BUILT_IN_PRESETS: BuiltInPreset[] = [
     },
   },
   {
-    name: "Sequence WebP",
+    name: "Sequence Static Frames WebP",
+    opts: {
+      width: 1280,
+      animated: true,
+      animSequence: true,
+      sequenceMode: "static",
+      animSegments: 10,
+      animFormat: "webp",
+      animDuration: 2,
+      animFps: 1,
+      webpMethod: 6,
+      webpQuality: 75,
+    },
+  },
+  {
+    name: "Sequence Video WebP",
     opts: {
       width: 1024,
       animated: true,
@@ -166,7 +181,7 @@ export const BUILT_IN_PRESETS: BuiltInPreset[] = [
     },
   },
   {
-    name: "Sequence MP4",
+    name: "Sequence Video MP4",
     opts: {
       width: 1024,
       animated: true,
@@ -179,7 +194,7 @@ export const BUILT_IN_PRESETS: BuiltInPreset[] = [
     },
   },
   {
-    name: "Sequence MP4 with audio",
+    name: "Sequence Video with audio MP4",
     opts: {
       width: 1024,
       animated: true,
