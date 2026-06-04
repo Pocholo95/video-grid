@@ -3,8 +3,14 @@ import { Button } from "@/components/ui/button";
 import { CopyField } from "@/components/CopyField";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { Progress } from "@/components/ui/progress";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import type { TaskItem } from "@/types";
 import type { UploadDestination } from "@/types";
+import { isUploadEligible } from "@/uploadUtils";
 import { buildBbcodeTitle, humanSize } from "@/utils";
 
 interface Props {
@@ -32,6 +38,14 @@ export default function InfoPanel({
 }: Props) {
   const isDone = item.status === "done";
   const enabledDests = destinations.filter((d) => d.enabled);
+
+  // Filter enabled destinations to only those eligible for this task's output
+  const eligibleDests = enabledDests.filter(
+    (d) =>
+      isUploadEligible(item.outputName, item.outputSize, d) &&
+      item.uploads?.[d.id]?.status !== "done",
+  );
+
   const allDone =
     enabledDests.length > 0 &&
     enabledDests.every((d) => item.uploads?.[d.id]?.status === "done");
@@ -71,25 +85,48 @@ export default function InfoPanel({
           <Button asChild variant="outline" size="sm">
             <a href={blobUrl || "#"} download={item.outputName}>
               <Download className="size-4" />
-              Download {item.outputName.endsWith(".webp") ? "WebP" : "JPG"}
+              Download{" "}
+              {item.outputName.split(".").pop()?.toUpperCase() ?? "File"}
             </a>
           </Button>
         )}
-        {isDone && enabledDests.length > 0 && !allDone && (
+        {isDone && eligibleDests.length > 0 && !allDone && (
           <Button
             variant="default"
             size="sm"
             onClick={onUpload}
             disabled={!canUpload}
-            title={`Upload to ${enabledDests.map((d) => d.name).join(", ")}`}
+            title={`Upload to ${eligibleDests.map((d) => d.name).join(", ")}`}
           >
             <Cloud className="size-4" />
             Upload
-            {enabledDests.length === 1
-              ? ` to ${enabledDests[0].name}`
-              : ` (${enabledDests.length} destinations)`}
+            {eligibleDests.length === 1
+              ? ` to ${eligibleDests[0].name}`
+              : ` (${eligibleDests.length} destinations)`}
           </Button>
         )}
+        {isDone &&
+          eligibleDests.length === 0 &&
+          enabledDests.length > 0 &&
+          !allDone && (
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="default" size="sm" className="opacity-60">
+                  <Cloud className="size-4" />
+                  Upload
+                  {enabledDests.length === 1
+                    ? ` to ${enabledDests[0].name}`
+                    : ` (${enabledDests.length} destinations)`}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-64" side="top" align="start">
+                <p className="text-sm font-medium">Upload unavailable</p>
+                <p className="text-muted-foreground text-xs mt-1">
+                  No enabled destinations accept this file type or size.
+                </p>
+              </PopoverContent>
+            </Popover>
+          )}
         {canRequeue && (
           <Button
             variant="outline"

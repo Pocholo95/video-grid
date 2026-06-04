@@ -19,9 +19,13 @@ export const defaultMockMeta: VideoMetadata = {
   duration: 120,
   width: 1920,
   height: 1080,
-  bitrate: 5000,
+  videoBitrate: 5000,
   fps: 30,
   codec: "h264",
+  videoTracks: 1,
+  audioBitrate: 128000,
+  audioCodec: "aac",
+  audioTracks: 1,
 };
 
 /**
@@ -94,10 +98,9 @@ export function createMockFFmpegService(
     reinit: async () => {
       ready = true;
     },
-    onLog: (cb) => {
-      if (cb) {
-        // no-op, callbacks tracked via taskLogs
-      }
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    onLog: (_cb) => {
+      // no-op, callbacks tracked via taskLogs
     },
     onProgress: (cb) => {
       if (cb) onProgressCbs.push(cb);
@@ -118,6 +121,8 @@ export function createMockFFmpegService(
     getBusyState: () => false,
     setAbortController: () => new AbortController(),
     abortCurrent: () => {},
+    setLoggingEnabled: () => {},
+    appendLog: () => {},
     ...overrides,
   };
 }
@@ -151,6 +156,11 @@ export function createMockGridRenderer(
   return {
     renderStaticGrid: async () => defaultOutput,
     renderAnimatedGrid: async () => ({
+      ...defaultOutput,
+      outputName: "test.webp",
+      outputBlob: new Blob(["mock"], { type: "image/webp" }),
+    }),
+    renderSequence: async () => ({
       ...defaultOutput,
       outputName: "test.webp",
       outputBlob: new Blob(["mock"], { type: "image/webp" }),

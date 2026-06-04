@@ -59,6 +59,8 @@ describe("useAppSettings", () => {
         apiKey: "key",
         url: "https://example.com",
         enabled: true,
+        allowedExtensions: "",
+        maxSizeMb: 0,
       },
     ];
 

@@ -52,12 +52,20 @@ export type VideoMetadata = {
   width: number;
   /** Native height of the video in pixels. */
   height: number;
-  /** Bitrate in bits per second. */
-  bitrate: number;
+  /** Video bitrate in bits per second. */
+  videoBitrate: number;
   /** Frames per second, when detectable. */
   fps?: number;
   /** Video codec identifier, when detectable. */
   codec?: string;
+  /** Number of video tracks. */
+  videoTracks?: number;
+  /** Audio bitrate in bits per second (first/default track). */
+  audioBitrate?: number;
+  /** Audio codec identifier (first/default track), when detectable. */
+  audioCodec?: string;
+  /** Number of audio tracks. */
+  audioTracks?: number;
 };
 
 // - VR video
@@ -169,6 +177,15 @@ export type UploadDestination = {
   url: string;
   /** Whether uploads to this destination are active. */
   enabled: boolean;
+  /**
+   * Comma-separated list of allowed file extensions (e.g. ".jpg,.webp").
+   * Output files must match one of these extensions to be uploadable.
+   */
+  allowedExtensions: string;
+  /**
+   * Maximum allowed file size in MB for uploads. 0 means no limit.
+   */
+  maxSizeMb: number;
 };
 
 // - Per-destination upload state on a task item
@@ -230,6 +247,12 @@ export type TaskItem = {
    * Populated when FFmpeg is used for frame extraction or encoding.
    */
   ffmpegLogs?: string[];
+  /**
+   * Total number of FFmpeg log lines produced before buffer trimming.
+   * Shown alongside the visible line count so the user knows how much
+   * output was generated even if the buffer was capped.
+   */
+  ffmpegTotalLines?: number;
 };
 
 // - Settings / Options
@@ -243,6 +266,9 @@ export type SectionStates = {
 
 /** Available theme options for the app. */
 export type Theme = "dark" | "light" | "dimmed" | "classic";
+
+/** Output format for animated modes. */
+export type AnimFormat = "webp" | "mp4";
 
 /** Grid rendering options persisted with presets. */
 export type SavedOptions = {
@@ -262,11 +288,31 @@ export type SavedOptions = {
   textColor: string;
   /** Whether to render a header row with the filename. */
   header: boolean;
-  /** Whether to produce animated WebP output instead of static JPEG. */
+  /** Whether to produce animated output instead of static JPEG. */
   animated: boolean;
+  /**
+   * When true (and animated is true), uses 1-cell sequence mode where each
+   * segment plays sequentially instead of a grid layout. Grid controls are
+   * disabled but still visible.
+   */
+  animSequence: boolean;
+  /**
+   * Number of sequential segments in sequence mode. Each segment is rendered
+   * for the specified animDuration at the specified animFps.
+   */
+  animSegments: number;
+  /**
+   * Controls how segments are rendered in sequence mode.
+   * "static" = one frame per segment repeated for the duration (default).
+   * "video" = advances playback frame-by-frame during each segment.
+   * "video_with_audio" = uses FFmpeg to cut/merge segments with audio preserved.
+   */
+  sequenceMode: "static" | "video" | "video_with_audio";
+  /** Output format for animated modes: WebP (animated) or MP4 (H.264). */
+  animFormat: AnimFormat;
   /** Duration in seconds of each cell's animation clip (animated mode only). */
   animDuration: number;
-  /** Frame rate of the animated WebP output. */
+  /** Frame rate of the animated output. */
   animFps: number;
   /** WebP compression method (0-6, higher = better quality but slower). */
   webpMethod: number;

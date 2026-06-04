@@ -1,5 +1,4 @@
 import { useCallback } from "react";
-import { useTaskStore } from "@/store/taskStore";
 import { useUploadStore } from "@/store/uploadStore";
 import { useSettingsStore } from "@/store/settingsStore";
 import type { UploadDestination } from "@/types";
@@ -20,21 +19,16 @@ export function useUpload() {
   // --- Actions from store ---
   const resetUploadState = useUploadStore((s) => s.resetUploadState);
   const uploadItemToDest = useUploadStore((s) => s.uploadItemToDest);
+  const storeUploadItem = useUploadStore((s) => s.uploadItem);
 
   const destinations = useSettingsStore((s) => s.settings.destinations);
 
+  // Delegate to store method which enforces eligibility (extension + size)
   const uploadItem = useCallback(
     async (itemId: string) => {
-      const enabled = destinations.filter((d) => d.enabled);
-      for (const dest of enabled) {
-        const items = useTaskStore.getState().items;
-        const item = items.find((i) => i.id === itemId);
-        const state = item?.uploads?.[dest.id];
-        if (state?.status === "done" || state?.status === "uploading") continue;
-        await uploadItemToDest(itemId, dest);
-      }
+      await storeUploadItem(itemId, destinations);
     },
-    [destinations, uploadItemToDest],
+    [destinations, storeUploadItem],
   );
 
   const uploadAll = useCallback(

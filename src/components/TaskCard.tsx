@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AlertTriangle, ChevronDown, RotateCcw, Trash2 } from "lucide-react";
-import type { TaskItem } from "@/types";
+import type { SavedOptions, TaskItem } from "@/types";
 import { useUiStore, selectTotalCells } from "@/store/uiStore";
 import { useSettingsStore } from "@/store/settingsStore";
+import { isUploadEligible } from "@/uploadUtils";
 import { formatElapsed } from "@/utils";
 import { useTick } from "@/lib/useTick";
 import { cn } from "@/lib/utils";
@@ -69,6 +70,16 @@ export default function TaskCard({
   const totalCells = useUiStore(selectTotalCells);
   const showPreview = useSettingsStore((s) => s.settings.showPreview);
   const destinations = useSettingsStore((s) => s.settings.destinations);
+  const opts = useUiStore((s) => s.opts);
+
+  /**
+   * Determine if this task will use FFmpeg processing based on current options.
+   * Animated mode always uses FFmpeg for encoding (WebP or MP4).
+   * Static grid mode doesn't always need FFmpeg — it only uses it as a fallback
+   * when native browser video decoding fails, which we can't predict in advance.
+   * The FFmpeg logs section will still appear for static mode once logs populate.
+   */
+  const needsFfmpeg = (o: SavedOptions): boolean => o.animated;
 
   const urlRef = useRef<string | null>(null);
   const mountedRef = useRef(true);
@@ -135,16 +146,22 @@ export default function TaskCard({
   const isDone = item.status === "done";
   const enabledDests = destinations.filter((d) => d.enabled);
 
-  const anyUploading = enabledDests.some(
+  // Filter to only destinations eligible for this task's output
+  const eligibleDests = enabledDests.filter((d) =>
+    isUploadEligible(item.outputName, item.outputSize, d),
+  );
+
+  const anyUploading = eligibleDests.some(
     (d) => item.uploads?.[d.id]?.status === "uploading",
   );
   const allDone =
-    enabledDests.length > 0 &&
-    enabledDests.every((d) => item.uploads?.[d.id]?.status === "done");
+    eligibleDests.length > 0 &&
+    eligibleDests.every((d) => item.uploads?.[d.id]?.status === "done");
+
   const canUpload =
     isDone &&
     !!item.outputBlob &&
-    enabledDests.length > 0 &&
+    eligibleDests.length > 0 &&
     !anyUploading &&
     !allDone;
 
@@ -254,6 +271,7 @@ export default function TaskCard({
           <SourceInfoSection
             metadata={item.metadata}
             filename={item.file.name}
+            fileSize={item.file.size}
           />
         )}
 
@@ -285,15 +303,17 @@ export default function TaskCard({
           </Alert>
         )}
 
-        {/* FFmpeg Logs */}
-        {item.ffmpegLogs && item.ffmpegLogs.length > 0 && (
+        {/* FFmpeg Logs — shown when processing + FFmpeg needed, or when logs exist */}
+        {(item.status === "processing" && needsFfmpeg(opts)) ||
+        (item.ffmpegLogs && item.ffmpegLogs.length > 0) ? (
           <FfmpegLogsSection
-            logs={item.ffmpegLogs}
+            logs={item.ffmpegLogs ?? []}
+            totalLines={item.ffmpegTotalLines}
             isProcessing={item.status === "processing"}
             isStale={isStale}
             onForceCancel={onForceCancel}
           />
-        )}
+        ) : null}
 
         {/* Timestamp row */}
         <TimestampRow

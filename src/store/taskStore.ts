@@ -75,6 +75,8 @@ export const useTaskStore = create<TaskState>()(
           item.processingStartedAt = undefined;
           item.processingDurationMs = undefined;
           item.uploads = undefined;
+          item.ffmpegLogs = [];
+          item.ffmpegTotalLines = 0;
         }
       }),
 
@@ -94,6 +96,8 @@ export const useTaskStore = create<TaskState>()(
             item.processingStartedAt = undefined;
             item.processingDurationMs = undefined;
             item.uploads = undefined;
+            item.ffmpegLogs = [];
+            item.ffmpegTotalLines = 0;
           }
         }
       }),

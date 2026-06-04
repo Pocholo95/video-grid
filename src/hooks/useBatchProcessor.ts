@@ -6,6 +6,7 @@ import type { TaskItem, SavedOptions } from "../types";
 import {
   buildStaticGridOptions,
   buildAnimatedGridOptions,
+  buildSequenceOptions,
 } from "../gridOptions";
 import {
   errlog,
@@ -148,9 +149,53 @@ export function useBatchProcessor(
 
             const gridOpts = buildStaticGridOptions(opts, item, meta);
             const animGridOpts = buildAnimatedGridOptions(opts, item, meta);
+            const seqOpts = buildSequenceOptions(opts, item, meta);
 
             let res;
-            if (isAnimated) {
+            if (opts.animSequence) {
+              /* ---- Sequence Mode ---- */
+              const onSegmentDone = (
+                segIdx: number,
+                totalSegs: number,
+                tSec: number,
+              ) => {
+                useProcessingStore.getState().setStatus((prev) => ({
+                  ...prev,
+                  text: `"${item.file.name}" — segment ${segIdx}/${totalSegs} @ ${formatTime(tSec)}`,
+                  currentPct: (segIdx / totalSegs) * ANIMATED_COMPOSE_PCT,
+                  batchDone: succeeded + errored,
+                  batchTotal: items.length,
+                }));
+                useProcessingStore.getState().touchProgress();
+              };
+
+              const onEncodeProgress = (data: {
+                ratio: number;
+                phase: string;
+              }) => {
+                const { ratio, phase } = data;
+                const pct = ANIMATED_COMPOSE_PCT + ratio * ANIMATED_ENCODE_PCT;
+                const pctLabel = Math.round(ratio * 100);
+                useProcessingStore.getState().setStatus((prev) => ({
+                  ...prev,
+                  text: `"${item.file.name}" — ${phase} (${pctLabel}%)`,
+                  currentPct: pct,
+                  batchDone: succeeded + errored,
+                  batchTotal: items.length,
+                }));
+                useProcessingStore.getState().touchProgress();
+              };
+
+              res = await gridRenderer.renderSequence(
+                item.file,
+                meta,
+                seqOpts,
+                () => cancelRef.current || forceCancelCurrentRef.current,
+                onSegmentDone,
+                onEncodeProgress,
+                onWarning,
+              );
+            } else if (isAnimated) {
               const onAnimCellDone = (
                 composedCell: number,
                 totalCells: number,
@@ -166,15 +211,16 @@ export function useBatchProcessor(
                 useProcessingStore.getState().touchProgress();
               };
 
-              const onEncodeProgress = (ratio: number) => {
+              const onEncodeProgress = (data: {
+                ratio: number;
+                phase: string;
+              }) => {
+                const { ratio, phase } = data;
                 const pct = ANIMATED_COMPOSE_PCT + ratio * ANIMATED_ENCODE_PCT;
-                const phaseLabel =
-                  ratio < 0.5
-                    ? `preparing frames (${Math.round((ratio / 0.5) * 100)}%)`
-                    : `encoding WebP (${Math.round(((ratio - 0.5) / 0.5) * 100)}%)`;
+                const pctLabel = Math.round(ratio * 100);
                 useProcessingStore.getState().setStatus((prev) => ({
                   ...prev,
-                  text: `"${item.file.name}" — ${phaseLabel}`,
+                  text: `"${item.file.name}" — ${phase} (${pctLabel}%)`,
                   currentPct: pct,
                   batchDone: succeeded + errored,
                   batchTotal: items.length,

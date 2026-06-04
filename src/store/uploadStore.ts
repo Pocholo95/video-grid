@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { immer } from "zustand/middleware/immer";
 import { uploadBlob } from "@/upload";
 import { UPLOAD_DELAY_MS } from "@/constants";
+import { isUploadEligible } from "@/uploadUtils";
 import type {
   DestinationUploadState,
   TaskItem,
@@ -132,6 +133,12 @@ export const useUploadStore = create<UploadState>()(
         const item = items.find((i) => i.id === itemId);
         const state = item?.uploads?.[dest.id];
         if (state?.status === "done" || state?.status === "uploading") continue;
+        // Skip destinations that don't accept this file's type or size
+        if (
+          item?.outputName &&
+          !isUploadEligible(item.outputName, item.outputSize, dest)
+        )
+          continue;
         await uploadToDest(itemId, dest);
       }
     },
@@ -163,6 +170,16 @@ export const useUploadStore = create<UploadState>()(
             const currentItem = currentItems.find((i) => i.id === item.id);
             const uploadState = currentItem?.uploads?.[dest.id];
             if (uploadState?.status === "done") continue;
+            // Skip destinations that don't accept this file's type or size
+            if (
+              currentItem?.outputName &&
+              !isUploadEligible(
+                currentItem.outputName,
+                currentItem.outputSize,
+                dest,
+              )
+            )
+              continue;
 
             if (attempted > 0) await sleep(UPLOAD_DELAY_MS);
 

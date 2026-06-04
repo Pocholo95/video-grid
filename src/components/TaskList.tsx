@@ -6,6 +6,7 @@ import { useProcessingStore } from "@/store/processingStore";
 import { useSettingsStore } from "@/store/settingsStore";
 import { useUploadStore } from "@/store/uploadStore";
 import { useUiStore } from "@/store/uiStore";
+import { isUploadEligible } from "@/uploadUtils";
 import TaskCard from "./TaskCard";
 import { ErrorBoundary } from "./ErrorBoundary";
 import TaskActionsPanel from "./TaskActionsPanel";
@@ -97,6 +98,7 @@ export default function TaskList({
     [destinations],
   );
 
+  // All done items with output ready (used for Download All regardless of upload eligibility)
   const doneItems = useMemo(
     () =>
       items.filter(
@@ -108,15 +110,41 @@ export default function TaskList({
     [items],
   );
 
-  const totalPossibleUploads = doneItems.length * enabledDests.length;
+  // Only include items that have at least one eligible destination (used for Upload All)
+  const uploadEligibleItems = useMemo(
+    () =>
+      doneItems.filter((i) =>
+        enabledDests.some((d) =>
+          isUploadEligible(i.outputName, i.outputSize, d),
+        ),
+      ),
+    [doneItems, enabledDests],
+  );
 
+  // Compute total possible uploads per-destination eligibility
+  const totalPossibleUploads = useMemo(
+    () =>
+      uploadEligibleItems.reduce((sum, item) => {
+        const eligible = enabledDests.filter((d) =>
+          isUploadEligible(item.outputName, item.outputSize, d),
+        );
+        return sum + eligible.length;
+      }, 0),
+    [uploadEligibleItems, enabledDests],
+  );
+
+  // Count completed uploads (only for eligible destination pairs)
   const completedUploads = useMemo(
     () =>
-      items.filter((item) =>
-        enabledDests.every(
+      items.reduce((sum, item) => {
+        const eligibleDests = enabledDests.filter((d) =>
+          isUploadEligible(item.outputName, item.outputSize, d),
+        );
+        const allEligibleDone = eligibleDests.every(
           (dest) => item.uploads?.[dest.id]?.status === "done",
-        ),
-      ).length * enabledDests.length,
+        );
+        return sum + (allEligibleDone ? eligibleDests.length : 0);
+      }, 0),
     [items, enabledDests],
   );
 

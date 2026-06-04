@@ -29,6 +29,20 @@ let currentFFmpegInputKey: string | null = null;
 let isFFmpegBusy = false;
 
 /**
+ * When true, log handler is attached to the FFmpeg instance.
+ * We remove the handler entirely during heavy operations to avoid
+ * expensive JS-WASM boundary crossings (e.g. parsing large ctts tables
+ * with 46k+ entries that would otherwise fire the callback individually).
+ */
+let loggingEnabled = true;
+
+/**
+ * Stored reference to the log handler so we can attach/detach it.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let ffmpegLogHandler: ((data: any) => void) | null = null;
+
+/**
  * Global flag indicating FFmpeg is in an unrecoverable broken state.
  * When true, init/getInstance will refuse to return an instance until
  * reset() is called and a fresh load succeeds.
@@ -45,22 +59,64 @@ let taskAbortController: AbortController | null = null;
  * Per-task FFmpeg log buffer. Keyed by TaskItem id.
  */
 const taskLogs: Record<string, string[]> = {};
+
+/**
+ * Per-task total line count accumulator (tracks lines before buffer trimming).
+ */
+const taskTotalLines: Record<string, number> = {};
+
 let currentLogTaskId: string | null = null;
 
 /**
  * React-style subscriber callback invoked whenever a new log line is appended
- * to the current task's buffer.
+ * to the current task's buffer. Passes (taskId, logs, totalLines).
  */
-let onLogsChanged: ((id: string, logs: string[]) => void) | null = null;
+let onLogsChanged:
+  | ((id: string, logs: string[], totalLines: number) => void)
+  | null = null;
 
 /** - Internal helpers */
 
-/** Append a log line to the current task's buffer. */
+/** Maximum number of log lines kept per task before the buffer is truncated. */
+const MAX_LOG_LINES = 500;
+
+/**
+ * Throttle: only invoke the React subscriber callback every N log lines.
+ * This prevents thousands of re-renders during heavy FFmpeg operations
+ * (e.g. segment cutting with 8000+ log lines).
+ */
+const LOG_CALLBACK_THROTTLE = 50;
+
+/** Counter for throttle-based callback invocations. */
+let logLineCounter = 0;
+
+/** Append a log line to the current task's buffer (respects loggingEnabled). */
 function appendTaskLog(line: string) {
+  if (!loggingEnabled) return;
   if (currentLogTaskId) {
     if (!taskLogs[currentLogTaskId]) taskLogs[currentLogTaskId] = [];
     taskLogs[currentLogTaskId].push(line);
-    onLogsChanged?.(currentLogTaskId, taskLogs[currentLogTaskId]);
+
+    /* Track total lines produced (before any trimming). */
+    taskTotalLines[currentLogTaskId] =
+      (taskTotalLines[currentLogTaskId] || 0) + 1;
+
+    /* Cap the buffer to prevent unbounded memory growth. */
+    if (taskLogs[currentLogTaskId].length > MAX_LOG_LINES) {
+      taskLogs[currentLogTaskId] =
+        taskLogs[currentLogTaskId].slice(-MAX_LOG_LINES);
+    }
+
+    /* Throttle React re-renders — fire callback every N lines. */
+    logLineCounter++;
+    if (logLineCounter >= LOG_CALLBACK_THROTTLE) {
+      logLineCounter = 0;
+      onLogsChanged?.(
+        currentLogTaskId,
+        taskLogs[currentLogTaskId],
+        taskTotalLines[currentLogTaskId] || 0,
+      );
+    }
   }
 }
 
@@ -80,25 +136,25 @@ async function healthCheckFFmpeg(ff: FFmpeg): Promise<boolean> {
 }
 
 /**
- * Wraps a promise with a timeout. If the promise does not resolve within
- * the given milliseconds, a descriptive error is thrown.
+ * Wraps a promise with a timeout warning. If the promise does not resolve
+ * within the given milliseconds, a console warning is logged to inform the
+ * user that the operation is taking a long time. The operation is NOT aborted
+ * — it continues running until completion. The user can Force Kill via the UI
+ * if needed.
  */
-function withTimeout(
+function withTimeoutWarning(
   promise: Promise<unknown>,
   ms: number,
   label: string,
 ): Promise<unknown> {
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => {
-      abortController.abort();
-      reject(
-        new Error(
-          `[FFmpeg Timeout] "${label}" did not complete within ${ms}ms. ` +
-            "The operation may be stuck. Check the console for details.",
-        ),
+      console.warn(
+        `[FFmpeg Slow] "${label}" has not completed after ${ms}ms. ` +
+          "This is normal for large files or complex operations. " +
+          "Use the Force Kill button in the UI if you want to cancel.",
       );
     }, ms);
-    const abortController = new AbortController();
     promise
       .then((result) => {
         clearTimeout(timer);
@@ -109,6 +165,16 @@ function withTimeout(
         reject(err);
       });
   });
+}
+
+/** Create the log handler callback (factory so we can recreate per instance). */
+function createLogHandler() {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const handler = (data: any) => {
+    appendTaskLog(`[FFmpeg WASM] ${data.message}`);
+    isFFmpegBusy = true;
+  };
+  return handler;
 }
 
 /** - FFmpeg Service Implementation */
@@ -145,12 +211,12 @@ export class FFmpegService implements IFFmpegService {
     ffmpeg = null;
     ffmpegLoadPromise = null;
     isFFmpegBroken = false;
+    loggingEnabled = true;
     try {
       const inst = new FFmpeg();
-      inst.on("log", (logData) => {
-        appendTaskLog(`[FFmpeg WASM] ${logData.message}`);
-        isFFmpegBusy = true;
-      });
+      const handler = createLogHandler();
+      ffmpegLogHandler = handler;
+      inst.on("log", handler);
       await inst.load();
 
       if (!(await healthCheckFFmpeg(inst))) {
@@ -182,7 +248,7 @@ export class FFmpegService implements IFFmpegService {
     const signal = this.getAbortSignal();
     isFFmpegBusy = true;
     try {
-      await withTimeout(
+      await withTimeoutWarning(
         ff.exec(args, undefined, { signal }),
         FFMPEG_EXEC_TIMEOUT_MS,
         `exec(${args.slice(0, 6).join(" ")})`,
@@ -198,7 +264,7 @@ export class FFmpegService implements IFFmpegService {
     const signal = this.getAbortSignal();
     isFFmpegBusy = true;
     try {
-      await withTimeout(
+      await withTimeoutWarning(
         ff.writeFile(path, data, { signal }),
         FFMPEG_EXEC_TIMEOUT_MS,
         `writeFile(${path})`,
@@ -263,7 +329,7 @@ export class FFmpegService implements IFFmpegService {
       );
       isFFmpegBusy = true;
       try {
-        await withTimeout(
+        await withTimeoutWarning(
           ff.writeFile("input.mp4", await fetchFile(file), { signal }),
           FFMPEG_EXEC_TIMEOUT_MS,
           `writeFile("${file.name}")`,
@@ -305,7 +371,9 @@ export class FFmpegService implements IFFmpegService {
 
   /** Register callback for FFmpeg log lines. */
   public onLog(
-    callback: ((taskId: string, logs: string[]) => void) | null,
+    callback:
+      | ((taskId: string, logs: string[], totalLines: number) => void)
+      | null,
   ): void {
     onLogsChanged = callback;
   }
@@ -331,7 +399,10 @@ export class FFmpegService implements IFFmpegService {
   /** Set the current task id so FFmpeg logs are routed to the right TaskItem. */
   public setTaskId(id: string | null): void {
     currentLogTaskId = id;
-    if (id) taskLogs[id] = [];
+    if (id) {
+      taskLogs[id] = [];
+      taskTotalLines[id] = 0;
+    }
   }
 
   /** Get accumulated logs for a task and clear them. */
@@ -357,6 +428,51 @@ export class FFmpegService implements IFFmpegService {
   /** Get the current task's AbortSignal. */
   public getAbortSignal(): AbortSignal | undefined {
     return taskAbortController?.signal;
+  }
+
+  /** - Logging Control */
+
+  /**
+   * Enable or disable FFmpeg WASM log event handling.
+   * When disabled, the log handler is REMOVED from the FFmpeg instance
+   * to avoid expensive JS-WASM boundary crossings during heavy operations
+   * (e.g. parsing large ctts tables with 46k+ entries).
+   * When re-enabled, the handler is re-attached.
+   */
+  public setLoggingEnabled(enabled: boolean): void {
+    loggingEnabled = enabled;
+    if (!ffmpeg || !ffmpegLogHandler) return;
+
+    if (enabled) {
+      ffmpeg.on("log", ffmpegLogHandler);
+    } else {
+      ffmpeg.off("log", ffmpegLogHandler);
+    }
+  }
+
+  /**
+   * Append a log line that bypasses the loggingEnabled flag.
+   * Useful for status messages during operations where FFmpeg logs are disabled.
+   */
+  public appendLog(line: string): void {
+    if (!currentLogTaskId) return;
+    if (!taskLogs[currentLogTaskId]) taskLogs[currentLogTaskId] = [];
+    taskLogs[currentLogTaskId].push(line);
+
+    taskTotalLines[currentLogTaskId] =
+      (taskTotalLines[currentLogTaskId] || 0) + 1;
+
+    if (taskLogs[currentLogTaskId].length > MAX_LOG_LINES) {
+      taskLogs[currentLogTaskId] =
+        taskLogs[currentLogTaskId].slice(-MAX_LOG_LINES);
+    }
+
+    /* Immediately fire the React subscriber for status lines. */
+    onLogsChanged?.(
+      currentLogTaskId,
+      taskLogs[currentLogTaskId],
+      taskTotalLines[currentLogTaskId] || 0,
+    );
   }
 
   /** - State Queries */
@@ -385,10 +501,9 @@ export class FFmpegService implements IFFmpegService {
     if (!ffmpegLoadPromise) {
       ffmpegLoadPromise = (async () => {
         const inst = new FFmpeg();
-        inst.on("log", (logData) => {
-          appendTaskLog(`[FFmpeg WASM] ${logData.message}`);
-          isFFmpegBusy = true;
-        });
+        const handler = createLogHandler();
+        ffmpegLogHandler = handler;
+        inst.on("log", handler);
         await inst.load();
         ffmpeg = inst;
         return inst;
@@ -432,6 +547,7 @@ export class FFmpegService implements IFFmpegService {
     }
     ffmpegLoadPromise = null;
     currentFFmpegInputKey = null;
+    ffmpegLogHandler = null;
   }
 }
 

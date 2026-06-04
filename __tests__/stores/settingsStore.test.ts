@@ -73,6 +73,8 @@ describe("updateDestinations", () => {
         apiKey: "key",
         url: "https://example.com",
         enabled: true,
+        allowedExtensions: "",
+        maxSizeMb: 0,
       },
     ];
     useSettingsStore.getState().updateDestinations(dests);

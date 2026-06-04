@@ -35,6 +35,10 @@ export const DEFAULTS: SavedOptions = {
   textColor: "#ffffff",
   header: true,
   animated: false,
+  animSequence: false,
+  animSegments: 6,
+  sequenceMode: "video",
+  animFormat: "webp",
   animDuration: 3,
   animFps: 10,
   webpMethod: 5,
@@ -57,14 +61,19 @@ export const SEEK_TIMEOUT_MS = 10_000;
 /** Timeout for the native video element to become ready for decoding. */
 export const VIDEO_OPEN_TIMEOUT_MS = 15_000;
 
-/** Timeout for a single FFmpeg WASM exec() call (e.g., frame extraction, encoding). */
-export const FFMPEG_EXEC_TIMEOUT_MS = 45_000;
+/**
+ * Timeout for a single FFmpeg WASM exec() call (e.g., frame extraction,
+ * encoding, segment cutting with audio). Operations just log a warning at
+ * this threshold — they are NOT aborted. The user can Force Kill via the UI
+ * if the operation seems stuck.
+ */
+export const FFMPEG_EXEC_TIMEOUT_MS = 300_000;
 
 /**
  * If per-file progress does not advance for longer than this threshold,
  * the UI considers the operation stale and offers a Force Kill button.
  */
-export const FFMPEG_STALE_THRESHOLD_MS = 10_000;
+export const FFMPEG_STALE_THRESHOLD_MS = 30_000;
 
 /** localStorage key for all persisted app settings (presets, destinations, …) */
 export const APP_STORAGE_KEY = "vidgrid_settings";
@@ -78,11 +87,17 @@ export const MIN_CELL_WIDTH = 240;
 export const JPEG_QUALITY = 0.95;
 
 /** Current schema version for stored settings (used by migration system) */
-export const STORAGE_SCHEMA_VERSION = 2;
+export const STORAGE_SCHEMA_VERSION = 4;
 
 /** Destination Manager defaults */
 export const DEFAULT_DESTINATION_URL =
   "https://api.imgbb.com/1/upload?key={key}";
+
+/** Default allowed file extensions for upload destinations (comma-separated) */
+export const DEFAULT_DEST_ALLOWED_EXTENSIONS = "jpg,webp";
+
+/** Default max file size for upload destinations in MB (0 = unlimited) */
+export const DEFAULT_DEST_MAX_SIZE_MB = 32;
 
 /** Upload requests timeout/delay in milliseconds */
 export const UPLOAD_TIMEOUT_MS = 30_000;

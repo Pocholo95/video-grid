@@ -1,17 +1,24 @@
 import { useState } from "react";
 import { ChevronDown, ChevronUp, FileVideo } from "lucide-react";
 import type { VideoMetadata } from "@/types";
-import { formatTime } from "@/utils";
+import { buildMetadataLines, formatTime } from "@/utils";
 
 interface Props {
   metadata: VideoMetadata;
   filename: string;
+  fileSize?: number;
 }
 
-export default function SourceInfoSection({ metadata, filename }: Props) {
+export default function SourceInfoSection({
+  metadata,
+  filename,
+  fileSize,
+}: Props) {
   const [open, setOpen] = useState(false);
 
   const summary = `${metadata.width}×${metadata.height} · ${metadata.fps ?? "?"}fps · ${formatTime(metadata.duration)}`;
+
+  const lines = buildMetadataLines(metadata, filename, fileSize);
 
   return (
     <div className="border rounded-md">
@@ -39,19 +46,9 @@ export default function SourceInfoSection({ metadata, filename }: Props) {
       </div>
       {open && (
         <div className="px-3 pb-2 text-xs text-muted-foreground space-y-1">
-          <div>Filename: {filename}</div>
-          <div>
-            Resolution: {metadata.width}×{metadata.height}
-          </div>
-          <div>Duration: {formatTime(metadata.duration)}</div>
-          <div>
-            Bitrate:{" "}
-            {metadata.bitrate
-              ? `${(metadata.bitrate / 1_000_000).toFixed(2)} Mbps`
-              : "Unknown"}
-          </div>
-          <div>FPS: {metadata.fps ?? "Unknown"}</div>
-          <div>Codec: {metadata.codec ?? "Unknown"}</div>
+          {lines.map((line, i) => (
+            <div key={i}>{line}</div>
+          ))}
         </div>
       )}
     </div>

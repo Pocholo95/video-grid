@@ -251,7 +251,7 @@ describe("TaskCard - source info", () => {
         width: 1920,
         height: 1080,
         duration: 60,
-        bitrate: 5000,
+        videoBitrate: 5000,
         codec: "h264",
         fps: 30,
       },

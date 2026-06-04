@@ -50,6 +50,23 @@ export interface ShortcutConfig {
   callback: () => void;
   /** React dependency array; the listener is recreated when these change. */
   deps: unknown[];
+  /**
+   * Simple scoping: only active when an element with the matching
+   * `data-dialog-scope` attribute is present in the DOM.
+   *
+   * When declared, the default global guard (blocked by any modal) is
+   * replaced — the shortcut only fires when the scoped element is visible.
+   *
+   * Omit to use the default global guard (blocked when any modal is open).
+   */
+  scope?: string;
+  /**
+   * Complex scoping: custom activation logic.
+   *
+   * Takes precedence over `scope` if both are provided.
+   * Also replaces the default global guard when declared.
+   */
+  isActive?: () => boolean;
 }
 
 function modifiersMatch(
@@ -60,6 +77,14 @@ function modifiersMatch(
   const wantShift = config.shift ?? false;
   const hasCtrl = e.ctrlKey || e.metaKey;
   return hasCtrl === wantCtrl && e.shiftKey === wantShift;
+}
+
+/**
+ * Returns true when an element with the given `data-dialog-scope` is
+ * present in the DOM. Used to gate scoped shortcuts.
+ */
+function isScopeActive(scope: string): boolean {
+  return !!document.querySelector(`[data-dialog-scope="${scope}"]`);
 }
 
 /**
@@ -79,9 +104,22 @@ export function useKeyboardShortcut(
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (isInputFocused()) return;
-      if (isModalOpen()) return;
 
       for (const cfg of list) {
+        // Custom isActive takes precedence over everything
+        if (cfg.isActive !== undefined && !cfg.isActive()) continue;
+
+        // If scope is declared, only fire when that specific element is present
+        if (cfg.scope !== undefined && !isScopeActive(cfg.scope)) continue;
+
+        // Default (no scope, no isActive): block when ANY modal is open
+        if (
+          cfg.scope === undefined &&
+          cfg.isActive === undefined &&
+          isModalOpen()
+        )
+          continue;
+
         if (e.key === cfg.key && modifiersMatch(e, cfg)) {
           e.preventDefault();
           cfg.callback();
@@ -95,7 +133,13 @@ export function useKeyboardShortcut(
     return () => window.removeEventListener("keydown", handler);
   }, [
     JSON.stringify(
-      list.map((c) => ({ key: c.key, ctrl: c.ctrl, shift: c.shift })),
+      list.map((c) => ({
+        key: c.key,
+        ctrl: c.ctrl,
+        shift: c.shift,
+        scope: c.scope,
+        hasIsActive: c.isActive !== undefined,
+      })),
     ),
     // Flatten all deps so the effect re-runs when any callback changes.
     ...(list.flatMap((c) => c.deps) ?? []),

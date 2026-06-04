@@ -150,6 +150,62 @@ export const BUILT_IN_PRESETS: BuiltInPreset[] = [
       vrMode: "tb-left",
     },
   },
+  {
+    name: "Sequence Static Frames WebP",
+    opts: {
+      width: 1280,
+      animated: true,
+      animSequence: true,
+      sequenceMode: "static",
+      animSegments: 10,
+      animFormat: "webp",
+      animDuration: 2,
+      animFps: 1,
+      webpMethod: 6,
+      webpQuality: 75,
+    },
+  },
+  {
+    name: "Sequence Video WebP",
+    opts: {
+      width: 1024,
+      animated: true,
+      animSequence: true,
+      sequenceMode: "video",
+      animSegments: 6,
+      animFormat: "webp",
+      animDuration: 3,
+      animFps: 10,
+      webpMethod: 6,
+      webpQuality: 75,
+    },
+  },
+  {
+    name: "Sequence Video MP4",
+    opts: {
+      width: 1024,
+      animated: true,
+      animSequence: true,
+      sequenceMode: "video",
+      animSegments: 8,
+      animFormat: "mp4",
+      animDuration: 3,
+      animFps: 10,
+    },
+  },
+  {
+    name: "Sequence Video with audio MP4",
+    opts: {
+      width: 1024,
+      animated: true,
+      animSequence: true,
+      sequenceMode: "video_with_audio",
+      animSegments: 5,
+      animFormat: "mp4",
+      animDuration: 5,
+      animFps: 30,
+    },
+  },
 ];
 
 // ---------------------------------------------------------------------------
@@ -244,8 +300,17 @@ export const persistAppSettings = (settings: AppSettings): void => {
  * Pure display concern — does not modify stored preset names.
  */
 export function getPresetSummary(opts: SavedOptions): string {
-  const mode = opts.animated ? "Animated" : "Static";
+  const isSequence = opts.animated && opts.animSequence;
+  const mode = isSequence ? "Sequence" : opts.animated ? "Animated" : "Static";
   const width = `${opts.width}px`;
+
+  // Sequence mode shows segments instead of grid
+  if (isSequence) {
+    let fmt = "";
+    if (opts.animFormat === "mp4") fmt = " (MP4)";
+    else if (opts.animFormat === "webp") fmt = " (WebP)";
+    return `${mode} · ${width} · ${opts.animSegments} segments${fmt}`;
+  }
 
   let grid: string;
   if (opts.gridTemplate && opts.gridTemplate.cells.length > 0) {

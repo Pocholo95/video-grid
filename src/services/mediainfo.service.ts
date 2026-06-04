@@ -74,7 +74,12 @@ export class MediaInfoService implements IMediaInfoService {
       const general = tracks.find((t) => t["@type"] === "General") as
         | Record<string, string>
         | undefined;
-      const video = tracks.find((t) => t["@type"] === "Video") as
+      const videoTracks = tracks.filter((t) => t["@type"] === "Video");
+      const audioTracks = tracks.filter((t) => t["@type"] === "Audio");
+      const video = videoTracks[0] as unknown as
+        | Record<string, string>
+        | undefined;
+      const audio = audioTracks[0] as unknown as
         | Record<string, string>
         | undefined;
 
@@ -82,7 +87,7 @@ export class MediaInfoService implements IMediaInfoService {
         parseFloat(video?.Duration ?? general?.Duration ?? "0") || 0;
       const width = parseInt(video?.Width ?? "0", 10) || 0;
       const height = parseInt(video?.Height ?? "0", 10) || 0;
-      const bitrate = parseInt(general?.OverallBitRate ?? "0", 10) || 0;
+      const videoBitrate = parseInt(video?.BitRate ?? "0", 10) || 0;
 
       // Extract frame rate from the video track.
       const rawFps = video?.["FrameRate"] ?? video?.["Frame rate"];
@@ -116,16 +121,33 @@ export class MediaInfoService implements IMediaInfoService {
 
       const codec = parts.length > 0 ? parts.join(" / ") : undefined;
 
+      // Extract audio track info (first/default track)
+      const audioBitrate = audio
+        ? parseInt(audio?.BitRate ?? "0", 10) || undefined
+        : undefined;
+      const audioCodec = audio?.Format ?? audio?.Codec_ID ?? undefined;
+
       log(
         `MediaInfo: duration=${duration}s, ${width}×${height}, ` +
-          `${bitrate}bps, ${fps ?? "N/A"}fps, codec=${codec ?? "N/A"}`,
+          `${videoBitrate}bps, ${fps ?? "N/A"}fps, codec=${codec ?? "N/A"}`,
       );
       onProgress?.(100, "Metadata ready");
-      return { duration, width, height, bitrate, fps, codec };
+      return {
+        duration,
+        width,
+        height,
+        videoBitrate,
+        fps,
+        codec,
+        videoTracks: videoTracks.length,
+        audioBitrate,
+        audioCodec,
+        audioTracks: audioTracks.length,
+      };
     } catch (e) {
       errlog("MediaInfo analysis failed:", e);
       onProgress?.(100, "Metadata extraction failed");
-      return { duration: 0, width: 0, height: 0, bitrate: 0 };
+      return { duration: 0, width: 0, height: 0, videoBitrate: 0 };
     }
   }
 

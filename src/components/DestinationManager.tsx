@@ -21,7 +21,12 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
-import { DEFAULT_DESTINATION_URL } from "@/constants";
+import {
+  DEFAULT_DESTINATION_URL,
+  DEFAULT_DEST_ALLOWED_EXTENSIONS,
+  DEFAULT_DEST_MAX_SIZE_MB,
+} from "@/constants";
+import RangeNumberInput from "@/components/control/RangeNumberInput";
 
 const EMPTY: Omit<UploadDestination, "id"> = {
   name: "",
@@ -29,6 +34,8 @@ const EMPTY: Omit<UploadDestination, "id"> = {
   apiKey: "",
   url: DEFAULT_DESTINATION_URL,
   enabled: true,
+  allowedExtensions: DEFAULT_DEST_ALLOWED_EXTENSIONS,
+  maxSizeMb: DEFAULT_DEST_MAX_SIZE_MB,
 };
 
 interface Props {
@@ -74,6 +81,8 @@ export default function DestinationManager({
       apiKey: d.apiKey,
       url: d.url,
       enabled: d.enabled,
+      allowedExtensions: d.allowedExtensions,
+      maxSizeMb: d.maxSizeMb,
     });
     setError("");
   };
@@ -116,30 +125,43 @@ export default function DestinationManager({
       return;
     }
 
+    // Validate & normalize allowedExtensions: comma-separated, alphanumeric only
+    const rawExt = draft.allowedExtensions.trim();
+    let normalizedExt = rawExt;
+    if (rawExt) {
+      const parts = rawExt.split(",").map((s) => s.trim().replace(/^\.+/, ""));
+      if (parts.some((p) => p && /[^\w]/.test(p))) {
+        setError(
+          "Allowed extensions must be comma-separated alphanumeric names (e.g. jpg,webp).",
+        );
+        return;
+      }
+      normalizedExt = parts.join(",");
+    }
+
+    const base = {
+      name: draft.name.trim(),
+      apiKey: draft.apiKey.trim(),
+      url: trimmedUrl,
+      type: draft.type,
+      enabled: draft.enabled,
+      allowedExtensions: normalizedExt,
+      maxSizeMb: draft.maxSizeMb,
+    };
+
     if (editing!.id === "__new__") {
       const newList = [
         ...list,
         {
           id: makeId(),
-          ...draft,
-          name: draft.name.trim(),
-          apiKey: draft.apiKey.trim(),
-          url: trimmedUrl,
+          ...base,
         },
       ];
       setList(newList);
       onUpdate(newList); // Persist immediately
     } else {
       const newList = list.map((d) =>
-        d.id === editing!.id
-          ? {
-              ...d,
-              ...draft,
-              name: draft.name.trim(),
-              apiKey: draft.apiKey.trim(),
-              url: trimmedUrl,
-            }
-          : d,
+        d.id === editing!.id ? { ...d, ...base } : d,
       );
       setList(newList);
       onUpdate(newList); // Persist immediately
@@ -310,6 +332,45 @@ export default function DestinationManager({
                 }
                 autoComplete="off"
               />
+            </div>
+
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="dest-extensions">Allowed Extensions</Label>
+              <Input
+                id="dest-extensions"
+                type="text"
+                value={draft.allowedExtensions}
+                placeholder={DEFAULT_DEST_ALLOWED_EXTENSIONS}
+                onChange={(e) =>
+                  setDraft((p) => ({ ...p, allowedExtensions: e.target.value }))
+                }
+              />
+              <p className="text-muted-foreground text-xs">
+                Comma-separated extensions (e.g.{" "}
+                <code className="bg-muted rounded px-1 py-0.5 font-mono">
+                  jpg,webp
+                </code>
+                ). Leave empty to allow all file types.
+              </p>
+            </div>
+
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="dest-maxsize">Max File Size</Label>
+              <RangeNumberInput
+                id="dest-maxsize"
+                value={draft.maxSizeMb}
+                min={0}
+                max={64}
+                step={1}
+                suffix="MB"
+                hardMin={0}
+                hardMax={Number.MAX_SAFE_INTEGER}
+                onChange={(v) => setDraft((p) => ({ ...p, maxSizeMb: v }))}
+              />
+              <p className="text-muted-foreground text-xs">
+                0 means no size limit. Files larger than this will be blocked
+                from upload.
+              </p>
             </div>
 
             {error && (

@@ -12,6 +12,8 @@ const mockDest: UploadDestination = {
   apiKey: "key",
   url: "https://example.com/upload?key={key}",
   enabled: true,
+  allowedExtensions: "",
+  maxSizeMb: 0,
 };
 
 const mockDest2: UploadDestination = {
@@ -21,6 +23,8 @@ const mockDest2: UploadDestination = {
   apiKey: "key2",
   url: "https://example2.com/upload?key={key}",
   enabled: false,
+  allowedExtensions: "",
+  maxSizeMb: 0,
 };
 
 const mockResult = {
@@ -193,6 +197,107 @@ describe("uploadStore", () => {
     );
   });
 
+  it("uploadItem skips destinations where file extension is not allowed", async () => {
+    const destJpgOnly: UploadDestination = {
+      id: "dest-jpg",
+      name: "JPG Only",
+      type: "chevereto",
+      apiKey: "k",
+      url: "https://jpg-only.com/upload?key={key}",
+      enabled: true,
+      allowedExtensions: ".jpg,.jpeg",
+      maxSizeMb: 0,
+    };
+
+    // Item outputs a .png which is not in allowedExtensions
+    const item: TaskItem = {
+      ...createItem("png-item"),
+      outputName: "grid.png",
+    };
+    useTaskStore.getState().setItems(() => [item]);
+
+    const callCount = vi.mocked(uploadModule.uploadBlob).mock.calls.length;
+
+    await act(async () => {
+      await useUploadStore.getState().uploadItem("png-item", [destJpgOnly]);
+    });
+
+    // uploadBlob should NOT be called since .png is not allowed
+    expect(vi.mocked(uploadModule.uploadBlob).mock.calls.length).toBe(
+      callCount,
+    );
+
+    // Upload state should remain empty (skipped, not attempted)
+    const items = useTaskStore.getState().items;
+    expect(items[0].uploads?.["dest-jpg"]).toBeUndefined();
+  });
+
+  it("uploadItem skips destinations where file exceeds size limit", async () => {
+    const destSmallLimit: UploadDestination = {
+      id: "dest-small",
+      name: "Small Limit",
+      type: "chevereto",
+      apiKey: "k",
+      url: "https://small.com/upload?key={key}",
+      enabled: true,
+      allowedExtensions: "",
+      maxSizeMb: 1, // 1 MB limit
+    };
+
+    // Item with outputSize exceeding the limit (2 MB = 2_097_152 bytes)
+    const item: TaskItem = {
+      ...createItem("large-item"),
+      outputSize: 2_097_152,
+    };
+    useTaskStore.getState().setItems(() => [item]);
+
+    const callCount = vi.mocked(uploadModule.uploadBlob).mock.calls.length;
+
+    await act(async () => {
+      await useUploadStore
+        .getState()
+        .uploadItem("large-item", [destSmallLimit]);
+    });
+
+    expect(vi.mocked(uploadModule.uploadBlob).mock.calls.length).toBe(
+      callCount,
+    );
+  });
+
+  it("uploadItem allows eligible files through", async () => {
+    const destJpgOnly: UploadDestination = {
+      id: "dest-jpg2",
+      name: "JPG Only",
+      type: "chevereto",
+      apiKey: "k",
+      url: "https://jpg.com/upload?key={key}",
+      enabled: true,
+      allowedExtensions: ".jpg,.jpeg",
+      maxSizeMb: 0,
+    };
+
+    // Item outputs a .jpg which is allowed
+    const item: TaskItem = {
+      ...createItem("jpg-item"),
+      outputName: "grid.jpg",
+      outputSize: 1_000_000,
+    };
+    useTaskStore.getState().setItems(() => [item]);
+
+    await act(async () => {
+      await useUploadStore.getState().uploadItem("jpg-item", [destJpgOnly]);
+    });
+
+    await vi.runAllTimersAsync();
+
+    expect(vi.mocked(uploadModule.uploadBlob)).toHaveBeenCalled();
+
+    const items = useTaskStore.getState().items;
+    expect(items[0].uploads?.["dest-jpg2"]).toMatchObject({
+      status: "done",
+    });
+  });
+
   /* uploadAll tests moved to separate describe block below (no fake timers needed) */
 
   it("sets uploading status before upload starts", async () => {
@@ -299,6 +404,42 @@ describe("uploadStore uploadAll (no fake timers)", () => {
     await useUploadStore.getState().uploadAll([mockDest]);
 
     expect(useUploadStore.getState().isUploadingAll).toBe(false);
+  });
+
+  it("uploadAll skips ineligible item/destination pairs", async () => {
+    const destJpgOnly: UploadDestination = {
+      id: "dest-jpg3",
+      name: "JPG Only",
+      type: "chevereto",
+      apiKey: "k",
+      url: "https://jpg3.com/upload?key={key}",
+      enabled: true,
+      allowedExtensions: ".jpg,.jpeg",
+      maxSizeMb: 0,
+    };
+
+    // Item A outputs .jpg (eligible), Item B outputs .png (ineligible)
+    const itemA: TaskItem = {
+      ...createItem("a"),
+      outputName: "grid.jpg",
+    };
+    const itemB: TaskItem = {
+      ...createItem("b"),
+      outputName: "grid.png",
+    };
+    useTaskStore.getState().setItems(() => [itemA, itemB]);
+
+    await useUploadStore.getState().uploadAll([destJpgOnly]);
+
+    const items = useTaskStore.getState().items;
+    // A should be uploaded (eligible)
+    expect(
+      items.find((i) => i.id === "a")?.uploads?.["dest-jpg3"]?.status,
+    ).toBe("done");
+    // B should be skipped (ineligible - .png not in allowed extensions)
+    expect(items.find((i) => i.id === "b")?.uploads?.["dest-jpg3"]).toBe(
+      undefined,
+    );
   });
 
   it("uploadAll prevents concurrent execution", async () => {

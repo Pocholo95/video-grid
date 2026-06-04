@@ -154,7 +154,7 @@ describe("utils", () => {
       duration: 100,
       width: 1920,
       height: 1080,
-      bitrate: 5000,
+      videoBitrate: 5000,
     };
 
     it("returns true for valid metadata", () => {
@@ -216,7 +216,7 @@ describe("utils", () => {
       duration: 100,
       width: 1920,
       height: 1080,
-      bitrate: 5000,
+      videoBitrate: 5000,
     };
 
     const makeItem = (overrides: Partial<TaskItem> = {}): TaskItem => ({
@@ -259,7 +259,7 @@ describe("utils", () => {
           duration: 60,
           width: 3840,
           height: 2160,
-          bitrate: 20000,
+          videoBitrate: 20000,
         },
       });
       expect(buildBbcodeTitle(item)).toBe(
@@ -273,7 +273,7 @@ describe("utils", () => {
           duration: 30,
           width: 1080,
           height: 1920,
-          bitrate: 8000,
+          videoBitrate: 8000,
         },
       });
       expect(buildBbcodeTitle(item)).toBe(

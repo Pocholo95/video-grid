@@ -329,6 +329,7 @@ export default function TimestampEditor({
   const storeGridTpl = useUiStore((s) => s.opts?.gridTemplate);
   const storeCols = useUiStore((s) => s.opts?.cols);
   const storeRows = useUiStore((s) => s.opts?.rows);
+  const isSequenceMode = useUiStore((s) => s.opts?.animSequence ?? false);
   const gridTemplate = storeGridTpl?.cells?.length
     ? storeGridTpl
     : templateFromUniform(storeCols ?? 4, storeRows ?? 3);
@@ -475,32 +476,52 @@ export default function TimestampEditor({
   // Space = play/pause, M = add marker, Arrow = seek
   // Escape is handled by the surrounding Dialog primitive.
   useKeyboardShortcut([
-    { key: " ", callback: togglePlay, deps: [] },
+    { key: " ", callback: togglePlay, deps: [], scope: "timestamp-editor" },
     {
       key: "m",
       callback: addMarkerAtCurrentTime,
       deps: [addMarkerAtCurrentTime],
+      scope: "timestamp-editor",
     },
-    { key: "ArrowLeft", callback: seekBack1s, deps: [seekBack1s] },
-    { key: "ArrowRight", callback: seekForward1s, deps: [seekForward1s] },
-    { key: "ArrowLeft", shift: true, callback: seekBack5s, deps: [seekBack5s] },
+    {
+      key: "ArrowLeft",
+      callback: seekBack1s,
+      deps: [seekBack1s],
+      scope: "timestamp-editor",
+    },
+    {
+      key: "ArrowRight",
+      callback: seekForward1s,
+      deps: [seekForward1s],
+      scope: "timestamp-editor",
+    },
+    {
+      key: "ArrowLeft",
+      shift: true,
+      callback: seekBack5s,
+      deps: [seekBack5s],
+      scope: "timestamp-editor",
+    },
     {
       key: "ArrowRight",
       shift: true,
       callback: seekForward5s,
       deps: [seekForward5s],
+      scope: "timestamp-editor",
     },
     {
       key: "ArrowLeft",
       ctrl: true,
       callback: seekBackFrame,
       deps: [seekBackFrame],
+      scope: "timestamp-editor",
     },
     {
       key: "ArrowRight",
       ctrl: true,
       callback: seekForwardFrame,
       deps: [seekForwardFrame],
+      scope: "timestamp-editor",
     },
   ]);
 
@@ -520,6 +541,7 @@ export default function TimestampEditor({
       <DialogPortal>
         <DialogOverlay />
         <DialogPrimitive.Content
+          data-dialog-scope="timestamp-editor"
           className="bg-background fixed top-1/2 left-1/2 z-50 flex max-h-[92vh] w-[min(96vw,1100px)] -translate-x-1/2 -translate-y-1/2 flex-col gap-4 rounded-lg border p-4 shadow-lg"
           onOpenAutoFocus={(e) => {
             e.preventDefault();
@@ -689,20 +711,22 @@ export default function TimestampEditor({
 
             {/* Right: grid preview + marker list */}
             <div className="bg-muted/30 flex h-[30vh] shrink-0 flex-col gap-2 rounded-md border p-3 md:h-auto md:min-h-0 md:shrink">
-              {/* Grid structure preview */}
-              <div className="flex flex-col gap-1">
-                <span className="text-muted-foreground text-xs font-medium">
-                  Grid Layout
-                </span>
-                <div className="bg-card overflow-x-auto rounded-md border p-2">
-                  <GridPreview
-                    template={gridTemplate}
-                    selectedCellIndex={selectedMarker}
-                    onClickCell={handleGridCellClick}
-                    assignedCount={effectiveCount}
-                  />
+              {/* Grid structure preview — hidden in sequence mode */}
+              {!isSequenceMode && (
+                <div className="flex flex-col gap-1">
+                  <span className="text-muted-foreground text-xs font-medium">
+                    Grid Layout
+                  </span>
+                  <div className="bg-card overflow-x-auto rounded-md border p-2">
+                    <GridPreview
+                      template={gridTemplate}
+                      selectedCellIndex={selectedMarker}
+                      onClickCell={handleGridCellClick}
+                      assignedCount={effectiveCount}
+                    />
+                  </div>
                 </div>
-              </div>
+              )}
               <div className="flex items-center justify-between gap-2">
                 <span className="text-sm font-semibold">
                   Markers (
