@@ -22,7 +22,7 @@ import {
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import {
-  DEFAULT_DESTINATION_URL,
+  UPLOAD_DESTINATION_PROVIDERS,
   DEFAULT_DEST_ALLOWED_EXTENSIONS,
   DEFAULT_DEST_MAX_SIZE_MB,
 } from "@/constants";
@@ -32,7 +32,7 @@ const EMPTY: Omit<UploadDestination, "id"> = {
   name: "",
   type: "chevereto",
   apiKey: "",
-  url: DEFAULT_DESTINATION_URL,
+  url: UPLOAD_DESTINATION_PROVIDERS.chevereto.defaultUrl,
   enabled: true,
   allowedExtensions: DEFAULT_DEST_ALLOWED_EXTENSIONS,
   maxSizeMb: DEFAULT_DEST_MAX_SIZE_MB,
@@ -69,7 +69,7 @@ export default function DestinationManager({
 
   const openAdd = () => {
     setEditing({ id: "__new__", ...EMPTY });
-    setDraft(EMPTY);
+    setDraft({ ...EMPTY });
     setError("");
   };
 
@@ -113,15 +113,18 @@ export default function DestinationManager({
       setError("Upload URL must start with https://.");
       return;
     }
-    if (!trimmedUrl.includes("{key}")) {
+
+    // {key} placeholder is only required for Chevereto destinations
+    if (draft.type === "chevereto" && !trimmedUrl.includes("{key}")) {
       setError(
         "Upload URL must contain {key} as a placeholder for the API key.",
       );
       return;
     }
 
-    if (!draft.apiKey.trim()) {
-      setError("API key is required.");
+    // API key is required for Chevereto, optional for Catbox (anonymous upload)
+    if (draft.type === "chevereto" && !draft.apiKey.trim()) {
+      setError("API key is required for Chevereto destinations.");
       return;
     }
 
@@ -286,15 +289,21 @@ export default function DestinationManager({
               <Label htmlFor="dest-type">Type</Label>
               <Select
                 value={draft.type}
-                onValueChange={(value) =>
-                  setDraft((p) => ({ ...p, type: value as "chevereto" }))
-                }
+                onValueChange={(value) => {
+                  const newType = value as "chevereto" | "catbox";
+                  setDraft((p) => ({
+                    ...p,
+                    type: newType,
+                    url: UPLOAD_DESTINATION_PROVIDERS[newType].defaultUrl,
+                  }));
+                }}
               >
                 <SelectTrigger id="dest-type">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="chevereto">Chevereto</SelectItem>
+                  <SelectItem value="catbox">Catbox</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -305,33 +314,51 @@ export default function DestinationManager({
                 id="dest-url"
                 type="text"
                 value={draft.url}
-                placeholder={DEFAULT_DESTINATION_URL}
+                placeholder={UPLOAD_DESTINATION_PROVIDERS.chevereto.defaultUrl}
                 onChange={(e) =>
                   setDraft((p) => ({ ...p, url: e.target.value }))
                 }
                 autoComplete="off"
               />
-              <p className="text-muted-foreground text-xs">
-                Use{" "}
-                <code className="bg-muted rounded px-1 py-0.5 font-mono">
-                  {"{key}"}
-                </code>{" "}
-                as a placeholder for the API key. HTTPS required.
-              </p>
+              {draft.type === "chevereto" ? (
+                <p className="text-muted-foreground text-xs">
+                  Use{" "}
+                  <code className="bg-muted rounded px-1 py-0.5 font-mono">
+                    {"{key}"}
+                  </code>{" "}
+                  as a placeholder for the API key. HTTPS required.
+                </p>
+              ) : (
+                <p className="text-muted-foreground text-xs">
+                  Catbox uses a fixed upload endpoint. HTTPS required.
+                </p>
+              )}
             </div>
 
             <div className="flex flex-col gap-2">
-              <Label htmlFor="dest-key">API Key</Label>
+              <Label htmlFor="dest-key">
+                {draft.type === "catbox" ? "User hash (optional)" : "API Key"}
+              </Label>
               <Input
                 id="dest-key"
                 type="text"
                 value={draft.apiKey}
-                placeholder="Paste your API key"
+                placeholder={
+                  draft.type === "catbox"
+                    ? "Leave empty for anonymous uploads"
+                    : "Paste your API key"
+                }
                 onChange={(e) =>
                   setDraft((p) => ({ ...p, apiKey: e.target.value }))
                 }
                 autoComplete="off"
               />
+              {draft.type === "catbox" && (
+                <p className="text-muted-foreground text-xs">
+                  Catbox supports anonymous uploads. Provide your user hash to
+                  associate uploads with your account.
+                </p>
+              )}
             </div>
 
             <div className="flex flex-col gap-2">

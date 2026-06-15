@@ -153,11 +153,13 @@ export type UploadResult = {
   mediumUrl?: string;
   /** Direct CDN URL for the auto-generated thumbnail */
   thumbUrl: string;
-  /** One-click delete URL */
+  /** One-click delete URL (Chevereto) or file URL to delete (Catbox) */
   deleteUrl: string;
+  /** Authentication token required for deletion (e.g. Catbox userhash) */
+  deleteToken?: string;
 };
 
-export type DestinationType = "chevereto";
+export type DestinationType = "chevereto" | "catbox";
 
 /** Configuration for a single upload destination. */
 export type UploadDestination = {

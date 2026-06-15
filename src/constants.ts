@@ -1,4 +1,4 @@
-import type { SavedOptions } from "./types";
+import type { DestinationType, SavedOptions } from "./types";
 
 export const PROJECT_NAME = import.meta.env.VITE_PROJECT_NAME || "VidGrid-HTML";
 export const PROJECT_URL =
@@ -89,9 +89,17 @@ export const JPEG_QUALITY = 0.95;
 /** Current schema version for stored settings (used by migration system) */
 export const STORAGE_SCHEMA_VERSION = 4;
 
-/** Destination Manager defaults */
-export const DEFAULT_DESTINATION_URL =
-  "https://api.imgbb.com/1/upload?key={key}";
+/**
+ * Default configuration per upload-destination provider type.
+ * Used to pre-fill the URL when creating a new destination.
+ */
+export const UPLOAD_DESTINATION_PROVIDERS: Record<
+  DestinationType,
+  { defaultUrl: string }
+> = {
+  chevereto: { defaultUrl: "https://api.imgbb.com/1/upload?key={key}" },
+  catbox: { defaultUrl: "https://catbox.moe/user/api.php" },
+};
 
 /** Default allowed file extensions for upload destinations (comma-separated) */
 export const DEFAULT_DEST_ALLOWED_EXTENSIONS = "jpg,webp";

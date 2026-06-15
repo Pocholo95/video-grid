@@ -1,6 +1,6 @@
 import UploadLinks from "@/components/UploadLinks";
-import type { TaskItem } from "@/types";
-import type { UploadDestination } from "@/types";
+import type { TaskItem, UploadDestination } from "@/types";
+import { useUploadStore } from "@/store/uploadStore";
 
 interface Props {
   item: TaskItem;
@@ -9,10 +9,15 @@ interface Props {
 
 export default function UploadResultsSection({ item, destinations }: Props) {
   const enabledDests = destinations.filter((d) => d.enabled);
+  const clearUploadResult = useUploadStore((s) => s.clearUploadResult);
 
   if (!enabledDests.some((d) => item.uploads?.[d.id]?.status === "done")) {
     return null;
   }
+
+  const handleDelete = (destId: string) => {
+    clearUploadResult(item.id, destId);
+  };
 
   return (
     <div className="flex flex-col gap-2">
@@ -22,10 +27,11 @@ export default function UploadResultsSection({ item, destinations }: Props) {
         return (
           <UploadLinks
             key={dest.id}
-            destName={dest.name}
+            dest={dest}
             result={state.result}
             filename={item.outputName ?? item.file.name}
             metadata={item.metadata}
+            onDelete={handleDelete}
           />
         );
       })}
