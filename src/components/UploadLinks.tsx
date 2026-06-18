@@ -2,7 +2,7 @@ import { useState } from "react";
 import { ChevronDown, Cloud, Trash2 } from "lucide-react";
 import type { UploadDestination, UploadResult, VideoMetadata } from "../types";
 import { buildFormats } from "../uploadUtils";
-import { deleteFromCatbox } from "../upload";
+import { canDeleteFromDestination, deleteFromDestination } from "../upload";
 import { Button } from "@/components/ui/button";
 import {
   Collapsible,
@@ -47,29 +47,25 @@ export default function UploadLinks({
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const formats = buildFormats(result, filename, metadata);
 
-  // Determine if delete is available:
-  // - Chevereto: always has a deleteUrl from the API
-  // - Catbox: only if deleteToken (userhash) was provided at upload time
-  const canDelete =
-    dest.type === "chevereto" ? !!result.deleteUrl : !!result.deleteToken;
+  // Chevereto uses a direct delete URL (opens in new tab), all other providers
+  // use the programmatic delete API which requires confirmation.
+  const useDirectDelete = dest.type === "chevereto";
 
   const handleDeleteClick = () => {
-    if (dest.type === "catbox") {
-      setShowDeleteDialog(true);
+    if (useDirectDelete) {
+      // For Chevereto, the <a> tag opens the delete URL in a new tab
+      return;
     }
-    // For Chevereto, the <a> tag opens the delete URL in a new tab
+    setShowDeleteDialog(true);
   };
 
-  const handleCatboxConfirm = async (e: React.MouseEvent) => {
+  const handleConfirmDelete = async (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    if (!result.deleteUrl || !result.deleteToken) return;
     setDeleting(true);
     setDeleteError(null);
     try {
-      await deleteFromCatbox(result.deleteUrl, result.deleteToken, dest.url);
-      // Calling onDelete clears the upload result, which causes this component
-      // to unmount (taking the dialog with it). No need to manually close.
+      await deleteFromDestination(result, dest);
       onDelete(dest.id);
     } catch (err) {
       setDeleteError(err instanceof Error ? err.message : "Delete failed");
@@ -108,25 +104,26 @@ export default function UploadLinks({
               />
             </button>
           </CollapsibleTrigger>
-          {canDelete && (
+          {result.deleteUrl && canDeleteFromDestination(result, dest) && (
             <Button
-              asChild={dest.type === "chevereto"}
               variant="ghost"
               size="sm"
               title={`Delete this image from ${dest.name}`}
               className="text-destructive hover:text-destructive shrink-0"
-              onClick={dest.type === "catbox" ? handleDeleteClick : undefined}
+              onClick={!useDirectDelete ? handleDeleteClick : undefined}
             >
-              {dest.type === "chevereto" ? (
-                <a
-                  href={result.deleteUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-2"
-                >
-                  <Trash2 className="size-4" />
-                  Delete
-                </a>
+              {useDirectDelete ? (
+                <span className="flex items-center gap-2">
+                  <a
+                    href={result.deleteUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-2"
+                  >
+                    <Trash2 className="size-4" />
+                    Delete
+                  </a>
+                </span>
               ) : (
                 <span className="flex items-center gap-2">
                   <Trash2 className="size-4" />
@@ -158,7 +155,7 @@ export default function UploadLinks({
         </CollapsibleContent>
       </Collapsible>
 
-      {/* Catbox Delete Confirmation Dialog */}
+      {/* Delete Confirmation Dialog */}
       <AlertDialog
         open={showDeleteDialog}
         onOpenChange={handleDialogOpenChange}
@@ -178,7 +175,7 @@ export default function UploadLinks({
             <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
             <AlertDialogAction
               className="bg-destructive hover:bg-destructive/90"
-              onClick={handleCatboxConfirm}
+              onClick={handleConfirmDelete}
               disabled={deleting}
             >
               <Trash2 className="size-4" />

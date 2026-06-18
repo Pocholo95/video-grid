@@ -91,20 +91,82 @@ export const STORAGE_SCHEMA_VERSION = 4;
 
 /**
  * Default configuration per upload-destination provider type.
- * Used to pre-fill the URL when creating a new destination.
+ * Used to pre-fill form fields, drive UI labels, and validate inputs
+ * when creating or editing a destination.
  */
 export const UPLOAD_DESTINATION_PROVIDERS: Record<
   DestinationType,
-  { defaultUrl: string }
+  {
+    /** Human-readable provider label for the type selector. */
+    label: string;
+    defaultUrl: string;
+    defaultAllowedExtensions: string;
+    defaultMaxSizeMb: number;
+    /** Label shown for the API key / auth field. */
+    apiKeyLabel: string;
+    /** Is the API key field required? */
+    apiKeyRequired: boolean;
+    /** Placeholder text for the API key input. */
+    apiKeyPlaceholder: string;
+    /** Title shown in the info popover about the API key. */
+    apiKeyHelpTitle: string;
+    /** Description shown in the info popover about the API key. */
+    apiKeyHelpDescription: string;
+    /** Help text shown below the URL input. */
+    urlHelpText: string;
+    /** If true, the URL must contain a {key} placeholder. */
+    requiresKeyPlaceholder: boolean;
+  }
 > = {
-  chevereto: { defaultUrl: "https://api.imgbb.com/1/upload?key={key}" },
-  catbox: { defaultUrl: "https://catbox.moe/user/api.php" },
+  chevereto: {
+    label: "Chevereto",
+    defaultUrl: "https://api.imgbb.com/1/upload?key={key}",
+    defaultAllowedExtensions: "jpg,webp",
+    defaultMaxSizeMb: 32,
+    apiKeyLabel: "API Key",
+    apiKeyRequired: true,
+    apiKeyPlaceholder: "Paste your API key",
+    apiKeyHelpTitle: "API Key",
+    apiKeyHelpDescription:
+      "Usually found in the host's dashboard or account settings. Required to authenticate your uploads.",
+    urlHelpText: "Use {key} as a placeholder for the API key. HTTPS required.",
+    requiresKeyPlaceholder: true,
+  },
+  catbox: {
+    label: "Catbox",
+    defaultUrl: "https://catbox.moe/user/api.php",
+    defaultAllowedExtensions: "jpg,webp,mp4",
+    defaultMaxSizeMb: 200,
+    apiKeyLabel: "Userhash (optional)",
+    apiKeyRequired: false,
+    apiKeyPlaceholder: "Leave empty for anonymous uploads",
+    apiKeyHelpTitle: "Catbox Userhash",
+    apiKeyHelpDescription:
+      "Usually found in the host's dashboard or account settings. Optional on Catbox — provide a token to associate uploads with your account (required for deletion).",
+    urlHelpText: "Uses a fixed upload endpoint. HTTPS required.",
+    requiresKeyPlaceholder: false,
+  },
+  imge: {
+    label: "im.ge",
+    defaultUrl: "https://im.ge/api/v1/upload",
+    defaultAllowedExtensions: "jpg,webp",
+    defaultMaxSizeMb: 100,
+    apiKeyLabel: "API Key",
+    apiKeyRequired: true,
+    apiKeyPlaceholder: "Paste your API key",
+    apiKeyHelpTitle: "API Key",
+    apiKeyHelpDescription:
+      "Usually found in the host's dashboard or account settings. Required to authenticate your uploads.",
+    urlHelpText: "Uses a fixed upload endpoint. HTTPS required.",
+    requiresKeyPlaceholder: false,
+  },
 };
 
-/** Default allowed file extensions for upload destinations (comma-separated) */
+/**
+ * Global fallback defaults for upload destinations.
+ * Used by migrations and as a safety net. Individual providers override these.
+ */
 export const DEFAULT_DEST_ALLOWED_EXTENSIONS = "jpg,webp";
-
-/** Default max file size for upload destinations in MB (0 = unlimited) */
 export const DEFAULT_DEST_MAX_SIZE_MB = 32;
 
 /** Upload requests timeout/delay in milliseconds */

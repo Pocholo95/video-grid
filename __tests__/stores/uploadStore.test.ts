@@ -137,15 +137,16 @@ describe("uploadStore", () => {
 
     useTaskStore.getState().setItems(() => [createItem("item1")]);
 
-    const promise = act(async () => {
-      await useUploadStore.getState().uploadItemToDest("item1", mockDest);
-    });
+    // Start upload — promise stays pending until resolveUpload() is called below
+    const promise = useUploadStore
+      .getState()
+      .uploadItemToDest("item1", mockDest);
 
     // Trigger progress updates before upload completes
-    act(() => {
+    await act(async () => {
       progressCallback?.(25);
     });
-    act(() => {
+    await act(async () => {
       progressCallback?.(50);
     });
 
@@ -153,7 +154,7 @@ describe("uploadStore", () => {
     expect(items[0].uploads?.["dest1"]?.progress).toBe(50);
 
     // Now resolve the upload
-    act(() => {
+    await act(async () => {
       resolveUpload?.();
     });
 
@@ -311,14 +312,20 @@ describe("uploadStore", () => {
 
     useTaskStore.getState().setItems(() => [createItem("item1")]);
 
-    const promise = act(async () => {
-      await useUploadStore.getState().uploadItemToDest("item1", mockDest);
+    // Start upload — promise stays pending until resolveUpload() is called
+    const promise = useUploadStore
+      .getState()
+      .uploadItemToDest("item1", mockDest);
+
+    // Wait for initial state update to settle
+    await act(async () => {
+      // no-op — just flush microtasks
     });
 
     const items = useTaskStore.getState().items;
     expect(items[0].uploads?.["dest1"]?.status).toBe("uploading");
 
-    act(() => {
+    await act(async () => {
       resolveUpload?.();
     });
     await vi.runAllTimersAsync();

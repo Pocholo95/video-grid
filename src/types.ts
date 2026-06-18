@@ -159,7 +159,7 @@ export type UploadResult = {
   deleteToken?: string;
 };
 
-export type DestinationType = "chevereto" | "catbox";
+export type DestinationType = "chevereto" | "catbox" | "imge";
 
 /** Configuration for a single upload destination. */
 export type UploadDestination = {
@@ -188,6 +188,12 @@ export type UploadDestination = {
    * Maximum allowed file size in MB for uploads. 0 means no limit.
    */
   maxSizeMb: number;
+  /**
+   * Provider-specific configuration options.
+   * Each provider defines its own schema; values are stored here.
+   * Optional for backward compatibility with existing stored destinations.
+   */
+  options?: Record<string, unknown>;
 };
 
 // - Per-destination upload state on a task item

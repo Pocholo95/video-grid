@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
-import { Cloud, Pencil, Plus, Trash2 } from "lucide-react";
-import type { UploadDestination } from "../types";
+import { Cloud, Info, Pencil, Plus, Trash2 } from "lucide-react";
+import type { UploadDestination, DestinationType } from "../types";
 import { makeId } from "../utils";
+import { getProvider, getProviderDefaults } from "@/upload/providers";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import {
@@ -22,20 +23,35 @@ import {
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
   UPLOAD_DESTINATION_PROVIDERS,
   DEFAULT_DEST_ALLOWED_EXTENSIONS,
-  DEFAULT_DEST_MAX_SIZE_MB,
 } from "@/constants";
 import RangeNumberInput from "@/components/control/RangeNumberInput";
+
+/**
+ * Returns all registered provider types. Derived from the provider registry
+ * so that adding a new provider module automatically makes it available here.
+ */
+function getAvailableTypes(): DestinationType[] {
+  return Object.keys(UPLOAD_DESTINATION_PROVIDERS) as DestinationType[];
+}
+
+const CHEVERETO_DEFAULTS = getProviderDefaults("chevereto");
 
 const EMPTY: Omit<UploadDestination, "id"> = {
   name: "",
   type: "chevereto",
   apiKey: "",
-  url: UPLOAD_DESTINATION_PROVIDERS.chevereto.defaultUrl,
+  url: CHEVERETO_DEFAULTS.defaultUrl,
   enabled: true,
-  allowedExtensions: DEFAULT_DEST_ALLOWED_EXTENSIONS,
-  maxSizeMb: DEFAULT_DEST_MAX_SIZE_MB,
+  allowedExtensions: CHEVERETO_DEFAULTS.defaultAllowedExtensions,
+  maxSizeMb: CHEVERETO_DEFAULTS.defaultMaxSizeMb,
+  options: {},
 };
 
 interface Props {
@@ -83,6 +99,7 @@ export default function DestinationManager({
       enabled: d.enabled,
       allowedExtensions: d.allowedExtensions,
       maxSizeMb: d.maxSizeMb,
+      options: d.options ?? {},
     });
     setError("");
   };
@@ -114,18 +131,28 @@ export default function DestinationManager({
       return;
     }
 
-    // {key} placeholder is only required for Chevereto destinations
-    if (draft.type === "chevereto" && !trimmedUrl.includes("{key}")) {
+    // {key} placeholder validation is driven by provider config
+    if (
+      providerConfig?.requiresKeyPlaceholder &&
+      !trimmedUrl.includes("{key}")
+    ) {
       setError(
         "Upload URL must contain {key} as a placeholder for the API key.",
       );
       return;
     }
 
-    // API key is required for Chevereto, optional for Catbox (anonymous upload)
-    if (draft.type === "chevereto" && !draft.apiKey.trim()) {
-      setError("API key is required for Chevereto destinations.");
+    // API key requirement is driven by provider config
+    if (providerConfig?.apiKeyRequired && !draft.apiKey.trim()) {
+      setError("API key is required for this destination type.");
       return;
+    }
+
+    // Merge provider-specific options with their default values
+    const provider = getProvider(draft.type);
+    const mergedOptions: Record<string, unknown> = {};
+    for (const opt of provider.optionsSchema) {
+      mergedOptions[opt.key] = draft.options?.[opt.key] ?? opt.defaultValue;
     }
 
     // Validate & normalize allowedExtensions: comma-separated, alphanumeric only
@@ -150,6 +177,7 @@ export default function DestinationManager({
       enabled: draft.enabled,
       allowedExtensions: normalizedExt,
       maxSizeMb: draft.maxSizeMb,
+      options: mergedOptions,
     };
 
     if (editing!.id === "__new__") {
@@ -199,6 +227,9 @@ export default function DestinationManager({
     // Just close without saving - list will be reset on next open from parent
     onClose();
   };
+
+  // Provider config is computed once per render and reused in validation + UI
+  const providerConfig = UPLOAD_DESTINATION_PROVIDERS[draft.type];
 
   return (
     <Dialog
@@ -272,29 +303,19 @@ export default function DestinationManager({
             </h3>
 
             <div className="flex flex-col gap-2">
-              <Label htmlFor="dest-name">Name</Label>
-              <Input
-                id="dest-name"
-                type="text"
-                value={draft.name}
-                maxLength={64}
-                placeholder="My Chevereto account"
-                onChange={(e) =>
-                  setDraft((p) => ({ ...p, name: e.target.value }))
-                }
-              />
-            </div>
-
-            <div className="flex flex-col gap-2">
               <Label htmlFor="dest-type">Type</Label>
               <Select
                 value={draft.type}
                 onValueChange={(value) => {
-                  const newType = value as "chevereto" | "catbox";
+                  const newType = value as DestinationType;
+                  const defaults = getProviderDefaults(newType);
                   setDraft((p) => ({
                     ...p,
                     type: newType,
-                    url: UPLOAD_DESTINATION_PROVIDERS[newType].defaultUrl,
+                    url: defaults.defaultUrl,
+                    allowedExtensions: defaults.defaultAllowedExtensions,
+                    maxSizeMb: defaults.defaultMaxSizeMb,
+                    options: {},
                   }));
                 }}
               >
@@ -302,10 +323,66 @@ export default function DestinationManager({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="chevereto">Chevereto</SelectItem>
-                  <SelectItem value="catbox">Catbox</SelectItem>
+                  {getAvailableTypes().map((type) => (
+                    <SelectItem key={type} value={type}>
+                      {UPLOAD_DESTINATION_PROVIDERS[type].label}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
+            </div>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="dest-name">Name</Label>
+              <Input
+                id="dest-name"
+                type="text"
+                value={draft.name}
+                maxLength={64}
+                placeholder="Display name"
+                onChange={(e) =>
+                  setDraft((p) => ({ ...p, name: e.target.value }))
+                }
+              />
+            </div>
+
+            <div className="flex flex-col gap-2">
+              <div className="flex items-center gap-2">
+                <Label htmlFor="dest-key">
+                  {providerConfig?.apiKeyLabel ?? "API Key"}
+                </Label>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <button
+                      type="button"
+                      className="size-6 flex items-center justify-center rounded-full text-muted-foreground hover:text-foreground transition-colors"
+                      aria-label="About API Key / Auth Token"
+                    >
+                      <Info className="size-4" />
+                    </button>
+                  </PopoverTrigger>
+                  <PopoverContent className="max-w-72 text-xs leading-relaxed">
+                    <p className="font-medium mb-1">
+                      {providerConfig?.apiKeyHelpTitle ?? "API Key"}
+                    </p>
+                    <p>
+                      {providerConfig?.apiKeyHelpDescription ??
+                        "Usually found in the host's dashboard or account settings."}
+                    </p>
+                  </PopoverContent>
+                </Popover>
+              </div>
+              <Input
+                id="dest-key"
+                type="text"
+                value={draft.apiKey}
+                placeholder={
+                  providerConfig?.apiKeyPlaceholder ?? "Paste your API key"
+                }
+                onChange={(e) =>
+                  setDraft((p) => ({ ...p, apiKey: e.target.value }))
+                }
+                autoComplete="off"
+              />
             </div>
 
             <div className="flex flex-col gap-2">
@@ -320,45 +397,10 @@ export default function DestinationManager({
                 }
                 autoComplete="off"
               />
-              {draft.type === "chevereto" ? (
-                <p className="text-muted-foreground text-xs">
-                  Use{" "}
-                  <code className="bg-muted rounded px-1 py-0.5 font-mono">
-                    {"{key}"}
-                  </code>{" "}
-                  as a placeholder for the API key. HTTPS required.
-                </p>
-              ) : (
-                <p className="text-muted-foreground text-xs">
-                  Catbox uses a fixed upload endpoint. HTTPS required.
-                </p>
-              )}
-            </div>
-
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="dest-key">
-                {draft.type === "catbox" ? "User hash (optional)" : "API Key"}
-              </Label>
-              <Input
-                id="dest-key"
-                type="text"
-                value={draft.apiKey}
-                placeholder={
-                  draft.type === "catbox"
-                    ? "Leave empty for anonymous uploads"
-                    : "Paste your API key"
-                }
-                onChange={(e) =>
-                  setDraft((p) => ({ ...p, apiKey: e.target.value }))
-                }
-                autoComplete="off"
-              />
-              {draft.type === "catbox" && (
-                <p className="text-muted-foreground text-xs">
-                  Catbox supports anonymous uploads. Provide your user hash to
-                  associate uploads with your account.
-                </p>
-              )}
+              <p className="text-muted-foreground text-xs">
+                {providerConfig?.urlHelpText ??
+                  "Uses a fixed upload endpoint. HTTPS required."}
+              </p>
             </div>
 
             <div className="flex flex-col gap-2">
@@ -383,22 +425,83 @@ export default function DestinationManager({
 
             <div className="flex flex-col gap-2">
               <Label htmlFor="dest-maxsize">Max File Size</Label>
-              <RangeNumberInput
-                id="dest-maxsize"
-                value={draft.maxSizeMb}
-                min={0}
-                max={64}
-                step={1}
-                suffix="MB"
-                hardMin={0}
-                hardMax={Number.MAX_SAFE_INTEGER}
-                onChange={(v) => setDraft((p) => ({ ...p, maxSizeMb: v }))}
-              />
+              {(() => {
+                const providerMax = getProviderDefaults(
+                  draft.type,
+                ).defaultMaxSizeMb;
+                return (
+                  <RangeNumberInput
+                    id="dest-maxsize"
+                    value={draft.maxSizeMb}
+                    min={0}
+                    max={providerMax || 64}
+                    step={1}
+                    suffix="MB"
+                    hardMin={0}
+                    unbounded
+                    hardMax={Number.MAX_SAFE_INTEGER}
+                    onChange={(v) => setDraft((p) => ({ ...p, maxSizeMb: v }))}
+                  />
+                );
+              })()}
               <p className="text-muted-foreground text-xs">
                 0 means no size limit. Files larger than this will be blocked
                 from upload.
               </p>
             </div>
+
+            {/* Provider-specific options */}
+            {(() => {
+              const provider = getProvider(draft.type);
+              return provider.optionsSchema.map((opt) => (
+                <div key={opt.key} className="flex flex-col gap-2">
+                  <div className="flex items-center justify-between">
+                    <Label
+                      htmlFor={`dest-opt-${opt.key}`}
+                      className="flex flex-col items-start"
+                    >
+                      <span>{opt.label}</span>
+                      <span className="text-muted-foreground font-normal text-xs">
+                        {opt.description}
+                      </span>
+                    </Label>
+                    {opt.type === "boolean" ? (
+                      <Switch
+                        id={`dest-opt-${opt.key}`}
+                        checked={
+                          (draft.options?.[opt.key] as boolean) ??
+                          (opt.defaultValue as boolean)
+                        }
+                        onCheckedChange={(checked) =>
+                          setDraft((p) => ({
+                            ...p,
+                            options: { ...p.options, [opt.key]: checked },
+                          }))
+                        }
+                      />
+                    ) : (
+                      <Input
+                        id={`dest-opt-${opt.key}`}
+                        type="text"
+                        value={
+                          (draft.options?.[opt.key] as string) ??
+                          (opt.defaultValue as string)
+                        }
+                        onChange={(e) =>
+                          setDraft((p) => ({
+                            ...p,
+                            options: {
+                              ...p.options,
+                              [opt.key]: e.target.value,
+                            },
+                          }))
+                        }
+                      />
+                    )}
+                  </div>
+                </div>
+              ));
+            })()}
 
             {error && (
               <p className="text-destructive text-sm font-medium">{error}</p>

@@ -7,7 +7,13 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import {
+  render,
+  screen,
+  fireEvent,
+  waitFor,
+  act,
+} from "@testing-library/react";
 import TimestampEditor from "@/components/TimestampEditor";
 import type { TaskItem } from "@/types";
 
@@ -532,10 +538,11 @@ describe("TimestampEditor", () => {
     // The wheel listener is attached via native addEventListener (not a React
     // synthetic handler).  Dispatch a real WheelEvent so that shiftKey /
     // ctrlKey are seen by the handler.
-    function dispatchWheel(
-      target: Element,
-      opts: { deltaY?: number; shiftKey?: boolean; ctrlKey?: boolean },
-    ) {
+    function createWheelEvent(opts: {
+      deltaY?: number;
+      shiftKey?: boolean;
+      ctrlKey?: boolean;
+    }) {
       // jsdom's WheelEvent constructor doesn't reliably set modifier
       // properties from the init dict, so we force them via
       // Object.defineProperty after construction.
@@ -556,7 +563,20 @@ describe("TimestampEditor", () => {
         enumerable: true,
         configurable: true,
       });
-      target.dispatchEvent(event);
+      return event;
+    }
+
+    async function dispatchWheel(
+      target: Element,
+      opts: {
+        deltaY?: number;
+        shiftKey?: boolean;
+        ctrlKey?: boolean;
+      },
+    ) {
+      await act(async () => {
+        target.dispatchEvent(createWheelEvent(opts));
+      });
     }
 
     it("seeks forward when scrolling down on the seekbar", async () => {
