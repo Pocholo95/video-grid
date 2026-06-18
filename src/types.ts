@@ -153,11 +153,13 @@ export type UploadResult = {
   mediumUrl?: string;
   /** Direct CDN URL for the auto-generated thumbnail */
   thumbUrl: string;
-  /** One-click delete URL */
+  /** One-click delete URL (Chevereto) or file URL to delete (Catbox) */
   deleteUrl: string;
+  /** Authentication token required for deletion (e.g. Catbox userhash) */
+  deleteToken?: string;
 };
 
-export type DestinationType = "chevereto";
+export type DestinationType = "chevereto" | "catbox" | "imge";
 
 /** Configuration for a single upload destination. */
 export type UploadDestination = {
@@ -186,6 +188,12 @@ export type UploadDestination = {
    * Maximum allowed file size in MB for uploads. 0 means no limit.
    */
   maxSizeMb: number;
+  /**
+   * Provider-specific configuration options.
+   * Each provider defines its own schema; values are stored here.
+   * Optional for backward compatibility with existing stored destinations.
+   */
+  options?: Record<string, unknown>;
 };
 
 // - Per-destination upload state on a task item

@@ -43,6 +43,12 @@ interface UploadState {
    * Upload all completed, not-yet-uploaded items to all enabled destinations.
    */
   uploadAll: (destinations: UploadDestination[]) => Promise<void>;
+
+  /**
+   * Remove the upload result for a specific destination on a task item.
+   * Used after deleting a file from the host so the links are cleared.
+   */
+  clearUploadResult: (itemId: string, destId: string) => void;
 }
 
 function sleep(ms: number) {
@@ -194,6 +200,17 @@ export const useUploadStore = create<UploadState>()(
       } finally {
         set(() => ({ isUploadingAll: false }));
       }
+    },
+
+    clearUploadResult: (itemId, destId) => {
+      useTaskStore.getState().setItems((prev) =>
+        patchUpload(prev, itemId, destId, {
+          status: "idle",
+          progress: 0,
+          result: undefined,
+          error: undefined,
+        }),
+      );
     },
   })),
 );

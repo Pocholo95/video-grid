@@ -76,7 +76,7 @@ const mockDestination: UploadDestination = {
   maxSizeMb: 0,
 };
 
-describe("uploadBlob", () => {
+describe("uploadBlob - chevereto", () => {
   let mockXHR: MockXHR;
 
   beforeEach(() => {
