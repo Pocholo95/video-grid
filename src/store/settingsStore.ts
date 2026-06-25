@@ -7,6 +7,7 @@ import {
 } from "@/presets";
 import type { AppSettings } from "@/types";
 import { deepClone } from "@/lib/deepClone";
+import { resetBatchState } from "@/lib/cors-tunnel";
 
 /**
  * Zustand store for app settings, theme, presets, and upload destinations.
@@ -59,6 +60,12 @@ export const useSettingsStore = create<SettingsState>()(
     updateSettings: (patch) =>
       set((state) => {
         Object.assign(state.settings, patch);
+        // When the user toggles corsModalDismissed off in the settings dialog,
+        // also reset the CORS tunnel's per-batch flag so the modal can show
+        // again on the next upload attempt.
+        if (patch.corsModalDismissed === false) {
+          resetBatchState();
+        }
         persistAppSettings(state.settings);
       }),
 

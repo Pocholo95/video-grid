@@ -15,6 +15,7 @@ const baseSettings: AppSettings = {
   destinations: [],
   theme: "dark",
   showPreview: true,
+  corsModalDismissed: false,
 };
 
 describe("useAppSettings", () => {

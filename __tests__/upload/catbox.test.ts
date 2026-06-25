@@ -6,6 +6,7 @@ import {
 } from "@/upload";
 import type { UploadDestination } from "@/types";
 import { getProvider } from "@/upload/providers";
+import * as corsTunnel from "@/lib/cors-tunnel";
 
 /** - Catbox upload tests */
 
@@ -148,19 +149,6 @@ describe("uploadBlob - catbox", () => {
 /** - deleteDestination tests */
 
 describe("deleteFromDestination - catbox", () => {
-  interface MockXHR {
-    status: number;
-    responseText: string;
-    open: ReturnType<typeof vi.fn>;
-    send: ReturnType<typeof vi.fn>;
-    onload: (() => void) | null;
-    onerror: (() => void) | null;
-    _triggerLoad: () => void;
-    _triggerError: () => void;
-  }
-
-  let mockXHR: MockXHR;
-
   const catboxDest: UploadDestination = {
     id: "dest-catbox",
     name: "Catbox",
@@ -173,23 +161,11 @@ describe("deleteFromDestination - catbox", () => {
   };
 
   beforeEach(() => {
-    mockXHR = {
-      status: 200,
-      responseText: "Files successfully deleted.",
-      open: vi.fn(),
-      send: vi.fn(),
-      onload: null,
-      onerror: null,
-      _triggerLoad: () => {
-        mockXHR.onload?.();
-      },
-      _triggerError: () => {
-        mockXHR.onerror?.();
-      },
-    };
-
-    vi.spyOn(globalThis, "XMLHttpRequest").mockImplementation(function () {
-      return mockXHR as unknown as XMLHttpRequest;
+    // CORS tunnel not available so native fetch is used
+    vi.spyOn(corsTunnel, "getCORSStatus").mockReturnValue({
+      available: false,
+      modalShownThisBatch: false,
+      versionMismatch: false,
     });
   });
 
@@ -206,24 +182,38 @@ describe("deleteFromDestination - catbox", () => {
       deleteToken: "userhash123",
     };
 
-    const promise = deleteFromDestination(result, catboxDest);
+    const mockResponse = {
+      ok: true,
+      status: 200,
+      text: vi.fn().mockResolvedValue("Files successfully deleted."),
+    };
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(mockResponse as never);
 
-    mockXHR._triggerLoad();
-    await promise;
+    await deleteFromDestination(result, catboxDest);
 
-    expect(mockXHR.open).toHaveBeenCalledWith(
-      "POST",
+    expect(fetchSpy).toHaveBeenCalledWith(
       "https://catbox.moe/user/api.php",
+      expect.objectContaining({
+        method: "POST",
+      }),
     );
 
-    const sentData = mockXHR.send.mock.calls[0][0] as URLSearchParams;
-    expect(sentData.get("reqtype")).toBe("deletefiles");
-    expect(sentData.get("userhash")).toBe("userhash123");
-    expect(sentData.get("files")).toBe("abc123.jpg");
+    const call = fetchSpy.mock.calls[0][1] as Record<string, unknown>;
+    const bodyStr = call.body as string;
+    const params = new URLSearchParams(bodyStr);
+    expect(params.get("reqtype")).toBe("deletefiles");
+    expect(params.get("userhash")).toBe("userhash123");
+    expect(params.get("files")).toBe("abc123.jpg");
   });
 
   it("rejects on HTTP error", async () => {
-    mockXHR.status = 500;
+    const mockResponse = {
+      ok: false,
+      status: 500,
+    };
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(mockResponse as never);
 
     const result = {
       pageUrl: "https://files.catbox.moe/abc123.jpg",
@@ -233,15 +223,18 @@ describe("deleteFromDestination - catbox", () => {
       deleteToken: "userhash123",
     };
 
-    const promise = deleteFromDestination(result, catboxDest);
-
-    mockXHR._triggerLoad();
-
-    await expect(promise).rejects.toThrow("Catbox delete failed: HTTP 500");
+    await expect(deleteFromDestination(result, catboxDest)).rejects.toThrow(
+      "Catbox delete failed: HTTP 500",
+    );
   });
 
   it("rejects when response indicates failure", async () => {
-    mockXHR.responseText = "Files not found.";
+    const mockResponse = {
+      ok: true,
+      status: 200,
+      text: vi.fn().mockResolvedValue("Files not found."),
+    };
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(mockResponse as never);
 
     const result = {
       pageUrl: "https://files.catbox.moe/abc123.jpg",
@@ -251,16 +244,14 @@ describe("deleteFromDestination - catbox", () => {
       deleteToken: "userhash123",
     };
 
-    const promise = deleteFromDestination(result, catboxDest);
-
-    mockXHR._triggerLoad();
-
-    await expect(promise).rejects.toThrow(
+    await expect(deleteFromDestination(result, catboxDest)).rejects.toThrow(
       "Catbox delete failed: Files not found.",
     );
   });
 
   it("rejects on network error", async () => {
+    vi.spyOn(globalThis, "fetch").mockRejectedValue(new Error("Network error"));
+
     const result = {
       pageUrl: "https://files.catbox.moe/abc123.jpg",
       directUrl: "https://files.catbox.moe/abc123.jpg",
@@ -269,15 +260,20 @@ describe("deleteFromDestination - catbox", () => {
       deleteToken: "userhash123",
     };
 
-    const promise = deleteFromDestination(result, catboxDest);
-
-    mockXHR._triggerError();
-
-    await expect(promise).rejects.toThrow("Network error during delete");
+    await expect(deleteFromDestination(result, catboxDest)).rejects.toThrow(
+      "Network error",
+    );
   });
 
   it("extracts filename from URL correctly", async () => {
-    mockXHR.responseText = "Files successfully deleted.";
+    const mockResponse = {
+      ok: true,
+      status: 200,
+      text: vi.fn().mockResolvedValue("Files successfully deleted."),
+    };
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(mockResponse as never);
 
     const result = {
       pageUrl: "https://files.catbox.moe/eh871k.png",
@@ -287,12 +283,12 @@ describe("deleteFromDestination - catbox", () => {
       deleteToken: "hash456",
     };
 
-    const promise = deleteFromDestination(result, catboxDest);
-    mockXHR._triggerLoad();
-    await promise;
+    await deleteFromDestination(result, catboxDest);
 
-    const sentData = mockXHR.send.mock.calls[0][0] as URLSearchParams;
-    expect(sentData.get("files")).toBe("eh871k.png");
+    const call2 = fetchSpy.mock.calls[0][1] as Record<string, unknown>;
+    const bodyStr2 = call2.body as string;
+    const params2 = new URLSearchParams(bodyStr2);
+    expect(params2.get("files")).toBe("eh871k.png");
   });
 });
 

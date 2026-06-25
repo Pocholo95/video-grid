@@ -3,7 +3,7 @@ import { immer } from "zustand/middleware/immer";
 import { autoAnimate } from "@formkit/auto-animate";
 import { saveAs } from "file-saver";
 import JSZip from "jszip";
-import { DEFAULTS } from "@/constants";
+import { DEFAULTS, PROJECT_NAME } from "@/constants";
 import { makeUniqueName } from "@/utils";
 import type { SavedOptions } from "@/types";
 import { useTaskStore } from "./taskStore";
@@ -83,7 +83,7 @@ export const useUiStore = create<UiState>()(
         }
 
         const blob = await zip.generateAsync({ type: "blob" });
-        saveAs(blob, "vidgrid-outputs.zip");
+        saveAs(blob, `${PROJECT_NAME.toLowerCase()}-outputs.zip`);
       } finally {
         set((state) => {
           state.isZipping = false;

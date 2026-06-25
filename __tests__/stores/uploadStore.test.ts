@@ -3,6 +3,7 @@ import { act } from "@testing-library/react";
 import { useUploadStore } from "@/store/uploadStore";
 import { useTaskStore } from "@/store/taskStore";
 import * as uploadModule from "@/upload";
+import * as corsTunnel from "@/lib/cors-tunnel";
 import type { TaskItem, UploadDestination } from "@/types";
 
 const mockDest: UploadDestination = {
@@ -55,6 +56,8 @@ describe("uploadStore", () => {
     useUploadStore.getState().resetUploadState();
     useTaskStore.getState().setItems(() => []);
     vi.spyOn(uploadModule, "uploadBlob").mockResolvedValue(mockResult);
+    // Mock CORS tunnel detection so tests don't wait for real ping/pong
+    vi.spyOn(corsTunnel, "detectCORSTunnelAvailable").mockResolvedValue(false);
   });
 
   afterEach(() => {
@@ -338,6 +341,7 @@ describe("uploadStore uploadAll (no fake timers)", () => {
     useUploadStore.getState().resetUploadState();
     useTaskStore.getState().setItems(() => []);
     vi.spyOn(uploadModule, "uploadBlob").mockResolvedValue(mockResult);
+    vi.spyOn(corsTunnel, "detectCORSTunnelAvailable").mockResolvedValue(false);
   });
 
   afterEach(() => {

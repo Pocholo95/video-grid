@@ -361,4 +361,9 @@ export type AppSettings = {
   theme: Theme;
   /** Whether to show preview thumbnails in the tasks list (app-wide setting) */
   showPreview: boolean;
+  /**
+   * When true, the CORS help modal is never shown even when uploads fail
+   * with cross-origin errors.  Default: false.
+   */
+  corsModalDismissed: boolean;
 };

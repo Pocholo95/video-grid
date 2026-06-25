@@ -1,6 +1,13 @@
-import { UPLOAD_TIMEOUT_MS } from "@/constants";
+import { PROJECT_NAME, UPLOAD_TIMEOUT_MS } from "@/constants";
 import type { UploadDestination, UploadResult } from "@/types";
 import type { UploadProvider, ProviderOptionSchema } from "./providers";
+import {
+  CORSError,
+  isCORSError,
+  proxyFetch,
+  detectCORSTunnelAvailable,
+  getCORSStatus,
+} from "@/lib/cors-tunnel";
 
 // -- API response types --
 
@@ -43,6 +50,7 @@ const OPTIONS_SCHEMA: ProviderOptionSchema[] = [
  * Upload a Blob to im.ge using the /api/v1/upload endpoint.
  * Uses multipart/form-data with the "image" field per the OpenAPI spec.
  * Auth via Authorization: Bearer header.
+ * Falls back to the CORS tunnel userscript when a cross-origin error occurs.
  */
 async function upload(
   blob: Blob,
@@ -71,12 +79,46 @@ async function upload(
       headers["Authorization"] = `Bearer ${dest.apiKey}`;
     }
 
-    const response = await fetch(dest.url, {
-      method: "POST",
-      body: formData,
-      headers,
-      signal: controller.signal,
-    });
+    // Use proxy directly if CORS tunnel is already detected, otherwise try native fetch
+    let response: Response;
+    if (getCORSStatus().available) {
+      response = await proxyFetch(dest.url, {
+        method: "POST",
+        body: formData,
+        headers,
+      });
+    } else {
+      try {
+        response = await fetch(dest.url, {
+          method: "POST",
+          body: formData,
+          headers,
+          signal: controller.signal,
+        });
+      } catch (error) {
+        clearTimeout(timeoutId);
+        if (controller.signal.aborted) {
+          throw new Error("Upload timed out");
+        }
+        if (!isCORSError(error)) {
+          throw error;
+        }
+        // CORS blocked – fall back to userscript proxy
+        const available = await detectCORSTunnelAvailable();
+        if (!available) {
+          throw new CORSError(
+            "CORS blocked and no userscript proxy is available. " +
+              `Please install the ${PROJECT_NAME} CORS Tunnel userscript.`,
+            dest.url,
+          );
+        }
+        response = await proxyFetch(dest.url, {
+          method: "POST",
+          body: formData,
+          headers,
+        });
+      }
+    }
 
     clearTimeout(timeoutId);
     onProgress(90);
@@ -128,32 +170,48 @@ async function upload(
  * Permanently delete an image from im.ge using the public delete endpoint.
  * Uses /api/v1/delete/:code/:delete_token which does not require API key
  * permissions. The delete_token is provided in the upload response.
+ * Uses CORS tunnel when available to avoid cross-origin restrictions.
  */
 async function deleteFile(
   result: UploadResult,
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   _dest: UploadDestination,
 ): Promise<void> {
-  // deleteUrl stores the image code
   const code = result.deleteUrl;
-
   if (!code) {
     throw new Error("Cannot delete: image code not available");
   }
 
-  // deleteToken stores the one-time delete token from the upload response
   const deleteToken = result.deleteToken;
-
   if (!deleteToken) {
     throw new Error("Cannot delete: delete token not available");
   }
 
-  const response = await fetch(
-    `https://im.ge/api/v1/delete/${code}/${deleteToken}`,
-    {
-      method: "DELETE",
-    },
-  );
+  const url = `https://im.ge/api/v1/delete/${code}/${deleteToken}`;
+
+  // Use proxy directly if CORS tunnel is already detected, otherwise try native fetch
+  let response: Response;
+  if (getCORSStatus().available) {
+    response = await proxyFetch(url, { method: "DELETE" });
+  } else {
+    try {
+      response = await fetch(url, { method: "DELETE" });
+    } catch (error) {
+      if (!isCORSError(error)) {
+        throw error;
+      }
+      // CORS blocked – fall back to userscript proxy
+      const available = await detectCORSTunnelAvailable();
+      if (!available) {
+        throw new CORSError(
+          "CORS blocked and no userscript proxy is available. " +
+            `Please install the ${PROJECT_NAME} CORS Tunnel userscript.`,
+          url,
+        );
+      }
+      response = await proxyFetch(url, { method: "DELETE" });
+    }
+  }
 
   if (!response.ok) {
     const errorText = await response.text().catch(() => "");

@@ -1,6 +1,13 @@
-import { UPLOAD_TIMEOUT_MS } from "@/constants";
+import { PROJECT_NAME, UPLOAD_TIMEOUT_MS } from "@/constants";
 import type { UploadDestination, UploadResult } from "@/types";
 import type { UploadProvider } from "./providers";
+import {
+  CORSError,
+  isCORSError,
+  proxyFetch,
+  detectCORSTunnelAvailable,
+  getCORSStatus,
+} from "@/lib/cors-tunnel";
 
 // -- API response types --
 
@@ -71,6 +78,7 @@ async function blobToBase64(blob: Blob): Promise<string> {
 
 /**
  * Upload a Blob to a Chevereto-compatible host using the v1 API.
+ * Falls back to the CORS tunnel userscript when a cross-origin error occurs.
  */
 async function upload(
   blob: Blob,
@@ -85,72 +93,114 @@ async function upload(
   formData.append("image", b64);
   formData.append("name", filename.replace(/\.[^.]+$/, ""));
 
-  return new Promise((resolve, reject) => {
-    const xhr = new XMLHttpRequest();
-    const timeoutId = setTimeout(() => xhr.abort(), UPLOAD_TIMEOUT_MS);
+  let status: number;
+  let responseText: string;
 
-    xhr.open("POST", uploadUrl);
-    xhr.timeout = UPLOAD_TIMEOUT_MS;
+  if (getCORSStatus().available) {
+    // Use proxy directly when tunnel is detected.
+    // proxyFetch properly handles FormData by sending structured form data
+    // (formdata-v2) so the userscript can reconstruct the multipart body.
+    const proxied = await proxyFetch(uploadUrl, {
+      method: "POST",
+      body: formData,
+    });
+    status = proxied.status;
+    responseText = await proxied.text();
+    onProgress(100);
+  } else {
+    // Try native XHR first - send FormData directly so the browser handles
+    // Content-Type (multipart/form-data) and boundaries automatically
+    try {
+      const xhrResult = await new Promise<{
+        status: number;
+        responseText: string;
+      }>((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        const timeoutId = setTimeout(() => xhr.abort(), UPLOAD_TIMEOUT_MS);
 
-    xhr.upload.onprogress = (e) => {
-      if (e.lengthComputable) {
-        onProgress(Math.round((e.loaded / e.total) * 100));
+        xhr.open("POST", uploadUrl);
+        xhr.timeout = UPLOAD_TIMEOUT_MS;
+
+        xhr.upload.onprogress = (e) => {
+          if (e.lengthComputable) {
+            onProgress(Math.round((e.loaded / e.total) * 100));
+          }
+        };
+
+        xhr.onload = () => {
+          clearTimeout(timeoutId);
+          resolve({ status: xhr.status, responseText: xhr.responseText });
+        };
+
+        xhr.onerror = () => {
+          clearTimeout(timeoutId);
+          reject(new Error("Network error during upload"));
+        };
+
+        xhr.ontimeout = () => {
+          clearTimeout(timeoutId);
+          reject(new Error("Upload timed out"));
+        };
+
+        xhr.onabort = () => {
+          clearTimeout(timeoutId);
+          reject(new Error("Upload timed out"));
+        };
+
+        xhr.send(formData);
+      });
+      ({ status, responseText } = xhrResult);
+    } catch (error) {
+      if (!isCORSError(error)) {
+        throw error;
       }
-    };
-
-    xhr.onload = () => {
-      clearTimeout(timeoutId);
-
-      let json: CheveretoResponse;
-      try {
-        json = JSON.parse(xhr.responseText) as CheveretoResponse;
-      } catch {
-        reject(new Error(`Chevereto HTTP ${xhr.status} — invalid response`));
-        return;
+      // CORS blocked – fall back to userscript proxy
+      const available = await detectCORSTunnelAvailable();
+      if (!available) {
+        throw new CORSError(
+          "CORS blocked and no userscript proxy is available. " +
+            `Please install the ${PROJECT_NAME} CORS Tunnel userscript.`,
+          uploadUrl,
+        );
       }
-
-      if ("error" in json && json.error?.message) {
-        reject(new Error(json.error.message));
-        return;
-      }
-
-      if (xhr.status !== 200) {
-        reject(new Error(`Chevereto HTTP ${xhr.status}`));
-        return;
-      }
-
+      const proxied = await proxyFetch(uploadUrl, {
+        method: "POST",
+        body: formData,
+      });
+      status = proxied.status;
+      responseText = await proxied.text();
       onProgress(100);
+    }
+  }
 
-      if ("success" in json && json.success) {
-        resolve({
-          directUrl: json.data.url,
-          pageUrl: json.data.url_viewer,
-          mediumUrl: json.data.medium?.url ?? undefined,
-          thumbUrl: json.data.thumb?.url ?? json.data.url,
-          deleteUrl: json.data.delete_url,
-        });
-      } else {
-        reject(new Error("Chevereto returned an error"));
-      }
+  let json: CheveretoResponse;
+  try {
+    json = JSON.parse(responseText) as CheveretoResponse;
+  } catch {
+    throw new Error(`Chevereto HTTP ${status} — invalid response`);
+  }
+
+  if ("error" in json && json.error?.message) {
+    throw new Error(json.error.message);
+  }
+
+  if (status !== 200) {
+    throw new Error(`Chevereto HTTP ${status}`);
+  }
+
+  onProgress(100);
+
+  if ("success" in json && json.success) {
+    return {
+      directUrl: json.data.url,
+      pageUrl: json.data.url_viewer,
+      mediumUrl: json.data.medium?.url ?? undefined,
+      thumbUrl: json.data.thumb?.url ?? json.data.url,
+      deleteUrl: json.data.delete_url,
     };
+  }
 
-    xhr.onerror = () => {
-      clearTimeout(timeoutId);
-      reject(new Error("Network error during upload"));
-    };
-
-    xhr.ontimeout = () => {
-      clearTimeout(timeoutId);
-      reject(new Error("Upload timed out"));
-    };
-
-    xhr.onabort = () => {
-      clearTimeout(timeoutId);
-      reject(new Error("Upload timed out"));
-    };
-
-    xhr.send(formData);
-  });
+  throw new Error("Chevereto returned an error");
 }
 
 export const cheveretoProvider: UploadProvider = {

@@ -3,6 +3,15 @@ import { immer } from "zustand/middleware/immer";
 import { uploadBlob } from "@/upload";
 import { UPLOAD_DELAY_MS } from "@/constants";
 import { isUploadEligible } from "@/uploadUtils";
+import {
+  CORSError,
+  shouldShowCORSModal,
+  markModalShown,
+  detectCORSTunnelAvailable,
+  resetBatchState,
+  hasVersionMismatch,
+  getCORSStatus,
+} from "@/lib/cors-tunnel";
 import type {
   DestinationUploadState,
   TaskItem,
@@ -21,8 +30,18 @@ import { useTaskStore } from "./taskStore";
 interface UploadState {
   isUploadingAll: boolean;
   uploadProgress: { attempted: number; total: number };
+  /** When true the CORS help modal should be displayed. */
+  showCORSHelpModal: boolean;
+  /** When true the CORS outdated modal should be displayed. */
+  showCORSOutdatedModal: boolean;
 
   resetUploadState: () => void;
+
+  /** Close the CORS outdated modal. */
+  handleCloseCORSOutdatedModal: () => void;
+
+  /** Close the CORS help modal. */
+  handleCloseCORSHelpModal: () => void;
 
   /**
    * Upload a single task item to a single destination.
@@ -81,17 +100,47 @@ export const useUploadStore = create<UploadState>()(
   immer((set) => ({
     isUploadingAll: false,
     uploadProgress: { total: 0, attempted: 0 },
+    showCORSHelpModal: false,
+    showCORSOutdatedModal: false,
 
-    resetUploadState: () =>
+    resetUploadState: () => {
+      // Reset CORS tunnel batch tracking so the modal can show again
+      // on the next upload attempt.
+      resetBatchState();
       set(() => ({
         uploadProgress: { total: 0, attempted: 0 },
         isUploadingAll: false,
-      })),
+        showCORSHelpModal: false,
+        showCORSOutdatedModal: false,
+      }));
+    },
+
+    handleCloseCORSHelpModal: () => set(() => ({ showCORSHelpModal: false })),
+
+    handleCloseCORSOutdatedModal: () =>
+      set(() => ({ showCORSOutdatedModal: false })),
 
     uploadItemToDest: async (itemId, dest) => {
       const items = useTaskStore.getState().items;
       const item = items.find((i) => i.id === itemId);
       if (!item?.outputBlob || !item.outputName) return;
+
+      // Detect CORS tunnel availability before any upload attempt so the
+      // proxy can be used immediately, avoiding a doomed native fetch that
+      // would succeed server-side but be blocked by the browser's CORS policy.
+      // Skip the ping if tunnel state is already known (available or mismatch)
+      // to avoid redundant 3-second pings when called from uploadAll's loop.
+      const status = getCORSStatus();
+      if (!status.available && !status.versionMismatch) {
+        await detectCORSTunnelAvailable();
+
+        // If the userscript responded but with an outdated version, show the
+        // outdated modal instead of proceeding with the upload.
+        if (hasVersionMismatch()) {
+          set(() => ({ showCORSOutdatedModal: true }));
+          return;
+        }
+      }
 
       useTaskStore.getState().setItems((prev) =>
         patchUpload(prev, itemId, dest.id, {
@@ -128,6 +177,11 @@ export const useUploadStore = create<UploadState>()(
             error: msg,
           }),
         );
+        // If this was a CORS error, signal the modal (only if not dismissed)
+        if (e instanceof CORSError && shouldShowCORSModal()) {
+          markModalShown();
+          set(() => ({ showCORSHelpModal: true }));
+        }
       }
     },
 
@@ -166,6 +220,17 @@ export const useUploadStore = create<UploadState>()(
         uploadProgress: { total: totalUploads, attempted: 0 },
         isUploadingAll: true,
       }));
+
+      // Detect CORS tunnel availability at the start of the upload batch
+      // so the proxy can be used immediately if the userscript is installed.
+      await detectCORSTunnelAvailable();
+
+      // If the userscript responded but with an outdated version, show the
+      // outdated modal instead of proceeding with uploads.
+      if (hasVersionMismatch()) {
+        set(() => ({ showCORSOutdatedModal: true }));
+        return;
+      }
 
       try {
         let attempted = 0;

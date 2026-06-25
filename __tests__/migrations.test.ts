@@ -29,6 +29,7 @@ function makeAppSettings(presetOverride?: Partial<SavedOptions>): AppSettings {
     destinations: [],
     theme: "dark",
     showPreview: true,
+    corsModalDismissed: false,
   };
 }
 
@@ -166,6 +167,7 @@ describe("migrateSettings", () => {
       destinations: [],
       theme: "dark",
       showPreview: true,
+      corsModalDismissed: false,
     };
     const result = migrateSettings(settings, 1);
 
@@ -209,6 +211,7 @@ describe("migrateSettings", () => {
       destinations: [],
       theme: "dark",
       showPreview: true,
+      corsModalDismissed: false,
     };
     const result = migrateSettings(settings, 1);
 
@@ -229,6 +232,7 @@ describe("migrateSettings", () => {
       destinations: [],
       theme: "dark",
       showPreview: true,
+      corsModalDismissed: false,
     };
     const result = migrateSettings(settings, 1);
 
@@ -280,6 +284,7 @@ describe("migrateSettings v3 → v4", () => {
       destinations,
       theme: "dark",
       showPreview: true,
+      corsModalDismissed: false,
     };
   }
 

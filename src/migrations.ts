@@ -183,6 +183,21 @@ function migrateV2toV3(data: unknown): AppSettings {
   };
 }
 
+/**
+ * v4 → v5: Add corsModalDismissed field to AppSettings.
+ *
+ * Settings created before v5 lack the `corsModalDismissed` flag which controls
+ * whether the CORS help modal is shown when uploads fail with cross-origin
+ * errors. Default is false (modal will be shown).
+ */
+function migrateV4toV5(data: unknown): AppSettings {
+  const settings = data as AppSettings;
+  return {
+    ...settings,
+    corsModalDismissed: settings?.corsModalDismissed ?? false,
+  };
+}
+
 /** - Migration registry - ordered from oldest to newest - END */
 
 /**
@@ -193,6 +208,7 @@ const migrations: Array<(data: unknown) => AppSettings> = [
   migrateV1toV2,
   migrateV2toV3,
   migrateV3toV4,
+  migrateV4toV5,
 ];
 
 /** - Public API */

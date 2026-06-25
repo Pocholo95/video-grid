@@ -8,6 +8,7 @@ import { useTaskStore } from "@/store/taskStore";
 import { useProcessingStore } from "@/store/processingStore";
 import { useUiStore } from "@/store/uiStore";
 import { useSettingsStore } from "@/store/settingsStore";
+import { useUploadStore } from "@/store/uploadStore";
 import { useProcessor } from "@/hooks/useProcessor";
 import { useUpload } from "@/hooks/useUpload";
 import { useKeyboardShortcut } from "@/hooks/useKeyboardShortcut";
@@ -15,6 +16,8 @@ import { useKeyboardShortcut } from "@/hooks/useKeyboardShortcut";
 import ControlPanel from "./components/ControlPanel";
 import TaskList from "./components/TaskList";
 import PreviewModal from "./components/PreviewModal";
+import CORSHelpModal from "./components/CORSHelpModal";
+import CORSOutdatedModal from "./components/CORSOutdatedModal";
 import Footer from "./components/Footer";
 import Settings from "./components/Settings";
 import { Button } from "./components/ui/button";
@@ -24,6 +27,15 @@ export default function App() {
   const items = useTaskStore((s) => s.items);
   const setItems = useTaskStore((s) => s.setItems);
   const updateItem = useTaskStore((s) => s.updateItem);
+
+  const showCORSHelpModal = useUploadStore((s) => s.showCORSHelpModal);
+  const handleCloseCORSHelpModal = useUploadStore(
+    (s) => s.handleCloseCORSHelpModal,
+  );
+  const showCORSOutdatedModal = useUploadStore((s) => s.showCORSOutdatedModal);
+  const handleCloseCORSOutdatedModal = useUploadStore(
+    (s) => s.handleCloseCORSOutdatedModal,
+  );
 
   const opts = useUiStore((s) => s.opts);
   const setOpts = useUiStore((s) => s.setOpts);
@@ -191,6 +203,16 @@ export default function App() {
         <PreviewModal url={previewUrl} onClose={handleClosePreview} />
       )}
 
+      <CORSHelpModal
+        open={showCORSHelpModal}
+        onClose={handleCloseCORSHelpModal}
+      />
+
+      <CORSOutdatedModal
+        open={showCORSOutdatedModal}
+        onClose={handleCloseCORSOutdatedModal}
+      />
+
       <Footer />
 
       {/* Settings Dialog with nested Upload Destinations */}
@@ -198,9 +220,13 @@ export default function App() {
         open={showSettingsDialog}
         theme={settings.theme}
         showPreview={settings.showPreview}
+        corsModalDismissed={!!settings.corsModalDismissed}
         destinations={settings.destinations}
         onThemeChange={handleThemeChange}
         onShowPreviewChange={handleShowPreviewChange}
+        onCorsModalDismissedChange={(dismissed) =>
+          updateSettings({ corsModalDismissed: dismissed })
+        }
         onSaveAndClose={saveAndCloseSettings}
         onCancel={handleCancelSettings}
         updateDestinations={updateDestinations}

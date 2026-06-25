@@ -71,6 +71,7 @@ describe("corrupt / incomplete settings recovery", () => {
       destinations: [],
       theme: "light",
       showPreview: false,
+      corsModalDismissed: false,
     };
     writeRawSettings(corruptSettings);
 
@@ -163,6 +164,7 @@ describe("corrupt / incomplete settings recovery", () => {
       destinations: [],
       theme: "light",
       showPreview: false,
+      corsModalDismissed: false,
     };
     writeRawSettings(partialSettings);
 
