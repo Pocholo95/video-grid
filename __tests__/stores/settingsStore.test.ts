@@ -15,6 +15,7 @@ const defaultSettings = vi.hoisted(() => {
     destinations: [],
     theme: "dark",
     showPreview: true,
+    corsModalDismissed: false,
   } as AppSettings;
 });
 

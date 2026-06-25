@@ -507,6 +507,51 @@ with the Chevereto v1 API (including [ImgBB](https://imgbb.com)) as long as
 they have enabled API uploads and provide you with an API key (often under
 "Settings" in the hosting website dashboard).
 
+#### CORS restrictions
+
+Some image hosts do not send proper `Access-Control-Allow-Origin` headers on
+their upload endpoints, which causes the browser to block the response with a
+**CORS (Cross-Origin Resource Sharing)** error. When this happens, the upload
+usually fails.
+
+VidGrid-HTML features a **CORS Tunnel** userscript that works around this
+limitation. The userscript runs inside your browser's userscript manager
+(Tampermonkey, Violentmonkey, or Greasemonkey) and uses the manager's
+`GM_xmlhttpRequest` feature, which is exempt from CORS restrictions.
+
+**How it works:**
+
+1. When an upload fails with a CORS error, VidGrid-HTML automatically detects
+   the failure and attempts to retry through the tunnel.
+2. If the userscript is installed, updated and active, the retried upload succeeds
+   transparently — no manual intervention needed.
+3. If the userscript is not installed or updated, you'll see an error message
+   explaining the issue. A help modal appears on the first occurrence with
+   instructions on how to install/update the userscript.
+
+**Installing the userscript:**
+
+1. Install a userscript manager addon/extension for your browser:
+   - [Tampermonkey](https://www.tampermonkey.net/) (Chrome, Firefox, Edge, Safari)
+   - [Violentmonkey](https://violentmonkey.github.io/) (Firefox, Chromium)
+   - [Greasemonkey](https://www.greasespot.net/) (Firefox)
+2. In VidGrid-HTML, when you encounter a CORS error, click **Download** in the help
+   dialog to get the pre-configured `.user.js` file or use the **View Code** button
+   and copy the code with the **Copy** button (top-right) in the
+   modal window that opens.
+3. If you have downloaded the file, open it in your browser, your userscript manager
+   will prompt you to install it. If you have copied the code, create a new script
+   in your userscript manager, paste the code, save it.
+4. The userscript is now installed, refresh the VidGrid-HTML page and retry the upload.
+
+The userscript is scoped to the origin where VidGrid-HTML is running and does
+not interfere with other websites.
+
+If you want to choose to ignore this error you can permanently dismiss the CORS help
+modal by clicking **Don't show again**. This choice can be changed at any time in the
+**Settings** (⚙️ icon top-right), you also can find the **Download** and **View Code**
+buttons to install the **CORS Tunnel** at the same place.
+
 #### Managing destinations
 
 Click **☁️ Upload Destinations** in the Settings to open the destination

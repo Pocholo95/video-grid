@@ -7,7 +7,7 @@
 
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { useUiStore, selectTotalCells } from "@/store/uiStore";
-import { DEFAULTS } from "@/constants";
+import { DEFAULTS, PROJECT_NAME } from "@/constants";
 import type { SavedOptions } from "@/types";
 
 // Mock dependencies
@@ -216,7 +216,7 @@ describe("downloadAll", () => {
     await useUiStore.getState().downloadAll();
     expect(saveAs).toHaveBeenCalledWith(
       expect.any(Blob),
-      "vidgrid-outputs.zip",
+      `${PROJECT_NAME.toLowerCase()}-outputs.zip`,
     );
   });
 

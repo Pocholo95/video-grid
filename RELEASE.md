@@ -99,20 +99,57 @@ https://<namespace>.gitlab.io/<project-path>/
 
 ## Ongoing releases
 
-Every merge or push to the default branch re-runs the pipeline and
+Every merge or push to the default branch (**master**) re-runs the pipeline and
 automatically publishes the new version. No manual steps are needed.
 
 ### Publishing a named release
 
-1. Bump the version in `package.json`.
-2. Commit and tag:
+Your workflow uses a **development** branch for active work and **master** for releases.
+The CI/CD pipeline deploys to GitLab Pages on every push to **master**.
+
+1. **Merge development into master (locally, don't push yet)**
 
    ```bash
-   git tag v1.2.0
-   git push origin main --tags
+   git checkout master
+   git merge development --no-edit
    ```
 
-3. Optionally create a formal GitLab Release:
+2. **Bump the version and create a tag**
+
+   Choose the appropriate semver bump based on the changes since the last release:
+
+   ```bash
+   # Major breaking change
+   npm version major -m "chore(release): v%s"
+
+   # New features, backward compatible
+   npm version minor -m "chore(release): v%s"
+
+   # Bug fixes, backward compatible
+   npm version patch -m "chore(release): v%s"
+   ```
+
+   `npm version` automatically updates `package.json` and creates an annotated git tag (e.g. `v3.2.1`).
+
+3. **Push the commit and tag to remote**
+
+   This single push triggers the CI pipeline and deploys the new version to GitLab Pages:
+
+   ```bash
+   git push origin master --tags
+   ```
+
+4. **(Optional) Sync the version back to development**
+
+   This keeps both branches in sync so `development` doesn't show an outdated version:
+
+   ```bash
+   git checkout development
+   git merge master
+   git push origin development
+   ```
+
+5. **(Optional) Create a formal GitLab Release**
    - Go to **Deploy → Releases → New release**.
    - Select the tag, add release notes, and publish.
 
@@ -140,4 +177,4 @@ npm run preview    # serves dist/ at http://localhost:4173/VidGrid-HTML/
 | Assets not loading         | Incorrect base path                 | Double-check `base` setting                                   |
 | WASM files not loading     | Browser blocked request             | Ensure HTTPS (Pages always uses HTTPS)                        |
 | Pipeline fails at `npm ci` | `package-lock.json` not committed   | Commit the lockfile                                           |
-| `pages` job skipped        | Push was not to the default branch  | Merge / push to `main` (or update `.gitlab-ci.yml`)           |
+| `pages` job skipped        | Push was not to the default branch  | Merge / push to `master` (or update `.gitlab-ci.yml`)         |

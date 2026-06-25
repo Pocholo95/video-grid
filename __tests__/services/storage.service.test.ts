@@ -27,6 +27,7 @@ function getDefaultSettings(): AppSettings {
     destinations: [],
     theme: "dark",
     showPreview: true,
+    corsModalDismissed: false,
   };
 }
 

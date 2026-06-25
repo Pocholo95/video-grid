@@ -1,11 +1,19 @@
-import { UPLOAD_TIMEOUT_MS } from "@/constants";
+import { PROJECT_NAME, UPLOAD_TIMEOUT_MS } from "@/constants";
 import type { UploadDestination, UploadResult } from "@/types";
 import type { UploadProvider } from "./providers";
+import {
+  CORSError,
+  isCORSError,
+  proxyFetch,
+  detectCORSTunnelAvailable,
+  getCORSStatus,
+} from "@/lib/cors-tunnel";
 
 // -- Upload --
 
 /**
  * Upload a Blob to Catbox (catbox.moe) using the binary upload API.
+ * Falls back to the CORS tunnel userscript when a cross-origin error occurs.
  */
 async function upload(
   blob: Blob,
@@ -75,14 +83,52 @@ async function upload(
       offset += chunk.length;
     }
 
-    const response = await fetch(url, {
-      method: "POST",
-      body: bodyBuffer,
-      headers: {
-        "Content-Type": `multipart/form-data; boundary=${boundary}`,
-      },
-      signal: controller.signal,
-    });
+    // Use proxy directly if CORS tunnel is already detected, otherwise try native fetch
+    let response: Response;
+    if (getCORSStatus().available) {
+      response = await proxyFetch(url, {
+        method: "POST",
+        body: bodyBuffer,
+        headers: {
+          "Content-Type": `multipart/form-data; boundary=${boundary}`,
+        },
+      });
+    } else {
+      try {
+        response = await fetch(url, {
+          method: "POST",
+          body: bodyBuffer,
+          headers: {
+            "Content-Type": `multipart/form-data; boundary=${boundary}`,
+          },
+          signal: controller.signal,
+        });
+      } catch (error) {
+        clearTimeout(timeoutId);
+        if (controller.signal.aborted) {
+          throw new Error("Upload timed out");
+        }
+        if (!isCORSError(error)) {
+          throw error;
+        }
+        // CORS blocked – fall back to userscript proxy
+        const available = await detectCORSTunnelAvailable();
+        if (!available) {
+          throw new CORSError(
+            "CORS blocked and no userscript proxy is available. " +
+              `Please install the ${PROJECT_NAME} CORS Tunnel userscript.`,
+            url,
+          );
+        }
+        response = await proxyFetch(url, {
+          method: "POST",
+          body: bodyBuffer,
+          headers: {
+            "Content-Type": `multipart/form-data; boundary=${boundary}`,
+          },
+        });
+      }
+    }
 
     clearTimeout(timeoutId);
 
@@ -137,24 +183,50 @@ async function deleteFile(
   params.append("userhash", userhash);
   params.append("files", filename);
 
-  return new Promise((resolve, reject) => {
-    const xhr = new XMLHttpRequest();
-    xhr.open("POST", dest.url);
-    xhr.onload = () => {
-      if (xhr.status !== 200) {
-        reject(new Error(`Catbox delete failed: HTTP ${xhr.status}`));
-        return;
+  // Use proxy directly if CORS tunnel is already detected, otherwise try native fetch
+  let response: Response;
+  if (getCORSStatus().available) {
+    response = await proxyFetch(dest.url, {
+      method: "POST",
+      body: params.toString(),
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    });
+  } else {
+    try {
+      response = await fetch(dest.url, {
+        method: "POST",
+        body: params.toString(),
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      });
+    } catch (error) {
+      if (!isCORSError(error)) {
+        throw error;
       }
-      const text = xhr.responseText.trim();
-      if (!text.includes("successfully deleted")) {
-        reject(new Error(`Catbox delete failed: ${text.slice(0, 120)}`));
-        return;
+      // CORS blocked – fall back to userscript proxy
+      const available = await detectCORSTunnelAvailable();
+      if (!available) {
+        throw new CORSError(
+          "CORS blocked and no userscript proxy is available. " +
+            `Please install the ${PROJECT_NAME} CORS Tunnel userscript.`,
+          dest.url,
+        );
       }
-      resolve();
-    };
-    xhr.onerror = () => reject(new Error("Network error during delete"));
-    xhr.send(params);
-  });
+      response = await proxyFetch(dest.url, {
+        method: "POST",
+        body: params.toString(),
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      });
+    }
+  }
+
+  if (!response.ok) {
+    throw new Error(`Catbox delete failed: HTTP ${response.status}`);
+  }
+
+  const text = (await response.text()).trim();
+  if (!text.includes("successfully deleted")) {
+    throw new Error(`Catbox delete failed: ${text.slice(0, 120)}`);
+  }
 }
 
 // -- Provider export --

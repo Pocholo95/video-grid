@@ -87,7 +87,7 @@ export const MIN_CELL_WIDTH = 240;
 export const JPEG_QUALITY = 0.95;
 
 /** Current schema version for stored settings (used by migration system) */
-export const STORAGE_SCHEMA_VERSION = 4;
+export const STORAGE_SCHEMA_VERSION = 5;
 
 /**
  * Default configuration per upload-destination provider type.

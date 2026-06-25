@@ -1,13 +1,14 @@
-import { DEBUG } from "./constants";
+import { DEBUG, PROJECT_NAME } from "./constants";
 import type { TaskItem, VideoMetadata } from "./types";
 import { resolutionLabel } from "./uploadUtils";
 
 // Logging - all calls are no-ops when DEBUG is false.
-export const log = (...a: unknown[]) => DEBUG && console.log("[VidGrid]", ...a);
+export const log = (...a: unknown[]) =>
+  DEBUG && console.log(`[${PROJECT_NAME}]`, ...a);
 export const warn = (...a: unknown[]) =>
-  DEBUG && console.warn("[VidGrid]", ...a);
+  DEBUG && console.warn(`[${PROJECT_NAME}]`, ...a);
 export const errlog = (...a: unknown[]) =>
-  DEBUG && console.error("[VidGrid]", ...a);
+  DEBUG && console.error(`[${PROJECT_NAME}]`, ...a);
 
 /**
  * Formats a byte count as a human-readable string (B, KB, MB, GB).

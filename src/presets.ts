@@ -217,6 +217,7 @@ const DEFAULT: AppSettings = {
   destinations: [],
   theme: "dark",
   showPreview: true,
+  corsModalDismissed: false,
 };
 
 /**
