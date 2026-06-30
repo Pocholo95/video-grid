@@ -159,7 +159,7 @@ export type UploadResult = {
   deleteToken?: string;
 };
 
-export type DestinationType = "chevereto" | "catbox" | "imge";
+export type DestinationType = "chevereto" | "catbox" | "imge" | "filester";
 
 /** Configuration for a single upload destination. */
 export type UploadDestination = {

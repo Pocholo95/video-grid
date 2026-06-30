@@ -58,6 +58,8 @@ async function upload(
   dest: UploadDestination,
   onProgress: (pct: number) => void,
 ): Promise<UploadResult> {
+  const uploadEndpoint = `${dest.url}/api/v1/upload`;
+
   const nsfw = (dest.options?.nsfw as boolean) ?? false;
 
   const formData = new FormData();
@@ -82,14 +84,14 @@ async function upload(
     // Use proxy directly if CORS tunnel is already detected, otherwise try native fetch
     let response: Response;
     if (getCORSStatus().available) {
-      response = await proxyFetch(dest.url, {
+      response = await proxyFetch(uploadEndpoint, {
         method: "POST",
         body: formData,
         headers,
       });
     } else {
       try {
-        response = await fetch(dest.url, {
+        response = await fetch(uploadEndpoint, {
           method: "POST",
           body: formData,
           headers,
@@ -109,10 +111,10 @@ async function upload(
           throw new CORSError(
             "CORS blocked and no userscript proxy is available. " +
               `Please install the ${PROJECT_NAME} CORS Tunnel userscript.`,
-            dest.url,
+            uploadEndpoint,
           );
         }
-        response = await proxyFetch(dest.url, {
+        response = await proxyFetch(uploadEndpoint, {
           method: "POST",
           body: formData,
           headers,
@@ -174,8 +176,7 @@ async function upload(
  */
 async function deleteFile(
   result: UploadResult,
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  _dest: UploadDestination,
+  dest: UploadDestination,
 ): Promise<void> {
   const code = result.deleteUrl;
   if (!code) {
@@ -187,15 +188,15 @@ async function deleteFile(
     throw new Error("Cannot delete: delete token not available");
   }
 
-  const url = `https://im.ge/api/v1/delete/${code}/${deleteToken}`;
+  const deleteEndpoint = `${dest.url}/api/v1/delete/${code}/${deleteToken}`;
 
   // Use proxy directly if CORS tunnel is already detected, otherwise try native fetch
   let response: Response;
   if (getCORSStatus().available) {
-    response = await proxyFetch(url, { method: "DELETE" });
+    response = await proxyFetch(deleteEndpoint, { method: "DELETE" });
   } else {
     try {
-      response = await fetch(url, { method: "DELETE" });
+      response = await fetch(deleteEndpoint, { method: "DELETE" });
     } catch (error) {
       if (!isCORSError(error)) {
         throw error;
@@ -206,10 +207,10 @@ async function deleteFile(
         throw new CORSError(
           "CORS blocked and no userscript proxy is available. " +
             `Please install the ${PROJECT_NAME} CORS Tunnel userscript.`,
-          url,
+          deleteEndpoint,
         );
       }
-      response = await proxyFetch(url, { method: "DELETE" });
+      response = await proxyFetch(deleteEndpoint, { method: "DELETE" });
     }
   }
 

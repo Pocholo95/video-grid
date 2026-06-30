@@ -371,6 +371,16 @@ export async function proxyFetch(
     formData,
   };
 
+  // Log outgoing request details
+  const headersOut =
+    Object.keys(headers).length > 0 ? JSON.stringify(headers) : "(no headers)";
+  const bodyPreviewOut = body
+    ? body.slice(0, 300) + (body.length > 300 ? "..." : "")
+    : "(no body)";
+  console.debug(LOGPREFIX, `📤 ${msg.method} ${url}`);
+  console.debug(LOGPREFIX, `   Headers: ${headersOut}`);
+  console.debug(LOGPREFIX, `   Body: ${bodyPreviewOut}`);
+
   const response = await sendMessage<CORSTunnelResponse>(
     { ...msg, type: "cors-tunnel-request" },
     PROXY_TIMEOUT_MS,
@@ -383,10 +393,30 @@ export async function proxyFetch(
   // Log response details for debugging (truncated for large bodies)
   if (response.status >= 400 || response.error) {
     const bodyPreview = response.body?.slice(0, 500) ?? "(empty)";
-    console.warn(
-      LOGPREFIX,
-      `${options.method || "GET"} ${url} → ${response.status || "error"}: ${bodyPreview}`,
-    );
+    const headersStr =
+      Object.keys(response.headers).length > 0
+        ? JSON.stringify(response.headers)
+        : "(no headers)";
+    console.warn(LOGPREFIX, `❌ ${options.method || "GET"} ${url}`);
+    console.warn(LOGPREFIX, `   Status: ${response.status || "error"}`);
+    console.warn(LOGPREFIX, `   Headers: ${headersStr}`);
+    console.warn(LOGPREFIX, `   Body: ${bodyPreview}`);
+    if (response.error) {
+      console.warn(LOGPREFIX, `   Error: ${response.error}`);
+    }
+  }
+
+  // Also log successful responses when DEBUG is enabled
+  if (DEBUG && response.status < 400 && !response.error) {
+    const bodyPreview = response.body?.slice(0, 300) ?? "(empty)";
+    const headersStr =
+      Object.keys(response.headers).length > 0
+        ? JSON.stringify(response.headers)
+        : "(no headers)";
+    console.debug(LOGPREFIX, `✅ ${options.method || "GET"} ${url}`);
+    console.debug(LOGPREFIX, `   Status: ${response.status}`);
+    console.debug(LOGPREFIX, `   Headers: ${headersStr}`);
+    console.debug(LOGPREFIX, `   Body: ${bodyPreview}`);
   }
 
   if (response.error) {

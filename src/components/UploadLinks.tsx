@@ -2,6 +2,7 @@ import { useState } from "react";
 import { ChevronDown, Cloud, Trash2 } from "lucide-react";
 import type { UploadDestination, UploadResult, VideoMetadata } from "../types";
 import { buildFormats } from "../uploadUtils";
+import { resolveCanHotlink } from "../upload/providers";
 import { canDeleteFromDestination, deleteFromDestination } from "../upload";
 import { Button } from "@/components/ui/button";
 import {
@@ -45,7 +46,12 @@ export default function UploadLinks({
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
-  const formats = buildFormats(result, filename, metadata);
+  const formats = buildFormats(
+    result,
+    filename,
+    resolveCanHotlink(dest.type),
+    metadata,
+  );
 
   // Chevereto uses a direct delete URL (opens in new tab), all other providers
   // use the programmatic delete API which requires confirmation.

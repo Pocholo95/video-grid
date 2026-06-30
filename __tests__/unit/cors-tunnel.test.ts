@@ -273,12 +273,13 @@ describe("proxyFetch body handling", () => {
     });
 
     // Verify the warning contains the decisive info: status code + error text
-    // (don't assert on LOGPREFIX which is an implementation detail)
+    // Warning is split across multiple console.warn calls, so combine all of them
     expect(warnSpy).toHaveBeenCalled();
-    const warnArgs = warnSpy.mock.calls[0]!;
-    const warnMessage = warnArgs.join(" ");
-    expect(warnMessage).toContain("412");
-    expect(warnMessage).toContain("Precondition failed");
+    const fullWarnMessage = warnSpy.mock.calls
+      .map((args) => args.join(" "))
+      .join(" ");
+    expect(fullWarnMessage).toContain("412");
+    expect(fullWarnMessage).toContain("Precondition failed");
   });
 
   it("throws CORSError on userscript error", async () => {
@@ -551,14 +552,18 @@ describe("proxyXHR", () => {
       // Don't respond to the actual request - timeout
     });
 
+    // Attach rejection handler immediately so the promise's rejection is
+    // handled before we advance timers (which triggers the timeout).
     const promise = proxyXHR("https://api.example.com/upload", "POST", {});
+    let caughtError: unknown;
+    const handler = promise.catch((e) => {
+      caughtError = e;
+    });
+
     await vi.runAllTimersAsync();
-    try {
-      await promise;
-      expect.fail("proxyXHR should have thrown");
-    } catch (e) {
-      expect(e).toBeInstanceOf(CORSError);
-    }
+    await handler;
+
+    expect(caughtError).toBeInstanceOf(CORSError);
   });
 
   it("throws CORSError on userscript error", async () => {

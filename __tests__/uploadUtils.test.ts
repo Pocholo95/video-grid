@@ -129,7 +129,7 @@ describe("buildFormats", () => {
   };
 
   it("returns 7 base formats without mediumUrl", () => {
-    const formats = buildFormats(mockResult, "test.png");
+    const formats = buildFormats(mockResult, "test.png", true);
     expect(formats).toHaveLength(7);
   });
 
@@ -138,19 +138,19 @@ describe("buildFormats", () => {
       ...mockResult,
       mediumUrl: "https://example.com/medium/123.png",
     };
-    const formats = buildFormats(result, "test.png");
+    const formats = buildFormats(result, "test.png", true);
     expect(formats).toHaveLength(8);
   });
 
   it("includes bbcodeFull format", () => {
-    const formats = buildFormats(mockResult, "test.png");
+    const formats = buildFormats(mockResult, "test.png", true);
     const bbcode = formats.find((f: LinkFormat) => f.key === "bbcodeFull");
     expect(bbcode).toBeDefined();
     expect(bbcode!.value).toBe("[img]https://example.com/image.png[/img]");
   });
 
   it("includes bbcodeThumb format", () => {
-    const formats = buildFormats(mockResult, "test.png");
+    const formats = buildFormats(mockResult, "test.png", true);
     const bbcode = formats.find((f: LinkFormat) => f.key === "bbcodeThumb");
     expect(bbcode).toBeDefined();
     expect(bbcode!.value).toBe(
@@ -159,25 +159,25 @@ describe("buildFormats", () => {
   });
 
   it("includes directUrl format", () => {
-    const formats = buildFormats(mockResult, "test.png");
+    const formats = buildFormats(mockResult, "test.png", true);
     const direct = formats.find((f: LinkFormat) => f.key === "directUrl");
     expect(direct!.value).toBe("https://example.com/image.png");
   });
 
   it("includes pageUrl format", () => {
-    const formats = buildFormats(mockResult, "test.png");
+    const formats = buildFormats(mockResult, "test.png", true);
     const page = formats.find((f: LinkFormat) => f.key === "pageUrl");
     expect(page!.value).toBe("https://example.com/view/123");
   });
 
   it("includes markdown format", () => {
-    const formats = buildFormats(mockResult, "test.png");
+    const formats = buildFormats(mockResult, "test.png", true);
     const md = formats.find((f: LinkFormat) => f.key === "markdown");
     expect(md!.value).toBe("![test](https://example.com/image.png)");
   });
 
   it("includes htmlImg format", () => {
-    const formats = buildFormats(mockResult, "test.png");
+    const formats = buildFormats(mockResult, "test.png", true);
     const html = formats.find((f: LinkFormat) => f.key === "htmlImg");
     expect(html!.value).toBe(
       '<img src="https://example.com/image.png" alt="test" />',
@@ -185,13 +185,13 @@ describe("buildFormats", () => {
   });
 
   it("strips file extension from filename for alt text", () => {
-    const formats = buildFormats(mockResult, "my_video_output.webp");
+    const formats = buildFormats(mockResult, "my_video_output.webp", true);
     const md = formats.find((f: LinkFormat) => f.key === "markdown");
     expect(md!.value).toBe("![my_video_output](https://example.com/image.png)");
   });
 
   it("strips two extensions", () => {
-    const formats = buildFormats(mockResult, "test.tar.gz.webp");
+    const formats = buildFormats(mockResult, "test.tar.gz.webp", true);
     const md = formats.find((f: LinkFormat) => f.key === "markdown");
     expect(md!.value).toBe("![test.tar](https://example.com/image.png)");
   });
@@ -201,7 +201,7 @@ describe("buildFormats", () => {
       ...mockResult,
       mediumUrl: "https://example.com/medium/123.png",
     };
-    const formats = buildFormats(result, "test.png");
+    const formats = buildFormats(result, "test.png", true);
     const medium = formats.find((f: LinkFormat) => f.key === "bbcodeMedium");
     expect(medium).toBeDefined();
     expect(medium!.value).toBe(
@@ -214,7 +214,7 @@ describe("buildFormats", () => {
       ...mockResult,
       mediumUrl: "https://example.com/medium/123.png",
     };
-    const formats = buildFormats(result, "test.png");
+    const formats = buildFormats(result, "test.png", true);
     expect(formats[3].key).toBe("bbcodeMedium");
   });
 
@@ -225,7 +225,7 @@ describe("buildFormats", () => {
       height: 1080,
       videoBitrate: 5000000,
     };
-    const formats = buildFormats(mockResult, "test.png", meta);
+    const formats = buildFormats(mockResult, "test.png", true, meta);
     const template = formats.find(
       (f: LinkFormat) => f.key === "bbcodePostTemplate",
     );
@@ -233,7 +233,7 @@ describe("buildFormats", () => {
   });
 
   it("uses thumbUrl as fallback for mediumUrl in post template", () => {
-    const formats = buildFormats(mockResult, "test.png");
+    const formats = buildFormats(mockResult, "test.png", true);
     const template = formats.find(
       (f: LinkFormat) => f.key === "bbcodePostTemplate",
     );
@@ -245,7 +245,7 @@ describe("buildFormats", () => {
       ...mockResult,
       mediumUrl: "https://example.com/medium/123.png",
     };
-    const formats = buildFormats(result, "test.png");
+    const formats = buildFormats(result, "test.png", true);
     const template = formats.find(
       (f: LinkFormat) => f.key === "bbcodePostTemplate",
     );
@@ -253,7 +253,7 @@ describe("buildFormats", () => {
   });
 
   it("bbcodePostTemplate uses textarea field type", () => {
-    const formats = buildFormats(mockResult, "test.png");
+    const formats = buildFormats(mockResult, "test.png", true);
     const template = formats.find(
       (f: LinkFormat) => f.key === "bbcodePostTemplate",
     );
@@ -267,7 +267,7 @@ describe("buildFormats", () => {
       height: 1080,
       videoBitrate: 5000000,
     };
-    const formats = buildFormats(mockResult, "test.png", meta);
+    const formats = buildFormats(mockResult, "test.png", true, meta);
     const template = formats.find(
       (f: LinkFormat) => f.key === "bbcodePostTemplate",
     );
@@ -275,21 +275,61 @@ describe("buildFormats", () => {
   });
 
   it("handles filename without extension", () => {
-    const formats = buildFormats(mockResult, "test");
+    const formats = buildFormats(mockResult, "test", true);
     const md = formats.find((f: LinkFormat) => f.key === "markdown");
     expect(md!.value).toBe("![test](https://example.com/image.png)");
   });
 
   it("each format has a description", () => {
-    const formats = buildFormats(mockResult, "test.png");
+    const formats = buildFormats(mockResult, "test.png", true);
     for (const f of formats) {
       expect(f.description!.length).toBeGreaterThan(0);
     }
   });
 
   it("each format has a unique key", () => {
-    const formats = buildFormats(mockResult, "test.png");
+    const formats = buildFormats(mockResult, "test.png", true);
     const keys = formats.map((f: LinkFormat) => f.key);
     expect(new Set(keys).size).toBe(keys.length);
+  });
+
+  it("uses [url] wrapper for bbcodeFull when canHotlink is false", () => {
+    const formats = buildFormats(mockResult, "test.png", false);
+    const bbcode = formats.find((f: LinkFormat) => f.key === "bbcodeFull");
+    expect(bbcode!.value).toBe(
+      "[url=https://example.com/image.png][img]https://example.com/thumb/123.png[/img][/url]",
+    );
+    expect(bbcode!.description).toBe("Thumbnail that links to the full image");
+  });
+
+  it("wraps markdown thumbnail in link when canHotlink is false", () => {
+    const formats = buildFormats(mockResult, "test.png", false);
+    const md = formats.find((f: LinkFormat) => f.key === "markdown");
+    expect(md!.value).toBe(
+      "[![test](https://example.com/thumb/123.png)](https://example.com/image.png)",
+    );
+  });
+
+  it("wraps html img in <a> tag when canHotlink is false", () => {
+    const formats = buildFormats(mockResult, "test.png", false);
+    const html = formats.find((f: LinkFormat) => f.key === "htmlImg");
+    expect(html!.value).toBe(
+      '<a href="https://example.com/image.png"><img src="https://example.com/thumb/123.png" alt="test" /></a>',
+    );
+    expect(html!.description).toBe("Thumbnail image linked to the full image");
+  });
+
+  it("uses pageUrl as linkTarget when directUrl is empty and canHotlink is false", () => {
+    const noDirectResult: UploadResult = {
+      directUrl: "",
+      pageUrl: "https://example.com/view/123",
+      thumbUrl: "https://example.com/thumb/123.png",
+      deleteUrl: "https://example.com/delete/abc",
+    };
+    const formats = buildFormats(noDirectResult, "test.png", false);
+    const md = formats.find((f: LinkFormat) => f.key === "markdown");
+    expect(md!.value).toBe(
+      "[![test](https://example.com/thumb/123.png)](https://example.com/view/123)",
+    );
   });
 });

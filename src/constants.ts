@@ -116,6 +116,8 @@ export const UPLOAD_DESTINATION_PROVIDERS: Record<
     urlHelpText: string;
     /** If true, the URL must contain a {key} placeholder. */
     requiresKeyPlaceholder: boolean;
+    /** If false, direct hotlinking to uploaded files is not supported. */
+    canHotlink?: boolean;
   }
 > = {
   chevereto: {
@@ -148,7 +150,7 @@ export const UPLOAD_DESTINATION_PROVIDERS: Record<
   },
   imge: {
     label: "im.ge",
-    defaultUrl: "https://im.ge/api/v1/upload",
+    defaultUrl: "https://im.ge",
     defaultAllowedExtensions: "jpg,webp",
     defaultMaxSizeMb: 100,
     apiKeyLabel: "API Key",
@@ -157,8 +159,23 @@ export const UPLOAD_DESTINATION_PROVIDERS: Record<
     apiKeyHelpTitle: "API Key",
     apiKeyHelpDescription:
       "Usually found in the host's dashboard or account settings. Required to authenticate your uploads.",
-    urlHelpText: "Uses a fixed upload endpoint. HTTPS required.",
+    urlHelpText: "Base API URL (e.g. https://im.ge). HTTPS required.",
     requiresKeyPlaceholder: false,
+  },
+  filester: {
+    label: "Filester",
+    defaultUrl: "https://u1.filester.me",
+    defaultAllowedExtensions: "jpg,webp",
+    defaultMaxSizeMb: 10_240,
+    apiKeyLabel: "API Key (optional)",
+    apiKeyRequired: false,
+    apiKeyPlaceholder: "Leave empty for guest uploads",
+    apiKeyHelpTitle: "Filester API Key",
+    apiKeyHelpDescription:
+      "Found in your Filester dashboard at filester.me. Optional — provide a key to enable file deletion. Guest uploads work without a key but uploaded files cannot be deleted later.",
+    urlHelpText: "Base API URL (e.g. https://u1.filester.me). HTTPS required.",
+    requiresKeyPlaceholder: false,
+    canHotlink: false,
   },
 };
 
