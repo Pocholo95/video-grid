@@ -176,7 +176,7 @@ export default function RangeNumberInput({
               }
             }}
             className={cn(
-              "w-20 text-right tabular-nums",
+              "w-21 text-right tabular-nums",
               isOutOfRange && "border-ring",
             )}
             style={

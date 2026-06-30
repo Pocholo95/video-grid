@@ -59,3 +59,13 @@ export function getProvider(type: DestinationType): UploadProvider {
   }
   return provider;
 }
+
+/**
+ * Resolves whether direct hotlinking is supported for a given provider type.
+ * Defaults to true for backward compatibility with providers that don't
+ * specify the flag (most hosts allow hotlinking).
+ */
+export function resolveCanHotlink(type: DestinationType): boolean {
+  const config = UPLOAD_DESTINATION_PROVIDERS[type];
+  return config?.canHotlink !== false;
+}

@@ -115,18 +115,19 @@ export default function DestinationManager({
       return;
     }
 
-    const trimmedUrl = draft.url.trim();
-    if (!trimmedUrl) {
+    // Normalize: trim and strip trailing slash so providers can safely append endpoints
+    const normalizedUrl = draft.url.trim().replace(/\/+$/, "");
+    if (!normalizedUrl) {
       setError("Upload URL is required.");
       return;
     }
     try {
-      new URL(trimmedUrl);
+      new URL(normalizedUrl);
     } catch {
       setError("Upload URL is not a valid URL.");
       return;
     }
-    if (!trimmedUrl.startsWith("https://")) {
+    if (!normalizedUrl.startsWith("https://")) {
       setError("Upload URL must start with https://.");
       return;
     }
@@ -134,7 +135,7 @@ export default function DestinationManager({
     // {key} placeholder validation is driven by provider config
     if (
       providerConfig?.requiresKeyPlaceholder &&
-      !trimmedUrl.includes("{key}")
+      !normalizedUrl.includes("{key}")
     ) {
       setError(
         "Upload URL must contain {key} as a placeholder for the API key.",
@@ -172,7 +173,7 @@ export default function DestinationManager({
     const base = {
       name: draft.name.trim(),
       apiKey: draft.apiKey.trim(),
-      url: trimmedUrl,
+      url: normalizedUrl,
       type: draft.type,
       enabled: draft.enabled,
       allowedExtensions: normalizedExt,
@@ -386,7 +387,7 @@ export default function DestinationManager({
             </div>
 
             <div className="flex flex-col gap-2">
-              <Label htmlFor="dest-url">Upload URL</Label>
+              <Label htmlFor="dest-url">Base API URL</Label>
               <Input
                 id="dest-url"
                 type="text"
@@ -399,7 +400,7 @@ export default function DestinationManager({
               />
               <p className="text-muted-foreground text-xs">
                 {providerConfig?.urlHelpText ??
-                  "Uses a fixed upload endpoint. HTTPS required."}
+                  "Base URL of the provider (e.g. https://im.ge). HTTPS required."}
               </p>
             </div>
 

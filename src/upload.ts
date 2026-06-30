@@ -3,11 +3,13 @@ import { getProvider, registerProvider } from "./upload/providers";
 import { cheveretoProvider } from "./upload/chevereto";
 import { catboxProvider } from "./upload/catbox";
 import { imgeProvider } from "./upload/imge";
+import { filesterProvider } from "./upload/filester";
 
 // Register all available providers at module load time
 registerProvider(cheveretoProvider);
 registerProvider(catboxProvider);
 registerProvider(imgeProvider);
+registerProvider(filesterProvider);
 
 /**
  * Upload a Blob to the given destination, dispatching to the correct
