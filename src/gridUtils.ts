@@ -437,7 +437,6 @@ export const setupVideoDecoder = async (
   video.muted = true;
   video.playsInline = true;
   video.preload = "metadata";
-  video.src = videoUrl;
 
   const videoCleanup = () => {
     video.removeAttribute("src");
@@ -447,7 +446,9 @@ export const setupVideoDecoder = async (
 
   let canNativelyPlay = true;
   try {
-    // Step 1: Wait for 'canplay' — proves the codec is actually supported
+    // Step 1: Wait for 'canplay' — proves the codec is actually supported.
+    // Listeners MUST be registered BEFORE setting video.src so that cached
+    // files don't fire the event before we're listening.
     await new Promise<void>((resolve, reject) => {
       const tid = setTimeout(
         () => reject(new Error("Video canplay timeout")),
@@ -469,19 +470,34 @@ export const setupVideoDecoder = async (
         },
         { once: true },
       );
+      // Set src AFTER listeners are attached to avoid missing events
+      // when the browser fires them synchronously for cached files.
+      video.src = videoUrl;
     });
 
-    // Step 2: Test seek to verify seeking works (not just initial decode)
-    const testTime = Math.min(0.5, (meta.duration || 10) * 0.1);
-    await seekVideo(video, testTime);
+    // Step 2: Test seek to verify seeking works (not just initial decode).
+    // Use a conservative time well within the video bounds to avoid
+    // non-deterministic failures on mobile when meta.duration is inaccurate.
+    const duration = meta.duration ?? 10;
+    const testTime = Math.min(1, duration * 0.05, duration - 1);
+    await seekVideo(video, Math.max(0, testTime));
 
-    // Step 3: Verify we have a decoded frame ready after seek
-    // HAVE_CURRENT_FRAME = 2
+    // Step 3: Verify we have a decoded frame ready after seek.
+    // On mobile browsers readyState can be flaky after a successful seek,
+    // so we treat this as a soft check — only fail if the canvas draw
+    // also produces an empty frame (Step 4).
+    // HAVE_CURRENT_FRAME = 2, HAVE_FUTURE_DATA = 3
     if (video.readyState < 2) {
-      throw new Error("No frame available after seek");
+      warn(
+        `Low readyState (${video.readyState}) after seek — ` +
+          `proceeding to pixel check as final validation`,
+      );
+      // Do NOT throw here; let Step 4 be the decisive test.
     }
 
-    // Step 4: Draw to offscreen canvas and verify pixels aren't empty
+    // Step 4: Draw to offscreen canvas and verify pixels aren't empty.
+    // This is the final and most reliable test — if the browser can
+    // produce pixel data, the codec is usable regardless of readyState.
     const testCanvas = document.createElement("canvas");
     testCanvas.width = 16;
     testCanvas.height = 16;
@@ -502,8 +518,13 @@ export const setupVideoDecoder = async (
     canNativelyPlay = false;
   }
 
-  // Reset to beginning for actual grid processing
-  video.currentTime = 0;
+  // Reset to beginning for actual grid processing.
+  // Only attempt this when native playback was confirmed working —
+  // on failure the video element is in an undefined state and seeking
+  // can throw or hang (especially on mobile Chrome).
+  if (canNativelyPlay) {
+    video.currentTime = 0;
+  }
 
   return { video, videoCleanup, canNativelyPlay };
 };
