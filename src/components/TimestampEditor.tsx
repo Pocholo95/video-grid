@@ -22,6 +22,7 @@ import { calculateSampleTimes } from "../gridUtils";
 import { formatTimeExact } from "../utils";
 import { useLongPress } from "../hooks/useLongPress";
 import { useKeyboardShortcut } from "../hooks/useKeyboardShortcut";
+import { useIsTouch } from "../hooks/useIsTouch";
 import GridPreview from "./GridPreview";
 import { templateFromUniform } from "../gridTemplate";
 import { useUiStore } from "../store";
@@ -144,52 +145,7 @@ export default function TimestampEditor({
   const seekbarRef = useRef<HTMLDivElement>(null);
   const saveButtonRef = useRef<HTMLButtonElement>(null);
   const clickTimerRef = useRef<number | null>(null);
-  /**
-   * Detect touch capability synchronously so the first render uses the correct
-   * value.  On devices without a fine pointer (e.g. Samsung Internet), the
-   * media queries evaluate correctly immediately, avoiding a flash of
-   * mouse-oriented behavior.
-   */
-  const [isTouch, setIsTouch] = useState(() => {
-    if (typeof window === "undefined") return false;
-    const hasFinePointer = window.matchMedia(
-      "(hover: hover) and (any-pointer: fine)",
-    ).matches;
-    if (!hasFinePointer) return true;
-    // Fine pointer present — still check maxTouchPoints as a fallback for
-    // hybrid devices (e.g. Surface with touch + mouse).
-    return navigator.maxTouchPoints > 0;
-  });
-
-  useEffect(() => {
-    const mediaQuery = window.matchMedia(
-      "(hover: hover) and (any-pointer: fine)",
-    );
-    const coarseQuery = window.matchMedia("(any-pointer: coarse)");
-
-    const updateIsTouch = () => {
-      if (mediaQuery.matches) {
-        // Device has mouse/trackpad with hover
-        setIsTouch(false);
-      } else if (coarseQuery.matches) {
-        // Has any coarse pointer; assume touch-centric
-        setIsTouch(true);
-      } else {
-        // Default catches very rare cases; still screen-adaptable
-        setIsTouch(true);
-      }
-    };
-
-    updateIsTouch();
-    mediaQuery.addEventListener("change", updateIsTouch);
-    coarseQuery.addEventListener("change", updateIsTouch);
-
-    return () => {
-      mediaQuery.removeEventListener("change", updateIsTouch);
-      coarseQuery.removeEventListener("change", updateIsTouch);
-    };
-  }, []);
-
+  const isTouch = useIsTouch();
   const [blobUrl, setBlobUrl] = useState<string | null>(null);
 
   // Local copy of markers — sorted ascending at all times.

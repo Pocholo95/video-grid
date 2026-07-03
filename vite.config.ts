@@ -9,6 +9,13 @@ const { version } = JSON.parse(readFileSync("./package.json", "utf-8"));
 export default defineConfig({
   base: "/",
   plugins: [react(), tailwindcss()],
+  server: {
+    host: "0.0.0.0",
+    https: {
+      cert: readFileSync(path.resolve(__dirname, "cert.pem")),
+      key: readFileSync(path.resolve(__dirname, "key.pem")),
+    },
+  },
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),

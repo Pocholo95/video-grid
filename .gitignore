@@ -26,3 +26,7 @@ dist-ssr
 # Test coverage reports
 __tests__/coverage
 coverage
+
+# Local HTTPS certificates
+cert.pem
+key.pem
