@@ -25,6 +25,88 @@ import {
 export type CellSlot = { x: number; y: number; cellW: number; cellH: number };
 
 /**
+ * Internal helper: waits for a `<video>` element to either fire `canplay`
+ * (success) or `error`/timeout (failure).  Listeners are attached BEFORE
+ * setting `src` so cached files don't fire events before we're listening.
+ *
+ * @param video - The configured HTMLVideoElement.
+ * @param timeoutMs - Maximum time to wait before giving up.
+ * @throws if the video fails to load or times out.
+ */
+function waitForVideoCanplay(
+  video: HTMLVideoElement,
+  timeoutMs: number,
+): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const tid = setTimeout(
+      () => reject(new Error("Video canplay timeout")),
+      timeoutMs,
+    );
+    video.addEventListener(
+      "canplay",
+      () => {
+        clearTimeout(tid);
+        resolve();
+      },
+      { once: true },
+    );
+    video.addEventListener(
+      "error",
+      () => {
+        clearTimeout(tid);
+        reject(new Error("Video failed to load"));
+      },
+      { once: true },
+    );
+  });
+}
+
+/**
+ * Tests whether the browser can natively decode a video file by attempting to
+ * load it in a hidden `<video>` element and observing the error event.
+ *
+ * This is the same reliable method used by TimestampEditor — the `canplay`
+ * event alone is not sufficient because some browsers fire it even for
+ * unsupported codecs.  The `error` event is the decisive signal.
+ *
+ * @param file - The video File to test.
+ * @param timeoutMs - Maximum time to wait (default 5000ms).
+ * @returns true if the browser can play the file natively, false otherwise.
+ */
+export const canNativelyPlayFile = async (
+  file: File,
+  timeoutMs = 5000,
+): Promise<boolean> => {
+  const video = document.createElement("video");
+  video.muted = true;
+  video.playsInline = true;
+  video.preload = "metadata";
+
+  const url = URL.createObjectURL(file);
+  const cleanup = () => {
+    video.removeAttribute("src");
+    video.load();
+    URL.revokeObjectURL(url);
+  };
+
+  try {
+    // Attach listeners BEFORE setting src so cached files don't fire events
+    // before we're listening.
+    const canplayPromise = waitForVideoCanplay(video, timeoutMs);
+    video.src = url;
+    await canplayPromise;
+    return true;
+  } catch {
+    // Error or timeout — still need to set src so the error event fires
+    // and cleans up the pending state (if not already set).
+    if (!video.src) video.src = url;
+    return false;
+  } finally {
+    cleanup();
+  }
+};
+
+/**
  * Generates a grid layout describing the geometry of cells in the grid
  *
  * @param opts Task options
@@ -449,31 +531,9 @@ export const setupVideoDecoder = async (
     // Step 1: Wait for 'canplay' — proves the codec is actually supported.
     // Listeners MUST be registered BEFORE setting video.src so that cached
     // files don't fire the event before we're listening.
-    await new Promise<void>((resolve, reject) => {
-      const tid = setTimeout(
-        () => reject(new Error("Video canplay timeout")),
-        VIDEO_OPEN_TIMEOUT_MS,
-      );
-      video.addEventListener(
-        "canplay",
-        () => {
-          clearTimeout(tid);
-          resolve();
-        },
-        { once: true },
-      );
-      video.addEventListener(
-        "error",
-        () => {
-          clearTimeout(tid);
-          reject(new Error("Video failed to load"));
-        },
-        { once: true },
-      );
-      // Set src AFTER listeners are attached to avoid missing events
-      // when the browser fires them synchronously for cached files.
-      video.src = videoUrl;
-    });
+    const canplayPromise = waitForVideoCanplay(video, VIDEO_OPEN_TIMEOUT_MS);
+    video.src = videoUrl;
+    await canplayPromise;
 
     // Step 2: Test seek to verify seeking works (not just initial decode).
     // Use a conservative time well within the video bounds to avoid
