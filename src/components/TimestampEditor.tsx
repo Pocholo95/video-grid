@@ -144,7 +144,22 @@ export default function TimestampEditor({
   const seekbarRef = useRef<HTMLDivElement>(null);
   const saveButtonRef = useRef<HTMLButtonElement>(null);
   const clickTimerRef = useRef<number | null>(null);
-  const [isTouch, setIsTouch] = useState(false);
+  /**
+   * Detect touch capability synchronously so the first render uses the correct
+   * value.  On devices without a fine pointer (e.g. Samsung Internet), the
+   * media queries evaluate correctly immediately, avoiding a flash of
+   * mouse-oriented behavior.
+   */
+  const [isTouch, setIsTouch] = useState(() => {
+    if (typeof window === "undefined") return false;
+    const hasFinePointer = window.matchMedia(
+      "(hover: hover) and (any-pointer: fine)",
+    ).matches;
+    if (!hasFinePointer) return true;
+    // Fine pointer present — still check maxTouchPoints as a fallback for
+    // hybrid devices (e.g. Surface with touch + mouse).
+    return navigator.maxTouchPoints > 0;
+  });
 
   useEffect(() => {
     const mediaQuery = window.matchMedia(

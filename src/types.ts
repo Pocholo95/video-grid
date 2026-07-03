@@ -261,6 +261,12 @@ export type TaskItem = {
    * output was generated even if the buffer was capped.
    */
   ffmpegTotalLines?: number;
+  /**
+   * Whether the browser can natively decode this video file.
+   * Detected at analysis time by attempting to load the file in a <video>
+   * element and observing the error event (same method as TimestampEditor).
+   */
+  canNativelyPlay?: boolean;
 };
 
 // - Settings / Options

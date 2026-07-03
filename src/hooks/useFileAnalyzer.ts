@@ -1,6 +1,7 @@
 import { useCallback } from "react";
 import type { IMediaInfoService } from "../types/service";
 import type { TaskItem, ProcessorStatus } from "../types";
+import { canNativelyPlayFile } from "../gridUtils";
 import { hasUsableMetadata, makeId, warn } from "../utils";
 
 type Updater = (id: string, patch: Partial<TaskItem>) => void;
@@ -70,9 +71,23 @@ export function useFileAnalyzer(
             item.warning =
               "Could not read required metadata from this file. Processing may fail or produce incorrect output.";
           }
+
+          // Detect native playback capability at analysis time so the
+          // warning is shown immediately rather than only at render time.
+          const canPlay = await canNativelyPlayFile(item.file);
+          item.canNativelyPlay = canPlay;
+          if (!canPlay) {
+            const nativeWarning =
+              "Native decoder unavailable — processing will use FFmpeg fallback (slower, more unreliable, and subject to memory limits).";
+            item.warning = item.warning
+              ? `${item.warning} ${nativeWarning}`
+              : nativeWarning;
+          }
+
           updateItem(item.id, {
             metadata: item.metadata,
             warning: item.warning,
+            canNativelyPlay: item.canNativelyPlay,
           });
         } catch (e) {
           const msg = e instanceof Error ? e.message : "Metadata read failed";

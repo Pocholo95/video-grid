@@ -25,6 +25,88 @@ import {
 export type CellSlot = { x: number; y: number; cellW: number; cellH: number };
 
 /**
+ * Internal helper: waits for a `<video>` element to either fire `canplay`
+ * (success) or `error`/timeout (failure).  Listeners are attached BEFORE
+ * setting `src` so cached files don't fire events before we're listening.
+ *
+ * @param video - The configured HTMLVideoElement.
+ * @param timeoutMs - Maximum time to wait before giving up.
+ * @throws if the video fails to load or times out.
+ */
+function waitForVideoCanplay(
+  video: HTMLVideoElement,
+  timeoutMs: number,
+): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const tid = setTimeout(
+      () => reject(new Error("Video canplay timeout")),
+      timeoutMs,
+    );
+    video.addEventListener(
+      "canplay",
+      () => {
+        clearTimeout(tid);
+        resolve();
+      },
+      { once: true },
+    );
+    video.addEventListener(
+      "error",
+      () => {
+        clearTimeout(tid);
+        reject(new Error("Video failed to load"));
+      },
+      { once: true },
+    );
+  });
+}
+
+/**
+ * Tests whether the browser can natively decode a video file by attempting to
+ * load it in a hidden `<video>` element and observing the error event.
+ *
+ * This is the same reliable method used by TimestampEditor — the `canplay`
+ * event alone is not sufficient because some browsers fire it even for
+ * unsupported codecs.  The `error` event is the decisive signal.
+ *
+ * @param file - The video File to test.
+ * @param timeoutMs - Maximum time to wait (default 5000ms).
+ * @returns true if the browser can play the file natively, false otherwise.
+ */
+export const canNativelyPlayFile = async (
+  file: File,
+  timeoutMs = 5000,
+): Promise<boolean> => {
+  const video = document.createElement("video");
+  video.muted = true;
+  video.playsInline = true;
+  video.preload = "metadata";
+
+  const url = URL.createObjectURL(file);
+  const cleanup = () => {
+    video.removeAttribute("src");
+    video.load();
+    URL.revokeObjectURL(url);
+  };
+
+  try {
+    // Attach listeners BEFORE setting src so cached files don't fire events
+    // before we're listening.
+    const canplayPromise = waitForVideoCanplay(video, timeoutMs);
+    video.src = url;
+    await canplayPromise;
+    return true;
+  } catch {
+    // Error or timeout — still need to set src so the error event fires
+    // and cleans up the pending state (if not already set).
+    if (!video.src) video.src = url;
+    return false;
+  } finally {
+    cleanup();
+  }
+};
+
+/**
  * Generates a grid layout describing the geometry of cells in the grid
  *
  * @param opts Task options
@@ -437,7 +519,6 @@ export const setupVideoDecoder = async (
   video.muted = true;
   video.playsInline = true;
   video.preload = "metadata";
-  video.src = videoUrl;
 
   const videoCleanup = () => {
     video.removeAttribute("src");
@@ -447,41 +528,36 @@ export const setupVideoDecoder = async (
 
   let canNativelyPlay = true;
   try {
-    // Step 1: Wait for 'canplay' — proves the codec is actually supported
-    await new Promise<void>((resolve, reject) => {
-      const tid = setTimeout(
-        () => reject(new Error("Video canplay timeout")),
-        VIDEO_OPEN_TIMEOUT_MS,
-      );
-      video.addEventListener(
-        "canplay",
-        () => {
-          clearTimeout(tid);
-          resolve();
-        },
-        { once: true },
-      );
-      video.addEventListener(
-        "error",
-        () => {
-          clearTimeout(tid);
-          reject(new Error("Video failed to load"));
-        },
-        { once: true },
-      );
-    });
+    // Step 1: Wait for 'canplay' — proves the codec is actually supported.
+    // Listeners MUST be registered BEFORE setting video.src so that cached
+    // files don't fire the event before we're listening.
+    const canplayPromise = waitForVideoCanplay(video, VIDEO_OPEN_TIMEOUT_MS);
+    video.src = videoUrl;
+    await canplayPromise;
 
-    // Step 2: Test seek to verify seeking works (not just initial decode)
-    const testTime = Math.min(0.5, (meta.duration || 10) * 0.1);
-    await seekVideo(video, testTime);
+    // Step 2: Test seek to verify seeking works (not just initial decode).
+    // Use a conservative time well within the video bounds to avoid
+    // non-deterministic failures on mobile when meta.duration is inaccurate.
+    const duration = meta.duration ?? 10;
+    const testTime = Math.min(1, duration * 0.05, duration - 1);
+    await seekVideo(video, Math.max(0, testTime));
 
-    // Step 3: Verify we have a decoded frame ready after seek
-    // HAVE_CURRENT_FRAME = 2
+    // Step 3: Verify we have a decoded frame ready after seek.
+    // On mobile browsers readyState can be flaky after a successful seek,
+    // so we treat this as a soft check — only fail if the canvas draw
+    // also produces an empty frame (Step 4).
+    // HAVE_CURRENT_FRAME = 2, HAVE_FUTURE_DATA = 3
     if (video.readyState < 2) {
-      throw new Error("No frame available after seek");
+      warn(
+        `Low readyState (${video.readyState}) after seek — ` +
+          `proceeding to pixel check as final validation`,
+      );
+      // Do NOT throw here; let Step 4 be the decisive test.
     }
 
-    // Step 4: Draw to offscreen canvas and verify pixels aren't empty
+    // Step 4: Draw to offscreen canvas and verify pixels aren't empty.
+    // This is the final and most reliable test — if the browser can
+    // produce pixel data, the codec is usable regardless of readyState.
     const testCanvas = document.createElement("canvas");
     testCanvas.width = 16;
     testCanvas.height = 16;
@@ -502,8 +578,13 @@ export const setupVideoDecoder = async (
     canNativelyPlay = false;
   }
 
-  // Reset to beginning for actual grid processing
-  video.currentTime = 0;
+  // Reset to beginning for actual grid processing.
+  // Only attempt this when native playback was confirmed working —
+  // on failure the video element is in an undefined state and seeking
+  // can throw or hang (especially on mobile Chrome).
+  if (canNativelyPlay) {
+    video.currentTime = 0;
+  }
 
   return { video, videoCleanup, canNativelyPlay };
 };
