@@ -262,7 +262,7 @@ describe("TimestampEditor", () => {
       // Initially should show 5 markers
       expect(screen.getByText(/5 markers? set for 5 cells/)).toBeTruthy();
 
-      const addButton = screen.getByTitle("Add marker at current position (M)");
+      const addButton = screen.getByRole("button", { name: /add marker/i });
       fireEvent.click(addButton);
 
       // The marker list should now contain more items
@@ -284,7 +284,7 @@ describe("TimestampEditor", () => {
       // Initially 3 markers, 6 cells — room to add 3 more
       expect(screen.getByText(/3 markers set for 6 cells/)).toBeTruthy();
 
-      const addButton = screen.getByTitle("Add marker at current position (M)");
+      const addButton = screen.getByRole("button", { name: /add marker/i });
       fireEvent.click(addButton);
 
       await waitFor(() => {
@@ -316,7 +316,7 @@ describe("TimestampEditor", () => {
 
       expect(screen.getByText(/3 markers set for 3 cells/)).toBeTruthy();
 
-      const addButton = screen.getByTitle("Add marker at current position (M)");
+      const addButton = screen.getByRole("button", { name: /add marker/i });
       fireEvent.click(addButton);
 
       await waitFor(() => {
@@ -350,7 +350,7 @@ describe("TimestampEditor", () => {
       renderTimestampEditor({ item, totalCells: 5 });
 
       // Add a marker at currentTime=0 (which is < 50, so it sorts to index 0)
-      const addButton = screen.getByTitle("Add marker at current position (M)");
+      const addButton = screen.getByRole("button", { name: /add marker/i });
       fireEvent.click(addButton);
 
       await waitFor(() => {

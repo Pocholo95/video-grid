@@ -2,6 +2,9 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import {
   AlertTriangle,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   Loader2,
   Pause,
   Play,
@@ -64,9 +67,16 @@ function MarkerPin({
   onSeek,
   onDelete,
 }: MarkerPinProps) {
-  // Long-press suppression is owned by TimestampEditor via the guarded
-  // onSeek / onDelete callbacks, so no local ref is needed here.
-  const longPress = useLongPress(() => onDelete(idx), { thresholdMs: 500 });
+  // Two-step delete protection: long-press on unselected marker selects it;
+  // long-press on already-selected marker deletes it.
+  const handleLongPress = () => {
+    if (selected === idx) {
+      onDelete(idx);
+    } else {
+      onSeek(t, idx);
+    }
+  };
+  const longPress = useLongPress(handleLongPress, { thresholdMs: 500 });
   const isUsed = idx < totalCells;
   const isSelected = selected === idx;
 
@@ -74,60 +84,126 @@ function MarkerPin({
     <div
       data-marker-pin
       className={cn(
-        "absolute top-0 flex h-full -translate-x-1/2 cursor-pointer flex-col items-center",
+        "absolute top-0 flex h-full -translate-x-1/2 flex-col items-center pointer-events-none",
       )}
       style={{ left: `${duration > 0 ? (t / duration) * 100 : 0}%` }}
-      onPointerDown={(e) => {
-        e.stopPropagation();
-        if (isTouch) longPress.onPointerDown(e);
-      }}
-      onPointerUp={(e) => {
-        e.stopPropagation();
-        if (isTouch) longPress.onPointerUp();
-      }}
-      onPointerLeave={(e) => {
-        e.stopPropagation();
-        if (isTouch) longPress.onPointerLeave();
-      }}
-      onPointerCancel={(e) => {
-        e.stopPropagation();
-        if (isTouch) longPress.onPointerCancel();
-      }}
-      onClick={(e) => {
-        e.stopPropagation();
-        // onSeek is guarded by seekToMarkerGuarded in the parent, so calling
-        // it unconditionally is safe — phantom clicks after a long press are
-        // suppressed at the TimestampEditor level regardless of which marker
-        // element they land on.
-        onSeek(t, idx);
-      }}
-      onContextMenu={(e) => {
-        e.stopPropagation();
-        e.preventDefault();
-        // On touch devices deletion is handled exclusively by the long-press
-        // timer. Skipping contextmenu here prevents the browser's native
-        // contextmenu event (also synthesized on long-press release) from
-        // landing on the marker underneath and triggering a phantom deletion.
-        if (!isTouch) onDelete(idx);
-      }}
     >
+      {/* Clickable badge — interaction limited to the top area so the
+          seekbar below remains freely usable for seeking. */}
       <span
         className={cn(
-          "rounded px-1 text-[10px] leading-tight font-semibold tabular-nums",
+          "rounded px-1 text-[10px] leading-tight font-semibold tabular-nums cursor-pointer pointer-events-auto",
           isUsed
             ? "bg-primary text-primary-foreground"
             : "bg-muted text-muted-foreground border",
           isSelected && "ring-foreground ring-2 ring-offset-1",
         )}
+        onPointerDown={(e) => {
+          e.stopPropagation();
+          if (isTouch) longPress.onPointerDown(e);
+        }}
+        onPointerUp={(e) => {
+          e.stopPropagation();
+          if (isTouch) longPress.onPointerUp();
+        }}
+        onPointerLeave={(e) => {
+          e.stopPropagation();
+          if (isTouch) longPress.onPointerLeave();
+        }}
+        onPointerCancel={(e) => {
+          e.stopPropagation();
+          if (isTouch) longPress.onPointerCancel();
+        }}
+        onClick={(e) => {
+          e.stopPropagation();
+          // onSeek is guarded by seekToMarkerGuarded in the parent, so calling
+          // it unconditionally is safe — phantom clicks after a long press are
+          // suppressed at the TimestampEditor level regardless of which marker
+          // element they land on.
+          onSeek(t, idx);
+        }}
+        onContextMenu={(e) => {
+          e.stopPropagation();
+          e.preventDefault();
+          // On touch devices deletion is handled exclusively by the long-press
+          // timer. Skipping contextmenu here prevents the browser's native
+          // contextmenu event (also synthesized on long-press release) from
+          // landing on the marker underneath and triggering a phantom deletion.
+          if (!isTouch) onDelete(idx);
+        }}
       >
         {idx + 1}
       </span>
+      {/* Decorative vertical line — no interaction handlers so clicks
+          pass through to the seekbar below. */}
       <div
         className={cn(
-          "w-0.5 flex-1",
+          "w-0.5 flex-1 pointer-events-none",
           isUsed ? "bg-primary" : "bg-muted-foreground/50",
         )}
       />
+    </div>
+  );
+}
+
+/** Simple collapsible panel with ChevronDown toggle in the header. */
+function CollapsiblePanel({
+  label,
+  expanded,
+  onToggle,
+  children,
+  rightContent,
+  className,
+  bodyClassName,
+}: {
+  label: React.ReactNode;
+  expanded: boolean;
+  onToggle: () => void;
+  children: React.ReactNode;
+  rightContent?: React.ReactNode;
+  className?: string;
+  bodyClassName?: string;
+}) {
+  return (
+    <div className={cn("border rounded-lg flex flex-col", className)}>
+      {/* Use div instead of button to avoid nested <button> issues when
+          rightContent renders shadcn Button (which is also a <button>). */}
+      <div
+        role="button"
+        tabIndex={0}
+        onClick={onToggle}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            onToggle();
+          }
+        }}
+        className={cn(
+          "flex w-full items-center justify-between gap-2 px-3 py-2 text-sm font-semibold hover:bg-muted/50 transition-colors cursor-pointer",
+          expanded ? "rounded-t-lg" : "rounded-lg",
+        )}
+      >
+        <span>{label}</span>
+        <div className="flex items-center gap-2">
+          {rightContent}
+          <ChevronDown
+            className={cn(
+              "size-4 shrink-0 transition-transform duration-200",
+              expanded && "rotate-180",
+            )}
+          />
+        </div>
+      </div>
+      {expanded && (
+        <div
+          className={cn(
+            "border-t p-2 flex flex-col min-h-0 gap-2",
+            bodyClassName,
+          )}
+        >
+          {children}
+        </div>
+      )}
     </div>
   );
 }
@@ -141,6 +217,9 @@ export default function TimestampEditor({
   const duration = item.metadata?.duration ?? 0;
   // Use actual FPS from metadata for precise frame-stepping; fallback to 30.
   const fps = item.metadata?.fps ?? 30;
+  const [isPortrait, setIsPortrait] = useState(() =>
+    Boolean(item.metadata && item.metadata.height > item.metadata.width),
+  );
   const videoRef = useRef<HTMLVideoElement>(null);
   const seekbarRef = useRef<HTMLDivElement>(null);
   const saveButtonRef = useRef<HTMLButtonElement>(null);
@@ -161,10 +240,19 @@ export default function TimestampEditor({
   const [isPlaying, setIsPlaying] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [videoReady, setVideoReady] = useState(false);
-  const [videoError, setVideoError] = useState(false);
+  // Initialize videoError from canNativelyPlay if already known
+  const [videoError, setVideoError] = useState(
+    () => item.canNativelyPlay === false,
+  );
   const [selectedMarker, setSelectedMarker] = useState<number | null>(null);
 
-  // Seek to first marker (or 0) when video becomes ready
+  // Grid collapsed on mobile by default, expanded on desktop
+  const [gridExpanded, setGridExpanded] = useState(!isTouch);
+  const [markersExpanded, setMarkersExpanded] = useState(true);
+
+  const toggleGrid = useCallback(() => setGridExpanded((v) => !v), []);
+  const toggleMarkers = useCallback(() => setMarkersExpanded((v) => !v), []);
+
   useEffect(() => {
     const v = videoRef.current;
     if (!v || !videoReady) return;
@@ -189,20 +277,19 @@ export default function TimestampEditor({
     };
   }, [item.file]);
 
-  // Sync currentTime display while playing.
-  // Depend on blobUrl/videoError so listeners attach once the <video> element
-  // is actually mounted (it is only rendered when !videoError && blobUrl is
-  // set). Without this, the effect would run on first render when
-  // videoRef.current is still null and the listeners would never be attached,
-  // so timeupdate events would never reach React state and the seekbar
-  // playhead would not move during playback.
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
     const onTime = () => setCurrentTime(video.currentTime);
     const onPlay = () => setIsPlaying(true);
     const onPause = () => setIsPlaying(false);
-    const onReady = () => setVideoReady(true);
+    const onReady = () => {
+      setVideoReady(true);
+      // Fallback: detect portrait from video element dimensions
+      if (video.videoWidth && video.videoHeight) {
+        setIsPortrait(video.videoHeight > video.videoWidth);
+      }
+    };
     const onErr = () => setVideoError(true);
     video.addEventListener("timeupdate", onTime);
     video.addEventListener("play", onPlay);
@@ -330,7 +417,7 @@ export default function TimestampEditor({
       if (longPressSuppressRef.current) return;
       longPressSuppressRef.current = true;
       deleteMarker(idx);
-      // 300 ms covers all synthesized pointer/click/contextmenu events.
+      // Delay covers all synthesized pointer/click/contextmenu events.
       setTimeout(() => {
         longPressSuppressRef.current = false;
       }, 300);
@@ -354,11 +441,7 @@ export default function TimestampEditor({
       const nextTime = Math.min(duration, Math.max(0, v.currentTime + delta));
       v.currentTime = nextTime;
       setCurrentTime(nextTime);
-
-      if (v.paused) {
-        // keep it paused; just update position
-        return;
-      }
+      if (v.paused) return;
     },
     [duration],
   );
@@ -395,21 +478,12 @@ export default function TimestampEditor({
   useEffect(() => {
     const video = videoRef.current;
     const seekbar = seekbarRef.current;
-
-    if (video) {
-      video.addEventListener("wheel", handleWheel, { passive: false });
-    }
-    if (seekbar) {
+    if (video) video.addEventListener("wheel", handleWheel, { passive: false });
+    if (seekbar)
       seekbar.addEventListener("wheel", handleWheel, { passive: false });
-    }
-
     return () => {
-      if (video) {
-        video.removeEventListener("wheel", handleWheel);
-      }
-      if (seekbar) {
-        seekbar.removeEventListener("wheel", handleWheel);
-      }
+      if (video) video.removeEventListener("wheel", handleWheel);
+      if (seekbar) seekbar.removeEventListener("wheel", handleWheel);
     };
   }, [handleWheel, blobUrl, videoError]);
 
@@ -436,16 +510,11 @@ export default function TimestampEditor({
   const togglePlay = useCallback(() => {
     const v = videoRef.current;
     if (!v) return;
-    if (v.paused) {
-      v.play();
-    } else {
-      v.pause();
-    }
+    if (v.paused) v.play();
+    else v.pause();
   }, []);
 
-  // Keyboard shortcuts via useKeyboardShortcut:
-  // Space = play/pause, M = add marker, Arrow = seek
-  // Escape is handled by the surrounding Dialog primitive.
+  // Keyboard shortcuts via useKeyboardShortcut
   useKeyboardShortcut([
     { key: " ", callback: togglePlay, deps: [], scope: "timestamp-editor" },
     {
@@ -513,7 +582,7 @@ export default function TimestampEditor({
         <DialogOverlay />
         <DialogPrimitive.Content
           data-dialog-scope="timestamp-editor"
-          className="bg-background fixed top-1/2 left-1/2 z-50 flex max-h-[92vh] w-[min(96vw,1100px)] -translate-x-1/2 -translate-y-1/2 flex-col gap-4 rounded-lg border p-4 shadow-lg"
+          className="bg-background fixed top-1/2 left-1/2 z-50 flex h-[min(95svh,1000px)] w-[min(96vw,1100px)] -translate-x-1/2 -translate-y-1/2 flex-col gap-3 rounded-lg border p-3 shadow-lg sm:p-4"
           onOpenAutoFocus={(e) => {
             e.preventDefault();
             setTimeout(() => saveButtonRef.current?.focus(), 0);
@@ -525,7 +594,9 @@ export default function TimestampEditor({
           <DialogPrimitive.Description className="sr-only">
             Customize the timestamps used to capture the video frames
           </DialogPrimitive.Description>
-          <div className="flex items-center justify-between gap-3">
+
+          {/* Header */}
+          <div className="flex items-center justify-between gap-3 sm:h-3">
             <h2 className="flex min-w-0 items-center gap-2 text-base font-semibold sm:text-lg">
               <Timeline className="size-5 shrink-0 -rotate-90" />
               <span className="shrink-0">Timestamps for</span>
@@ -543,9 +614,10 @@ export default function TimestampEditor({
             </Button>
           </div>
 
-          <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto md:grid md:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)] md:overflow-hidden">
-            {/* Left: video + controls */}
-            <div className="flex flex-col gap-3 overflow-y-auto">
+          {/* Main content area — scrollable on mobile, grid on desktop */}
+          <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto md:overflow-hidden md:grid md:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)] md:grid-rows-[1fr]">
+            {/* === Video + Controls: full-width on mobile, left-col on desktop === */}
+            <div className="flex min-h-0 shrink-0 flex-col gap-2 md:w-full">
               {videoError ? (
                 <Alert>
                   <AlertTriangle />
@@ -558,7 +630,14 @@ export default function TimestampEditor({
                 <video
                   ref={videoRef}
                   src={blobUrl ?? undefined}
-                  className="max-h-[23vh] md:max-h-9/12"
+                  className={cn(
+                    "object-contain min-h-0",
+                    isPortrait
+                      ? // Portrait: centered, height constrained on mobile, flexible on desktop
+                        "mx-auto max-h-[calc(100svh-320px)] md:max-h-none md:flex-1 md:w-full"
+                      : // Landscape: full width, height constrained (smaller for compact viewports)
+                        "w-full max-h-[calc(100svh-320px)] md:max-h-[40svh]",
+                  )}
                   muted
                   playsInline
                   preload="metadata"
@@ -568,7 +647,7 @@ export default function TimestampEditor({
               {/* Seekbar */}
               <div
                 ref={seekbarRef}
-                className="bg-muted relative h-8 w-full shrink-0 cursor-pointer touch-none rounded-md select-none"
+                className="bg-muted relative h-11 w-full shrink-0 cursor-pointer touch-none rounded-md select-none lg:h-8"
                 onPointerDown={handleSeekbarPointerDown}
                 onPointerMove={(e) => isDragging && seekbarHandler(e.clientX)}
                 onPointerUp={(e) => {
@@ -604,90 +683,151 @@ export default function TimestampEditor({
                 ))}
               </div>
 
-              {/* Transport controls */}
-              <div className="flex items-center gap-3">
-                {videoReady || videoError ? (
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    onClick={togglePlay}
-                    disabled={videoError}
-                    title={isPlaying ? "Pause (Space)" : "Play (Space)"}
-                  >
-                    {isPlaying ? (
-                      <Pause className="size-4" />
-                    ) : (
-                      <Play className="size-4" />
-                    )}
-                  </Button>
-                ) : (
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    disabled
-                    title="Loading video..."
-                  >
-                    <Loader2 className="size-4 animate-spin" />
-                  </Button>
-                )}
-                <span className="font-mono text-sm tabular-nums">
-                  {fmtT(currentTime)}{" "}
-                  <span className="text-muted-foreground">/</span>{" "}
-                  {fmtT(duration)}
-                </span>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="ml-auto"
-                  onClick={addMarkerAtCurrentTime}
-                  title="Add marker at current position (M)"
-                >
-                  <Plus className="size-4" />
-                  Add Marker
-                </Button>
+              {/* Timestamp Display */}
+              <div className="font-mono text-xs tabular-nums text-center">
+                {fmtT(currentTime)}
+                <span className="text-muted-foreground mx-1">/</span>
+                {fmtT(duration)}
               </div>
 
-              {/* Marker count summary */}
-              <div className="text-muted-foreground text-xs">
-                {markers.length === 0 ? (
-                  <span>
-                    No markers — all {totalCells} cells will use auto
-                    timestamps.
-                  </span>
-                ) : (
-                  <>
-                    <span className="text-foreground">
-                      {effectiveCount} marker{effectiveCount !== 1 ? "s" : ""}{" "}
-                      set for {totalCells} cell{effectiveCount !== 1 ? "s" : ""}
-                    </span>
-                    {autoFilledCount > 0 && (
-                      <span>
-                        {" · "}
-                        {autoFilledCount} cell{autoFilledCount !== 1 ? "s" : ""}{" "}
-                        use auto fallback
-                      </span>
+              {/* Transport Controls Bar */}
+              <div className="relative flex items-center justify-center">
+                {/* Centered seek controls — margin auto pushes them to center
+                    regardless of the Add Marker button on the right */}
+                <div className="flex items-center gap-1 mx-auto">
+                  {/* Backward seeks */}
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="size-7 md:size-8"
+                    onClick={seekBack5s}
+                    disabled={!videoReady && !videoError}
+                    title={`Back 5 seconds ${isTouch ? " (Shift+ArrowLeft)" : ""}`}
+                  >
+                    <svg className="size-3.5" viewBox="0 0 24 24">
+                      <ChevronLeft x={-5} />
+                      <ChevronLeft />
+                      <ChevronLeft x={5} />
+                    </svg>
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="size-7 md:size-8"
+                    onClick={seekBack1s}
+                    disabled={!videoReady && !videoError}
+                    title={`Back 1 second ${isTouch ? " (ArrowLeft)" : ""}`}
+                  >
+                    <svg className="size-3.5" viewBox="0 0 24 24">
+                      <ChevronLeft x={-3} />
+                      <ChevronLeft x={3} />
+                    </svg>
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="size-7 md:size-8"
+                    onClick={seekBackFrame}
+                    disabled={!videoReady && !videoError}
+                    title={`Back 1 frame ${isTouch ? " (Ctrl+ArrowLeft)" : ""}`}
+                  >
+                    <ChevronLeft className="size-3.5" />
+                  </Button>
+
+                  {/* Play/Pause */}
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="size-7 md:size-8"
+                    onClick={togglePlay}
+                    disabled={!videoReady && !videoError}
+                    title={
+                      isTouch
+                        ? isPlaying
+                          ? "Pause"
+                          : "Play"
+                        : isPlaying
+                          ? "Pause (Space)"
+                          : "Play (Space)"
+                    }
+                  >
+                    {isPlaying ? (
+                      <Pause className="size-3.5" />
+                    ) : videoReady || videoError ? (
+                      <Play className="size-3.5" />
+                    ) : (
+                      <Loader2 className="size-3.5 animate-spin" />
                     )}
-                    {markers.length > totalCells && (
-                      <span className="text-destructive">
-                        {" · "}
-                        {markers.length - totalCells} marker
-                        {markers.length - totalCells !== 1 ? "s" : ""} ignored
-                        (beyond {totalCells}-cell grid)
-                      </span>
-                    )}
-                  </>
-                )}
+                  </Button>
+
+                  {/* Forward seeks */}
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="size-7 md:size-8"
+                    onClick={seekForwardFrame}
+                    disabled={!videoReady && !videoError}
+                    title={`Forward 1 frame ${isTouch ? " (Ctrl+ArrowRight)" : ""}`}
+                  >
+                    <ChevronRight className="size-3.5" />
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="size-7 md:size-8"
+                    onClick={seekForward1s}
+                    disabled={!videoReady && !videoError}
+                    title={`Forward 1 second ${isTouch ? " (ArrowRight)" : ""}`}
+                  >
+                    <svg className="size-3.5" viewBox="0 0 24 24">
+                      <ChevronRight x={-3} />
+                      <ChevronRight x={3} />
+                    </svg>
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="size-7 md:size-8"
+                    onClick={seekForward5s}
+                    disabled={!videoReady && !videoError}
+                    title={`Forward 5 seconds $${isTouch ? " (Shift+ArrowRight)" : ""}`}
+                  >
+                    <svg className="size-3.5" viewBox="0 0 24 24">
+                      <ChevronRight x={-5} />
+                      <ChevronRight />
+                      <ChevronRight x={5} />
+                    </svg>
+                  </Button>
+                </div>
+
+                {/* Add Marker — positioned absolutely to the right so it
+                    doesn't affect the centered layout of the seek controls */}
+                <div className="absolute right-0">
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="size-7 md:size-8"
+                    onClick={addMarkerAtCurrentTime}
+                    title={`Add marker at current position $${isTouch ? " (M)" : ""}`}
+                  >
+                    <Plus className="size-3.5" />
+                  </Button>
+                </div>
               </div>
             </div>
 
-            {/* Right: grid preview + marker list */}
-            <div className="bg-muted/30 flex h-[30vh] shrink-0 flex-col gap-2 rounded-md border p-3 md:h-auto md:min-h-0 md:shrink">
-              {/* Grid structure preview — hidden in sequence mode */}
+            {/* === RIGHT COLUMN: Collapsible Sections (full-width on mobile) === */}
+            {/* overflow-hidden only on desktop so the grid layout column clips
+                content properly; on mobile we need overflow visible so the
+                main scroll container can show a scrollbar */}
+            <div className="flex min-h-0 flex-col gap-2 md:overflow-auto">
+              {/* Grid Layout Section */}
               {!isSequenceMode && (
-                <div className="flex flex-col gap-1">
-                  <span className="text-muted-foreground text-xs font-medium">
-                    Grid Layout
-                  </span>
+                <CollapsiblePanel
+                  label="Grid Layout"
+                  expanded={gridExpanded}
+                  onToggle={toggleGrid}
+                >
                   <div className="bg-card overflow-x-auto rounded-md border p-2">
                     <GridPreview
                       template={gridTemplate}
@@ -696,106 +836,173 @@ export default function TimestampEditor({
                       assignedCount={effectiveCount}
                     />
                   </div>
-                </div>
+                </CollapsiblePanel>
               )}
-              <div className="flex items-center justify-between gap-2">
-                <span className="text-sm font-semibold">
-                  Markers (
-                  {markers.length > totalCells ? (
-                    <span className="text-destructive">{markers.length}</span>
-                  ) : (
-                    markers.length
-                  )}
-                  /{totalCells})
-                </span>
-                {markers.length > 0 && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="text-destructive hover:text-destructive"
-                    onClick={clearAllMarkers}
-                    title="Remove all markers"
-                  >
-                    <Trash2 className="size-4" />
-                    Clear all
-                  </Button>
-                )}
-              </div>
 
-              <div className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto px-3 py-2">
-                {markers.length === 0 ? (
-                  <p className="text-muted-foreground p-2 text-xs">
-                    {isTouch ? (
-                      <>
-                        No markers yet. Seek to a position and click{" "}
-                        <strong>+&nbsp;Add&nbsp;Marker</strong> or double tap
-                        the seekbar.
-                      </>
+              {/* Markers Section */}
+              <div
+                className={cn(
+                  "flex min-h-auto flex-col",
+                  markersExpanded && "md:flex-1",
+                )}
+              >
+                <CollapsiblePanel
+                  label={
+                    <span>
+                      Markers
+                      {!markersExpanded && (
+                        <span>
+                          {" ("}
+                          <span
+                            className={
+                              markers.length > totalCells
+                                ? "text-destructive"
+                                : ""
+                            }
+                          >
+                            {markers.length}
+                          </span>
+                          /{totalCells}
+                          {")"}
+                        </span>
+                      )}
+                    </span>
+                  }
+                  expanded={markersExpanded}
+                  onToggle={toggleMarkers}
+                  rightContent={
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="gap-1 p-0 -my-1 mx-2 text-xs text-destructive hover:text-destructive"
+                      disabled={markers.length == 0}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        clearAllMarkers();
+                      }}
+                      title="Remove all markers"
+                    >
+                      <Trash2 className="size-3" />
+                      <span>Clear all</span>
+                    </Button>
+                  }
+                  className={cn(markersExpanded && "md:flex min-h-0 md:flex-1")}
+                  bodyClassName="flex min-h-0 flex-col gap-1 p-2 md:min-h-0"
+                >
+                  {/* Marker count summary */}
+                  <div className="shrink-0 text-muted-foreground text-xs text-center">
+                    {markers.length === 0 ? (
+                      <span>
+                        No markers — all {totalCells} cells will use auto
+                        timestamps.
+                      </span>
                     ) : (
                       <>
-                        No markers yet. Seek to a position and click{" "}
-                        <strong>+&nbsp;Add&nbsp;Marker</strong>, or press{" "}
-                        <Kbd>M</Kbd>.
-                      </>
-                    )}
-                  </p>
-                ) : (
-                  markers.map((t, idx) => {
-                    const isUsed = idx < totalCells;
-                    const isSelected = selectedMarker === idx;
-                    return (
-                      <div
-                        key={idx}
-                        className={cn(
-                          "bg-muted/50 hover:bg-primary/50 flex cursor-pointer items-center gap-2 rounded-md border px-2 py-1.5 text-sm transition-colors",
-                          isSelected &&
-                            "bg-primary/75 text-primary-foreground border-primary ring-2 ring-foreground",
-                          !isUsed && "opacity-60",
+                        <span className="text-foreground">
+                          {effectiveCount} marker
+                          {effectiveCount !== 1 ? "s" : ""} set for {totalCells}{" "}
+                          cell{totalCells !== 1 ? "s" : ""}
+                        </span>
+                        {autoFilledCount > 0 && (
+                          <span>
+                            {" · "}
+                            {autoFilledCount} cell
+                            {autoFilledCount !== 1 ? "s" : ""} use auto fallback
+                          </span>
                         )}
-                        onClick={() => seekToMarker(t, idx)}
-                      >
-                        <span className="text-foreground/75 w-8 font-mono text-xs tabular-nums">
-                          #{idx + 1}
-                        </span>
-                        <span className="flex-1 font-mono text-xs tabular-nums">
-                          {fmtT(t)}
-                        </span>
-                        {!isUsed && (
-                          <span className="bg-muted text-muted-foreground rounded px-1.5 py-0.5 text-[10px] uppercase">
+                        {markers.length > totalCells && (
+                          <span className="text-destructive">
+                            {" · "}
+                            {markers.length - totalCells} marker
+                            {markers.length - totalCells !== 1 ? "s" : ""}{" "}
                             ignored
                           </span>
                         )}
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="size-6"
-                          title="Delete this marker"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            deleteMarker(idx);
-                          }}
-                        >
-                          <X className="size-3" />
-                        </Button>
-                      </div>
-                    );
-                  })
-                )}
+                      </>
+                    )}
+                  </div>
+
+                  {/* Marker list */}
+                  <div
+                    className={cn(
+                      "flex flex-col p-3 gap-1",
+                      "md:min-h-auto md:flex-1 md:overflow-auto",
+                    )}
+                  >
+                    {markers.length === 0 ? (
+                      <p className="text-muted-foreground p-2 text-xs text-center">
+                        {isTouch ? (
+                          <>
+                            Seek to a position and tap on the <strong>+</strong>{" "}
+                            button or double tap the seekbar to add a marker.
+                          </>
+                        ) : (
+                          <>
+                            Seek to a position and click <strong>+</strong>, or
+                            press <Kbd>M</Kbd> to add a marker.
+                          </>
+                        )}
+                      </p>
+                    ) : (
+                      markers.map((t, idx) => {
+                        const isUsed = idx < totalCells;
+                        const isSelected = selectedMarker === idx;
+                        return (
+                          <div
+                            key={idx}
+                            className={cn(
+                              "bg-muted/50 hover:bg-primary/50 flex cursor-pointer items-center gap-2 rounded-md border px-2 py-1.5 text-sm transition-colors box-content",
+                              isSelected &&
+                                "bg-primary/75 text-primary-foreground border-primary outline outline-foreground",
+                              !isUsed && "opacity-60",
+                            )}
+                            onClick={() => seekToMarker(t, idx)}
+                          >
+                            <span className="text-foreground/75 w-7 shrink-0 font-mono text-[11px] tabular-nums">
+                              #{idx + 1}
+                            </span>
+                            <span className="min-w-0 flex-1 font-mono text-[11px] tabular-nums truncate">
+                              {fmtT(t)}
+                            </span>
+                            {!isUsed && (
+                              <span className="bg-muted text-muted-foreground shrink-0 rounded px-1 py-0.5 text-[10px] uppercase">
+                                ignored
+                              </span>
+                            )}
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="size-6 shrink-0"
+                              title="Delete this marker"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                deleteMarker(idx);
+                              }}
+                            >
+                              <X className="size-3" />
+                            </Button>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                </CollapsiblePanel>
               </div>
             </div>
           </div>
 
-          <div className="flex flex-col gap-3 border-t pt-4 sm:flex-row sm:items-center sm:justify-between">
-            <p className="text-muted-foreground text-xs">
+          {/* Footer */}
+          <div className="flex flex-col gap-3 border-t pt-3 sm:flex-row sm:items-center sm:justify-between sm:h-8">
+            <p className="text-muted-foreground text-xs text-center">
               {isTouch ? (
                 <>
-                  Tap seekbar to seek &nbsp;·&nbsp; Double-tap seekbar to add
-                  marker &nbsp;·&nbsp; Long-press marker to remove
+                  Double-tap to add marker &nbsp;·&nbsp; Long-press marker to
+                  remove
                 </>
               ) : (
                 <>
                   <Kbd>Space</Kbd> Play/Pause &nbsp;·&nbsp; <Kbd>M</Kbd> Add
-                  Marker &nbsp;·&nbsp; <Kbd>Ctrl+Arrow</Kbd> for frame-step
+                  Marker &nbsp;·&nbsp; <Kbd>Ctrl+Arrow</Kbd> frame-step
                   &nbsp;·&nbsp; Double-click seekbar to add marker &nbsp;·&nbsp;
                   Right-click marker to remove
                 </>
