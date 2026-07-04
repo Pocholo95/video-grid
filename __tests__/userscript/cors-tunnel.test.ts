@@ -11,19 +11,119 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { PROJECT_NAME } from "@/constants";
 import { USERSCRIPT_VERSION } from "../../src/lib/cors-tunnel";
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type AnyFn = (...args: any[]) => any;
+// GM_xmlhttpRequest response type
+interface GMResponse {
+  status: number;
+  statusText: string;
+  responseHeaders: string;
+  responseText: string;
+  response: unknown;
+  readyState: number;
+  finalUrl: string;
+  time: {
+    start: number;
+    end: number;
+    firstByte: number;
+    endOfWrite: number;
+  };
+  ip: string;
+}
+
+// GM_xmlhttpRequest error type
+interface GMError {
+  error: string;
+  readyState: number;
+  status: number;
+  response: string;
+  finalUrl: string;
+  loaded: number;
+  total: number;
+  position: number;
+}
+
+// GM_xmlhttpRequest options type
+interface GMXmlHttpRequestOptions {
+  url?: string;
+  method?: string;
+  headers?: Record<string, string>;
+  data?: string;
+  onload?: (response: GMResponse) => void;
+  onerror?: (error: GMError) => void;
+}
+
+// GM XMLHTTPRequest return type
+interface GMXmlHttpRequestReturn {
+  abort: () => void;
+  url?: string;
+  method?: string;
+}
+
+// CORS tunnel outgoing message types
+interface CorsTunnelPong {
+  type: "cors-tunnel-pong";
+  id: string;
+  version: string;
+}
+
+interface CorsTunnelResponse {
+  type: "cors-tunnel-response";
+  id: string;
+  status: number;
+  statusText: string;
+  headers: Record<string, string>;
+  body: string;
+}
+
+interface CorsTunnelError {
+  type: "cors-tunnel-error";
+  id: string;
+  error: string;
+}
+
+type CorsTunnelOutgoingMessage =
+  | CorsTunnelPong
+  | CorsTunnelResponse
+  | CorsTunnelError;
+
+// Incoming message from the page
+interface IncomingTunnelMessage {
+  type: string;
+  source?: string;
+  id?: string;
+  url?: string;
+  method?: string;
+  headers?: Record<string, string>;
+  body?: string;
+}
+
+// Window extension for GM APIs
+interface GMWindow extends Window {
+  GM_xmlhttpRequest: (
+    options: GMXmlHttpRequestOptions,
+  ) => GMXmlHttpRequestReturn;
+  GM_info: {
+    script: {
+      name: string;
+      version: string;
+    };
+  };
+  GM_addStyle: (css: string) => void;
+  GM_log: (...args: unknown[]) => void;
+}
 
 // Mock GM_* APIs that the userscript expects
 function createGMMock() {
   const callbacks: Record<
     string,
-    { onload?: (r: any) => void; onerror?: (e: any) => void }
+    { onload?: (r: GMResponse) => void; onerror?: (e: GMError) => void }
   > = {};
 
   return {
     callbacks,
-    GM_xmlhttpRequest: vi.fn(({ url, method, onload, onerror }: any) => {
+    GM_xmlhttpRequest: vi.fn(function (
+      options: GMXmlHttpRequestOptions,
+    ): GMXmlHttpRequestReturn {
+      const { url, method, onload, onerror } = options;
       const requestKey = `${method}:${url}`;
       callbacks[requestKey] = { onload, onerror };
       return { abort: vi.fn(), url, method };
@@ -42,48 +142,47 @@ function createGMMock() {
 describe("CORS Tunnel Userscript - Message Handler", () => {
   let gm: ReturnType<typeof createGMMock>;
   let messageHandler: (event: MessageEvent) => void;
-  let responses: any[];
+  let responses: CorsTunnelOutgoingMessage[];
 
   beforeEach(() => {
     gm = createGMMock();
     responses = [];
 
     // Assign GM_* to window
-    (window as any).GM_xmlhttpRequest = gm.GM_xmlhttpRequest;
-    (window as any).GM_info = gm.GM_info;
-    (window as any).GM_addStyle = gm.GM_addStyle;
-    (window as any).GM_log = gm.GM_log;
+    const gmWindow = window as unknown as GMWindow;
+    gmWindow.GM_xmlhttpRequest = gm.GM_xmlhttpRequest;
+    gmWindow.GM_info = gm.GM_info;
+    gmWindow.GM_addStyle = gm.GM_addStyle;
+    gmWindow.GM_log = gm.GM_log;
 
     // Override postMessage to capture outgoing tunnel responses
     // (don't call original — happy-dom validates target origin and would throw)
-    (window as unknown as Record<string, AnyFn>).postMessage = function (
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      data: any,
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      _targetOrigin?: any,
-    ) {
+
+    window.postMessage = function (data: unknown): void {
+      const message = data as CorsTunnelOutgoingMessage | undefined;
       if (
-        data.type === "cors-tunnel-pong" ||
-        data.type === "cors-tunnel-response" ||
-        data.type === "cors-tunnel-error"
+        message &&
+        (message.type === "cors-tunnel-pong" ||
+          message.type === "cors-tunnel-response" ||
+          message.type === "cors-tunnel-error")
       ) {
-        responses.push(data);
+        responses.push(message);
       }
     };
 
     // Simulate the userscript's message handler logic
-    messageHandler = function (event: MessageEvent) {
-      const msg = event.data;
+    messageHandler = function (event: MessageEvent): void {
+      const msg = event.data as IncomingTunnelMessage | undefined;
       if (!msg || msg.source !== "vidgrid-html") return;
 
       if (msg.type === "cors-tunnel-ping") {
         window.postMessage(
           {
             type: "cors-tunnel-pong",
-            id: msg.id,
+            id: msg.id ?? "",
             version: USERSCRIPT_VERSION,
           },
-          event.origin,
+          { targetOrigin: event.origin },
         );
       } else if (msg.type === "cors-tunnel-request") {
         gm.GM_xmlhttpRequest({
@@ -91,27 +190,30 @@ describe("CORS Tunnel Userscript - Message Handler", () => {
           method: msg.method,
           headers: msg.headers,
           data: msg.body,
-          onload: (response: any) => {
+          onload: (response: GMResponse) => {
             window.postMessage(
               {
                 type: "cors-tunnel-response",
-                id: msg.id,
+                id: msg.id ?? "",
                 status: response.status,
                 statusText: response.statusText,
-                headers: response.responseHeaders,
+                headers: JSON.parse(response.responseHeaders) as Record<
+                  string,
+                  string
+                >,
                 body: response.responseText,
               },
-              event.origin,
+              { targetOrigin: event.origin },
             );
           },
-          onerror: (error: any) => {
+          onerror: (error: GMError) => {
             window.postMessage(
               {
                 type: "cors-tunnel-error",
-                id: msg.id,
-                error: error.message || "Network error",
+                id: msg.id ?? "",
+                error: error.error || "Network error",
               },
-              event.origin,
+              { targetOrigin: event.origin },
             );
           },
         });
@@ -120,10 +222,11 @@ describe("CORS Tunnel Userscript - Message Handler", () => {
   });
 
   afterEach(() => {
-    delete (window as any).GM_xmlhttpRequest;
-    delete (window as any).GM_info;
-    delete (window as any).GM_addStyle;
-    delete (window as any).GM_log;
+    const gmWindow = window as unknown as GMWindow;
+    (gmWindow.GM_xmlhttpRequest as unknown) = undefined;
+    (gmWindow.GM_info as unknown) = undefined;
+    (gmWindow.GM_addStyle as unknown) = undefined;
+    (gmWindow.GM_log as unknown) = undefined;
     vi.restoreAllMocks();
   });
 
@@ -189,12 +292,18 @@ describe("CORS Tunnel Userscript - Message Handler", () => {
       );
 
       // Simulate successful response
-      const call = gm.GM_xmlhttpRequest.mock.calls[0][0];
-      call.onload({
+      const call = gm.GM_xmlhttpRequest.mock
+        .calls[0][0] as GMXmlHttpRequestOptions;
+      call.onload?.({
         status: 200,
         statusText: "OK",
-        responseHeaders: { "content-type": "application/json" },
+        responseHeaders: JSON.stringify({ "content-type": "application/json" }),
         responseText: '{"success":true}',
+        response: null,
+        readyState: 4,
+        finalUrl: "https://api.example.com/data",
+        time: { start: 0, end: 0, firstByte: 0, endOfWrite: 0 },
+        ip: "127.0.0.1",
       });
 
       expect(responses).toHaveLength(1);
@@ -249,8 +358,18 @@ describe("CORS Tunnel Userscript - Message Handler", () => {
       messageHandler(requestEvent);
 
       // Simulate error
-      const call = gm.GM_xmlhttpRequest.mock.calls[0][0];
-      call.onerror({ message: "Network error" });
+      const call = gm.GM_xmlhttpRequest.mock
+        .calls[0][0] as GMXmlHttpRequestOptions;
+      call.onerror?.({
+        error: "Network error",
+        readyState: 0,
+        status: 0,
+        response: "",
+        finalUrl: "",
+        loaded: 0,
+        total: 0,
+        position: 0,
+      });
 
       expect(responses).toHaveLength(1);
       expect(responses[0]).toEqual({
@@ -276,16 +395,22 @@ describe("CORS Tunnel Userscript - Message Handler", () => {
       messageHandler(requestEvent);
 
       // Simulate HTTP error
-      const call = gm.GM_xmlhttpRequest.mock.calls[0][0];
-      call.onload({
+      const call = gm.GM_xmlhttpRequest.mock
+        .calls[0][0] as GMXmlHttpRequestOptions;
+      call.onload?.({
         status: 404,
         statusText: "Not Found",
-        responseHeaders: {},
+        responseHeaders: JSON.stringify({}),
         responseText: "File not found",
+        response: null,
+        readyState: 4,
+        finalUrl: "https://api.example.com/data",
+        time: { start: 0, end: 0, firstByte: 0, endOfWrite: 0 },
+        ip: "127.0.0.1",
       });
 
       expect(responses).toHaveLength(1);
-      expect(responses[0].status).toBe(404);
+      expect((responses[0] as CorsTunnelResponse).status).toBe(404);
     });
   });
 
