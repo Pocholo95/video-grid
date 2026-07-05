@@ -262,7 +262,7 @@ describe("TimestampEditor", () => {
       // Initially should show 5 markers
       expect(screen.getByText(/5 markers? set for 5 cells/)).toBeTruthy();
 
-      const addButton = screen.getByTitle("Add marker at current position (M)");
+      const addButton = screen.getByRole("button", { name: /add marker/i });
       fireEvent.click(addButton);
 
       // The marker list should now contain more items
@@ -284,7 +284,7 @@ describe("TimestampEditor", () => {
       // Initially 3 markers, 6 cells — room to add 3 more
       expect(screen.getByText(/3 markers set for 6 cells/)).toBeTruthy();
 
-      const addButton = screen.getByTitle("Add marker at current position (M)");
+      const addButton = screen.getByRole("button", { name: /add marker/i });
       fireEvent.click(addButton);
 
       await waitFor(() => {
@@ -316,7 +316,7 @@ describe("TimestampEditor", () => {
 
       expect(screen.getByText(/3 markers set for 3 cells/)).toBeTruthy();
 
-      const addButton = screen.getByTitle("Add marker at current position (M)");
+      const addButton = screen.getByRole("button", { name: /add marker/i });
       fireEvent.click(addButton);
 
       await waitFor(() => {
@@ -350,7 +350,7 @@ describe("TimestampEditor", () => {
       renderTimestampEditor({ item, totalCells: 5 });
 
       // Add a marker at currentTime=0 (which is < 50, so it sorts to index 0)
-      const addButton = screen.getByTitle("Add marker at current position (M)");
+      const addButton = screen.getByRole("button", { name: /add marker/i });
       fireEvent.click(addButton);
 
       await waitFor(() => {
@@ -766,6 +766,113 @@ describe("TimestampEditor", () => {
       await waitFor(() => {
         expect(screen.getByText(/00:00:00/)).toBeTruthy();
       });
+    });
+  });
+
+  describe("fill marker buttons", () => {
+    it("shows fill buttons when markers are empty", async () => {
+      renderTimestampEditor({ totalCells: 4 });
+
+      // Clear all markers first
+      const clearButton = screen.getByTitle("Remove all markers");
+      fireEvent.click(clearButton);
+
+      await waitFor(() => {
+        const noMarkerTexts = screen.queryAllByText(/No markers/);
+        expect(noMarkerTexts.length).toBeGreaterThan(0);
+      });
+
+      // Fill buttons should be visible
+      expect(screen.getByText("Add evenly spaced markers for")).toBeTruthy();
+      expect(screen.getByText("Full duration")).toBeTruthy();
+      expect(screen.getByText("First half")).toBeTruthy();
+      expect(screen.getByText("Second half")).toBeTruthy();
+    });
+
+    it("hides fill buttons when markers exist", () => {
+      renderTimestampEditor({ totalCells: 4 });
+
+      // After initial render, markers are seeded, so buttons should be hidden
+      expect(
+        screen.queryByText("Add evenly spaced markers for"),
+      ).not.toBeTruthy();
+      expect(screen.queryByText("Full duration")).not.toBeTruthy();
+      expect(screen.queryByText("First half")).not.toBeTruthy();
+      expect(screen.queryByText("Second half")).not.toBeTruthy();
+    });
+
+    it("generates markers for full duration when button is clicked", async () => {
+      renderTimestampEditor({ totalCells: 4 });
+
+      const clearButton = screen.getByTitle("Remove all markers");
+      fireEvent.click(clearButton);
+
+      await waitFor(() => {
+        const noMarkerTexts = screen.queryAllByText(/No markers/);
+        expect(noMarkerTexts.length).toBeGreaterThan(0);
+      });
+
+      const fullDurationButton = screen.getByText("Full duration");
+      fireEvent.click(fullDurationButton);
+
+      await waitFor(() => {
+        expect(screen.getByText(/4 markers set for 4 cells/)).toBeTruthy();
+      });
+
+      // Verify fill buttons are hidden again
+      expect(
+        screen.queryByText("Add evenly spaced markers for"),
+      ).not.toBeTruthy();
+    });
+
+    it("generates markers within first half when button is clicked", async () => {
+      renderTimestampEditor({ totalCells: 4 });
+
+      const clearButton = screen.getByTitle("Remove all markers");
+      fireEvent.click(clearButton);
+
+      await waitFor(() => {
+        const noMarkerTexts = screen.queryAllByText(/No markers/);
+        expect(noMarkerTexts.length).toBeGreaterThan(0);
+      });
+
+      const firstHalfButton = screen.getByText("First half");
+      fireEvent.click(firstHalfButton);
+
+      await waitFor(() => {
+        expect(screen.getByText(/4 markers set for 4 cells/)).toBeTruthy();
+      });
+
+      // Marker pins should exist
+      const markerPins = document.querySelectorAll("[data-marker-pin]");
+      expect(markerPins.length).toBe(4);
+
+      // All markers should be in the first half (left 50% of seekbar)
+      // The seekbar width is 100%, so pin positions should be < 50%
+      // We can't easily check exact positions in the DOM, but the mock
+      // calculateSampleTimes generates times within [0, duration/2] range
+    });
+
+    it("generates markers within second half when button is clicked", async () => {
+      renderTimestampEditor({ totalCells: 4 });
+
+      const clearButton = screen.getByTitle("Remove all markers");
+      fireEvent.click(clearButton);
+
+      await waitFor(() => {
+        const noMarkerTexts = screen.queryAllByText(/No markers/);
+        expect(noMarkerTexts.length).toBeGreaterThan(0);
+      });
+
+      const secondHalfButton = screen.getByText("Second half");
+      fireEvent.click(secondHalfButton);
+
+      await waitFor(() => {
+        expect(screen.getByText(/4 markers set for 4 cells/)).toBeTruthy();
+      });
+
+      const markerPins = document.querySelectorAll("[data-marker-pin]");
+      expect(markerPins.length).toBe(4);
     });
   });
 

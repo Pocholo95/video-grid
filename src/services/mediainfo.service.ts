@@ -127,9 +127,19 @@ export class MediaInfoService implements IMediaInfoService {
         : undefined;
       const audioCodec = audio?.Format ?? audio?.Codec_ID ?? undefined;
 
+      // Extract rotation angle (e.g. "90°" or "90 degrees") from the video track.
+      const rawRotation = video?.Rotation ?? null;
+      let rotation: number | undefined;
+      if (rawRotation) {
+        const match = String(rawRotation).match(/^(\d+)/);
+        if (match) {
+          rotation = parseInt(match[1], 10);
+        }
+      }
+
       log(
         `MediaInfo: duration=${duration}s, ${width}×${height}, ` +
-          `${videoBitrate}bps, ${fps ?? "N/A"}fps, codec=${codec ?? "N/A"}`,
+          `${videoBitrate}bps, ${fps ?? "N/A"}fps, codec=${codec ?? "N/A"}${rotation ? `, rotation=${rotation}°` : ""}`,
       );
       onProgress?.(100, "Metadata ready");
       return {
@@ -143,6 +153,7 @@ export class MediaInfoService implements IMediaInfoService {
         audioBitrate,
         audioCodec,
         audioTracks: audioTracks.length,
+        rotation,
       };
     } catch (e) {
       errlog("MediaInfo analysis failed:", e);

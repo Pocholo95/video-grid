@@ -25,6 +25,40 @@ import {
 export type CellSlot = { x: number; y: number; cellW: number; cellH: number };
 
 /**
+ * Returns the effective (rotation-applied) dimensions of a video.
+ * When rotation is 90° or 270°, the pixel data is stored in landscape
+ * orientation but displayed in portrait (and vice versa), so width and
+ * height must be swapped to match what the user sees.
+ */
+export const getEffectiveDimensions = (
+  meta: VideoMetadata,
+): { width: number; height: number } => {
+  if (meta.rotation === 90 || meta.rotation === 270) {
+    return { width: meta.height, height: meta.width };
+  }
+  return { width: meta.width, height: meta.height };
+};
+
+/**
+ * Returns the FFmpeg `transpose` filter parameter value for a rotation angle.
+ * - 90°  → transpose=1  (clockwise 90)
+ * - 180° → transpose=2  (180 flip)
+ * - 270° → transpose=0  (counter-clockwise 90 = clockwise 270)
+ */
+export const getFFmpegTransposeValue = (rotation: number): string => {
+  switch (rotation) {
+    case 90:
+      return "1";
+    case 180:
+      return "2";
+    case 270:
+      return "0";
+    default:
+      return "";
+  }
+};
+
+/**
  * Internal helper: waits for a `<video>` element to either fire `canplay`
  * (success) or `error`/timeout (failure).  Listeners are attached BEFORE
  * setting `src` so cached files don't fire events before we're listening.
@@ -415,20 +449,32 @@ export const drawErrorPlaceholder = (
 };
 
 /**
- * Calculates evenly distributed sample timestamps across video duration with margins.
+ * Calculates evenly distributed sample timestamps across a time range with margins.
  *
  * @param totalCells - Number of thumbnail cells to generate
- * @param duration - Total video duration in seconds
+ * @param duration - Duration of the time range in seconds
+ * @param startTime - Start of the range in seconds (defaults to 0)
+ * @param endTime - End of the range in seconds (defaults to startTime + duration)
  * @returns Array of timestamp positions in seconds
  */
 export const calculateSampleTimes = (
   totalCells: number,
   duration: number,
+  startTime = 0,
+  endTime?: number,
 ): number[] => {
-  const margin = Math.max(0.5, duration * 0.02);
-  const usable = Math.max(duration - 2 * margin, 0.1);
+  const end = endTime ?? startTime + duration;
+  const range = end - startTime;
+  const margin = Math.max(0.5, range * 0.02);
+  const usable = Math.max(range - 2 * margin, 0.1);
   return Array.from({ length: totalCells }, (_, i) =>
-    Math.min(Math.max(0, margin + usable * ((i + 0.5) / totalCells)), duration),
+    Math.min(
+      Math.max(
+        startTime,
+        startTime + margin + usable * ((i + 0.5) / totalCells),
+      ),
+      end,
+    ),
   );
 };
 

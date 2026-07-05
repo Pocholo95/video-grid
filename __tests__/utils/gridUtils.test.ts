@@ -189,6 +189,62 @@ describe("gridUtils", () => {
       expect(times.length).toBe(1);
       expect(times[0]).toBeCloseTo(50, 1);
     });
+
+    it("generates times within a custom start/end range", () => {
+      const times = calculateSampleTimes(4, 50, 25, 75);
+      expect(times.length).toBe(4);
+      for (const t of times) {
+        expect(t).toBeGreaterThanOrEqual(25);
+        expect(t).toBeLessThanOrEqual(75);
+      }
+    });
+
+    it("generates times for first half when endTime is duration/2", () => {
+      const duration = 100;
+      const times = calculateSampleTimes(4, duration / 2, 0, duration / 2);
+      expect(times.length).toBe(4);
+      for (const t of times) {
+        expect(t).toBeGreaterThanOrEqual(0);
+        expect(t).toBeLessThanOrEqual(50);
+      }
+    });
+
+    it("generates times for second half when startTime is duration/2", () => {
+      const duration = 100;
+      const times = calculateSampleTimes(
+        4,
+        duration / 2,
+        duration / 2,
+        duration,
+      );
+      expect(times.length).toBe(4);
+      for (const t of times) {
+        expect(t).toBeGreaterThanOrEqual(50);
+        expect(t).toBeLessThanOrEqual(100);
+      }
+    });
+
+    it("maintains backward compatibility when startTime/endTime omitted", () => {
+      const times = calculateSampleTimes(4, 100);
+      expect(times.length).toBe(4);
+      for (const t of times) {
+        expect(t).toBeGreaterThanOrEqual(0);
+        expect(t).toBeLessThanOrEqual(100);
+      }
+    });
+
+    it("evenly distributes times within custom range with margins", () => {
+      const times = calculateSampleTimes(5, 60, 20, 80);
+      expect(times.length).toBe(5);
+      // First time should be after start (with margin)
+      expect(times[0]).toBeGreaterThan(20);
+      // Last time should be before end (with margin)
+      expect(times[times.length - 1]).toBeLessThan(80);
+      // Times should be in ascending order
+      for (let i = 1; i < times.length; i++) {
+        expect(times[i]).toBeGreaterThan(times[i - 1]);
+      }
+    });
   });
 
   describe("resolveTimestamps", () => {

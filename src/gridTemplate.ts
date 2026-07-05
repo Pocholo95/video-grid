@@ -1,4 +1,5 @@
 import type { GridCell, GridTemplate, VideoMetadata, VrMode } from "./types";
+import { getEffectiveDimensions } from "./gridUtils";
 
 /** Pixel rect for one cell, used by both the JPEG and animated WebP renderers. */
 export type CellPixelRect = {
@@ -81,8 +82,10 @@ export const computeTemplatePixelRects = (
 ): { rects: CellPixelRect[]; canvasWidth: number; canvasHeight: number } => {
   const vrActive = vrMode !== "disabled";
 
-  let cellAspect =
-    meta.width > 0 && meta.height > 0 ? meta.height / meta.width : 9 / 16;
+  // Use effective (rotation-applied) dimensions so portrait videos filmed with
+  // rotation metadata produce the correct cell aspect ratio.
+  const { width: effW, height: effH } = getEffectiveDimensions(meta);
+  let cellAspect = effW > 0 && effH > 0 ? effH / effW : 9 / 16;
   if (vrActive) {
     if (vrMode.startsWith("sbs")) cellAspect *= 2;
     else cellAspect /= 2;
