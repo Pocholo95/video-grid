@@ -25,6 +25,40 @@ import {
 export type CellSlot = { x: number; y: number; cellW: number; cellH: number };
 
 /**
+ * Returns the effective (rotation-applied) dimensions of a video.
+ * When rotation is 90° or 270°, the pixel data is stored in landscape
+ * orientation but displayed in portrait (and vice versa), so width and
+ * height must be swapped to match what the user sees.
+ */
+export const getEffectiveDimensions = (
+  meta: VideoMetadata,
+): { width: number; height: number } => {
+  if (meta.rotation === 90 || meta.rotation === 270) {
+    return { width: meta.height, height: meta.width };
+  }
+  return { width: meta.width, height: meta.height };
+};
+
+/**
+ * Returns the FFmpeg `transpose` filter parameter value for a rotation angle.
+ * - 90°  → transpose=1  (clockwise 90)
+ * - 180° → transpose=2  (180 flip)
+ * - 270° → transpose=0  (counter-clockwise 90 = clockwise 270)
+ */
+export const getFFmpegTransposeValue = (rotation: number): string => {
+  switch (rotation) {
+    case 90:
+      return "1";
+    case 180:
+      return "2";
+    case 270:
+      return "0";
+    default:
+      return "";
+  }
+};
+
+/**
  * Internal helper: waits for a `<video>` element to either fire `canplay`
  * (success) or `error`/timeout (failure).  Listeners are attached BEFORE
  * setting `src` so cached files don't fire events before we're listening.

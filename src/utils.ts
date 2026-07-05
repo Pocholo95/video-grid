@@ -1,5 +1,6 @@
 import { DEBUG, PROJECT_NAME } from "./constants";
 import type { TaskItem, VideoMetadata } from "./types";
+import { getEffectiveDimensions } from "./gridUtils";
 import { resolutionLabel } from "./uploadUtils";
 
 // Logging - all calls are no-ops when DEBUG is false.
@@ -230,8 +231,12 @@ export const buildMetadataLines = (
   if (filename) lines.push(`Filename: ${filename}`);
   if (fileSize && fileSize > 0) lines.push(`Size: ${humanSize(fileSize)}`);
 
+  // Use effective (rotation-applied) dimensions so portrait videos show
+  // the display-correct resolution (e.g. 1080×2400 instead of 2400×1080).
+  const { width: effW, height: effH } = getEffectiveDimensions(meta);
+  const rotationLabel = meta.rotation ? ` (Rotated ${meta.rotation}°)` : "";
   lines.push(
-    `Resolution: ${meta.width > 0 ? `${meta.width}×${meta.height}` : "Unknown"}`,
+    `Resolution: ${effW > 0 ? `${effW}×${effH}` : "Unknown"}${rotationLabel}`,
   );
   lines.push(`Duration: ${formatTime(meta.duration)}`);
 

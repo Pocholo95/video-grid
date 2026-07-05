@@ -22,6 +22,7 @@ import {
   calculateSampleTimes,
   drawErrorPlaceholder,
   drawTimecodeOverlay,
+  getEffectiveDimensions,
   getGridLayout,
   getVrCropRect,
   prepareHeader,
@@ -116,6 +117,7 @@ export class GridRenderer implements IGridRenderer {
         isCancelled,
         targetW,
         targetH,
+        meta.rotation,
       );
       if (!bitmap) {
         ffmpegFailedFrames++;
@@ -782,34 +784,13 @@ export class GridRenderer implements IGridRenderer {
      * aspect ratio. This significantly reduces encoding work for large
      * source videos (e.g. 4K -> 1280px wide).
      */
-    const srcW = meta.width || 1920;
-    const srcH = meta.height || 1080;
+    // Use effective dimensions that account for video rotation metadata
+    const { width: srcW, height: srcH } = getEffectiveDimensions(meta);
     const targetW = opts.width;
     const targetH = Math.round((targetW * srcH) / srcW);
 
-    /*
-     * Build VR crop filter for FFmpeg.
-     * SBS: crop to left or right half (iw/2 x ih)
-     * TB:  crop to top or bottom half (iw x ih/2)
-     * The cropped region is then scaled to the target resolution.
-     */
-    const vrActive = opts.vrMode !== "disabled";
-    let vrCropFilter = "";
-    if (vrActive) {
-      if (opts.vrMode === "sbs-left") {
-        vrCropFilter = "crop=iw/2:ih:0:0";
-      } else if (opts.vrMode === "sbs-right") {
-        vrCropFilter = "crop=iw/2:ih:iw/2:0";
-      } else if (opts.vrMode === "tb-left") {
-        vrCropFilter = "crop=iw:ih/2:0:0";
-      } else if (opts.vrMode === "tb-right") {
-        vrCropFilter = "crop=iw:ih/2:0:ih/2";
-      }
-    }
-
     log(
       `  [SeqAudio] Scaling ${srcW}x${srcH} -> ${targetW}x${targetH} ` +
-        `${vrActive ? ` (VR: ${opts.vrMode})` : ""} ` +
         `for ${actualSegments} segments x ${segDuration}s`,
     );
 
@@ -873,21 +854,22 @@ export class GridRenderer implements IGridRenderer {
 
         /*
          * Cut each segment with scaling and FPS reduction applied.
-         * -vf crop (VR mode): crop to left/right (SBS) or top/bottom (TB) half
+         * -vf transpose: apply rotation correction for portrait videos
          * -vf scale: reduce resolution to target width (saves encode time)
          * -vf fps: reduce frame rate to target FPS (saves encode time & size)
          * -r: force output frame rate for correct duration
          * -movflags +faststart: write moov atom at beginning so file is valid
          *   even if FFmpeg is interrupted (prevents "moov atom not found" errors)
          */
-        /* Build the full video filter chain: crop -> scale -> fps */
-        const vfChain = [
-          vrCropFilter,
-          `scale=${targetW}:${targetH}`,
-          `fps=${opts.animFps}`,
-        ]
-          .filter(Boolean)
-          .join(",");
+
+        // Build video filter chain: rotation + scaling + fps
+        const vfFilters: string[] = [];
+        if (meta.rotation === 90) vfFilters.push("transpose=1");
+        else if (meta.rotation === 270) vfFilters.push("transpose=2");
+        else if (meta.rotation === 180) vfFilters.push("transpose=1");
+        vfFilters.push(`scale=${targetW}:${targetH}`);
+        vfFilters.push(`fps=${opts.animFps}`);
+        const vfChain = vfFilters.join(",");
 
         try {
           await this.ffmpeg.exec([
@@ -1103,6 +1085,7 @@ export class GridRenderer implements IGridRenderer {
     isCancelled: () => boolean,
     targetW: number,
     targetH: number,
+    rotation: number | undefined,
   ): Promise<ImageBitmap | null> {
     if (isCancelled()) return null;
 
@@ -1112,8 +1095,20 @@ export class GridRenderer implements IGridRenderer {
     const name = "frame_temp.jpg";
     const args: string[] = ["-ss", String(timestamp), "-i", "input.mp4"];
 
+    // Build filter chain: rotation transpose + scaling
+    const filters: string[] = [];
+
+    // Apply rotation via transpose filter
+    if (rotation === 90) filters.push("transpose=1");
+    else if (rotation === 270) filters.push("transpose=2");
+    else if (rotation === 180) filters.push("transpose=1,transpose=1");
+
     if (targetW && targetH) {
-      args.push("-vf", `scale=${targetW}:${targetH}`);
+      filters.push(`scale=${targetW}:${targetH}`);
+    }
+
+    if (filters.length > 0) {
+      args.push("-vf", filters.join(","));
     }
 
     args.push(

@@ -66,6 +66,12 @@ export type VideoMetadata = {
   audioCodec?: string;
   /** Number of audio tracks. */
   audioTracks?: number;
+  /**
+   * Video rotation angle in degrees (0, 90, 180, 270) when detectable.
+   * Present for videos filmed in portrait mode where the pixel data is stored
+   * in landscape orientation and rotated via metadata.
+   */
+  rotation?: number;
 };
 
 // - VR video
