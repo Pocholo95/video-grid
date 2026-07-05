@@ -449,20 +449,32 @@ export const drawErrorPlaceholder = (
 };
 
 /**
- * Calculates evenly distributed sample timestamps across video duration with margins.
+ * Calculates evenly distributed sample timestamps across a time range with margins.
  *
  * @param totalCells - Number of thumbnail cells to generate
- * @param duration - Total video duration in seconds
+ * @param duration - Duration of the time range in seconds
+ * @param startTime - Start of the range in seconds (defaults to 0)
+ * @param endTime - End of the range in seconds (defaults to startTime + duration)
  * @returns Array of timestamp positions in seconds
  */
 export const calculateSampleTimes = (
   totalCells: number,
   duration: number,
+  startTime = 0,
+  endTime?: number,
 ): number[] => {
-  const margin = Math.max(0.5, duration * 0.02);
-  const usable = Math.max(duration - 2 * margin, 0.1);
+  const end = endTime ?? startTime + duration;
+  const range = end - startTime;
+  const margin = Math.max(0.5, range * 0.02);
+  const usable = Math.max(range - 2 * margin, 0.1);
   return Array.from({ length: totalCells }, (_, i) =>
-    Math.min(Math.max(0, margin + usable * ((i + 0.5) / totalCells)), duration),
+    Math.min(
+      Math.max(
+        startTime,
+        startTime + margin + usable * ((i + 0.5) / totalCells),
+      ),
+      end,
+    ),
   );
 };
 

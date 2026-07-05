@@ -94,6 +94,9 @@ trigger an upload.
 - **VR Video support:** crop one eye from Side-by-Side or Top-Bottom stereo
   VR video so thumbnails show a single, undoubled image. See
   [VR Video](#vr-video).
+- **Automatic video rotation detection:** videos recorded in portrait or
+  sideways orientations are automatically detected via rotation metadata and
+  displayed correctly in thumbnails.
 - **Custom grid templates:** design a free-form layout with any number of
   rows and any number of cells per row, instead of a uniform columns × rows
   grid. See [Custom Grid Templates](#custom-grid-templates).
@@ -105,7 +108,7 @@ trigger an upload.
 - **Batch download:** completed tasks can be downloaded together as a
   ZIP archive.
 - **Upload to image hosts:** upload generated grids to one or more configured
-  Chevereto-compatible image hosts (e.g. ImgBB). See [Upload Destinations](#upload-destinations).
+  image hosts. See [Upload Destinations](#upload-destinations).
 - **Copy links:** after uploading, copy links in multiple formats per task
   or for all tasks at once. See [Copying Links](#copying-links).
 - **Configurable grid:** choose columns, rows, output width, cell spacing,
@@ -246,8 +249,11 @@ specific video.
 
 ### Editor features
 
-- **Video player** with seekbar, play/pause (⏸️/▶️), and current time display
-- **Visual marker pins** on the seekbar — green (used in grid), orange (extra)
+- **Video player** with seekbar, play/pause (⏸️/▶️), seek buttons, and
+  current time display
+- **Visual marker pins** on the seekbar for the frame that will be used in the
+  output file for thumbnails. To select a marker lick on its number on the
+  seekbar or in the markers list.
 - **Keyboard shortcuts**:
   - `Space`: Play/Pause, `M`: Add Marker, `Esc`: Close
   - `Arrow Left`/`Arrow Right`: Seek 1 second. `Ctrl` modifier to go frame by
@@ -266,6 +272,10 @@ specific video.
 - **Smart counting:** shows how many markers fit your grid (total cell count
   from the active layout, uniform or custom), extras ignored, shortages use
   auto fallback
+- **Quick Fill:** when the marker list is empty, three utility buttons appear
+  ("Full duration", "First half", "Second half") that instantly populate
+  evenly-spaced markers across the chosen time range — useful for fast
+  setup without manually seeking and adding each marker
 - **Reset:** restore evenly-spaced timestamps
 - **Save Markers:** apply custom timestamps
 
@@ -468,20 +478,43 @@ After a successful upload, each task item shows a collapsible link panel
 (one per destination). Expand it with the destination name button to access the
 following link formats:
 
-| Format                     | Description                                                            |
-| -------------------------- | ---------------------------------------------------------------------- |
-| **BBCode — full image**    | `[img]...[/img]` tag                                                   |
-| **BBCode — medium**        | Medium-size image linking to the viewer page (when provided by host)   |
-| **BBCode — thumbnail**     | Thumbnail linking to the viewer page                                   |
-| **BBCode — Post Template** | Forum-style BBCode block with title and thumbnail (see Copy All below) |
-| **Direct URL**             | Full-resolution image link                                             |
-| **Viewer page**            | Host viewer/page URL                                                   |
-| **Markdown**               | `![alt](url)`                                                          |
-| **HTML img**               | `<img src="..." alt="..." />`                                          |
+| Format                     | Description                                                                 |
+| -------------------------- | --------------------------------------------------------------------------- |
+| **BBCode — full image**    | `[img]...[/img]` tag                                                        |
+| **BBCode — medium**        | Medium-size image linking to the viewer page (when provided by host)        |
+| **BBCode — thumbnail**     | Thumbnail linking to the viewer page                                        |
+| **BBCode — Post Template** | Complete forum-ready block with bold title, resolution, and thumbnail links |
+| **Direct URL**             | Full-resolution image link                                                  |
+| **Viewer page**            | Host viewer/page URL                                                        |
+| **Markdown**               | `![alt](url)`                                                               |
+| **HTML img**               | `<img src="..." alt="..." />`                                               |
 
 Each row has an individual **Copy** button. You can also **delete the image**
 from the host using the **🗑 Delete** link in the panel header — this opens the
 host's delete URL in a new tab.
+
+#### BBCode — Post Template
+
+The **Post Template** format generates a complete, forum-ready BBCode block
+ready to paste directly into a forum post. Each entry produces output like:
+
+```bbcode
+[b]video-name 1080p[/b]
+[url=page-url][img]thumbnail-url[/img][/url]
+```
+
+The first line displays the video filename in bold with its resolution. The
+second line contains clickable thumbnail images that link to the full-size
+viewer page — one link per upload destination.
+
+When multiple destinations are configured, all thumbnail links appear on the
+same line separated by spaces. When a provider doesn't support hotlinking
+(e.g. Filester), the format falls back to a plain text link instead of an
+image.
+
+This format is especially useful when posting video summaries on forums
+that support BBCode. Use **Copy All** in the Tasks Actions panel to
+generate Post Template blocks for all uploaded tasks at once.
 
 This also enables more options in the [Task Actions](#tasks-actions) panel to
 copy the same formats but for all the completed (and uploaded) tasks.
@@ -502,10 +535,19 @@ These settings are independent of presets; they persist separately and affect on
 
 ### Upload Destinations
 
-VidGrid-HTML can upload completed grids to one or more image hosts compatible
-with the Chevereto v1 API (including [ImgBB](https://imgbb.com)) as long as
-they have enabled API uploads and provide you with an API key (often under
-"Settings" in the hosting website dashboard).
+VidGrid-HTML supports several image/file hosting providers out of the box.
+Each provider has its own authentication requirements, URL format, and file
+size limits.
+
+| Provider     | API Key Required | Max File Size | Hotlinking? | Notes                                                                 |
+| ------------ | ---------------- | ------------- | ----------- | --------------------------------------------------------------------- |
+| **ImgBB**    | Yes              | 32 MB         | Yes         | Chevereto-compatible, `{key}` placeholder in URL                      |
+| **Catbox**   | No (optional)    | 200 MB        | Yes         | Anonymous uploads supported; userhash enables file deletion           |
+| **im.ge**    | Yes              | 100 MB        | Yes         | Base API URL style                                                    |
+| **Filester** | No (optional)    | 10 GB         | No          | Guest uploads supported; API key enables file deletion; no hotlinking |
+
+All destinations are configured in **Settings > Upload Destinations** and
+persist in `localStorage` between sessions.
 
 #### CORS restrictions
 

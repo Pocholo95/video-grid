@@ -373,6 +373,23 @@ export default function TimestampEditor({
     setSelectedMarker(null);
   }, []);
 
+  /**
+   * Factory: returns a handler that fills markers evenly across a time range.
+   *
+   * @param rangeStart - Start of the range in seconds (inclusive).
+   * @param rangeEnd - End of the range in seconds (exclusive).
+   */
+  const makeFillHandler = useCallback(
+    (rangeStart: number, rangeEnd: number) => () => {
+      const rangeDuration = Math.max(1, rangeEnd - rangeStart);
+      setMarkers(
+        calculateSampleTimes(totalCells, rangeDuration, rangeStart, rangeEnd),
+      );
+      setSelectedMarker(null);
+    },
+    [totalCells],
+  );
+
   const seekToMarker = useCallback((t: number, idx: number) => {
     const v = videoRef.current;
     if (v) v.currentTime = t;
@@ -930,19 +947,56 @@ export default function TimestampEditor({
                     )}
                   >
                     {markers.length === 0 ? (
-                      <p className="text-muted-foreground p-2 text-xs text-center">
-                        {isTouch ? (
-                          <>
-                            Seek to a position and tap on the <strong>+</strong>{" "}
-                            button or double tap the seekbar to add a marker.
-                          </>
-                        ) : (
-                          <>
-                            Seek to a position and click <strong>+</strong>, or
-                            press <Kbd>M</Kbd> to add a marker.
-                          </>
-                        )}
-                      </p>
+                      <>
+                        <p className="text-muted-foreground p-2 text-xs text-center">
+                          {isTouch ? (
+                            <>
+                              Seek to a position and tap on the{" "}
+                              <strong>+</strong> button or double tap the{" "}
+                              seekbar to add a marker.
+                            </>
+                          ) : (
+                            <>
+                              Seek to a position and click <strong>+</strong>,
+                              or press <Kbd>M</Kbd> to add a marker.
+                            </>
+                          )}
+                        </p>
+                        <div className="flex flex-col items-center gap-1.5 p-2">
+                          <span className="text-muted-foreground text-[11px]">
+                            Or add evenly spaced markers for
+                          </span>
+                          <div className="flex gap-1.5">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="text-xs"
+                              onClick={makeFillHandler(0, duration)}
+                              title={`Fill ${totalCells} markers across the full duration`}
+                            >
+                              Full duration
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="text-xs"
+                              onClick={makeFillHandler(0, duration / 2)}
+                              title={`Fill ${totalCells} markers in the first half`}
+                            >
+                              First half
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="text-xs"
+                              onClick={makeFillHandler(duration / 2, duration)}
+                              title={`Fill ${totalCells} markers in the second half`}
+                            >
+                              Second half
+                            </Button>
+                          </div>
+                        </div>
+                      </>
                     ) : (
                       markers.map((t, idx) => {
                         const isUsed = idx < totalCells;
