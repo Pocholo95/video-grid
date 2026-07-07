@@ -783,7 +783,7 @@ describe("TimestampEditor", () => {
       });
 
       // Fill buttons should be visible
-      expect(screen.getByText("Add evenly spaced markers for")).toBeTruthy();
+      expect(screen.getByText(/Or add evenly spaced markers for/)).toBeTruthy();
       expect(screen.getByText("Full duration")).toBeTruthy();
       expect(screen.getByText("First half")).toBeTruthy();
       expect(screen.getByText("Second half")).toBeTruthy();
@@ -794,7 +794,7 @@ describe("TimestampEditor", () => {
 
       // After initial render, markers are seeded, so buttons should be hidden
       expect(
-        screen.queryByText("Add evenly spaced markers for"),
+        screen.queryByText(/Or add evenly spaced markers for/),
       ).not.toBeTruthy();
       expect(screen.queryByText("Full duration")).not.toBeTruthy();
       expect(screen.queryByText("First half")).not.toBeTruthy();
@@ -821,7 +821,7 @@ describe("TimestampEditor", () => {
 
       // Verify fill buttons are hidden again
       expect(
-        screen.queryByText("Add evenly spaced markers for"),
+        screen.queryByText(/Or add evenly spaced markers for/),
       ).not.toBeTruthy();
     });
 
