@@ -254,6 +254,8 @@ specific video.
 - **Visual marker pins** on the seekbar for the frame that will be used in the
   output file for thumbnails. To select a marker lick on its number on the
   seekbar or in the markers list.
+- **Add (+) / Remove (-) Markers** buttons to manage the chosen frames. The
+  remove button is only enabled when a marker is selected.
 - **Keyboard shortcuts**:
   - `Space`: Play/Pause, `M`: Add Marker, `Esc`: Close
   - `Arrow Left`/`Arrow Right`: Seek 1 second. `Ctrl` modifier to go frame by
@@ -265,6 +267,15 @@ specific video.
   - Double-tap seekbar: Add marker
   - Long-press marker: Delete marker
 - **Live marker list:** click to seek, ✕ to delete individual markers
+- **Zoom controls:** zoom the seekbar timeline from 100% (full view) up to
+  1000% for precise marker placement when markers are close together. The current
+  zoom percentage is displayed between the buttons. Hold **Shift** while clicking
+  Zoom In to jump to maximum zoom (1000%), or Shift+Click Zoom Out to reset to
+  100% immediately.
+- **Overview bar:** when zoomed in, a mini-timeline appears below the seekbar.
+  A semi-transparent overlay indicates the currently visible viewport range.
+  Click anywhere on the overview bar to navigate to that position. Mouse wheel
+  on the overview bar also seeks through the video.
 - **Interactive grid preview:** a numbered schematic of your active grid
   layout appears on the right side. Click any cell to instantly seek the
   video to the corresponding marker — useful for quickly checking each
