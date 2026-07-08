@@ -6,6 +6,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Loader2,
+  Minus,
   Pause,
   Play,
   Plus,
@@ -13,6 +14,8 @@ import {
   Timeline,
   Trash2,
   X,
+  ZoomIn,
+  ZoomOut,
 } from "lucide-react";
 import { Dialog, DialogPortal, DialogOverlay } from "@/components/ui/dialog";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -46,6 +49,51 @@ interface Props {
 const fmtT = (t: number) =>
   Number.isFinite(t) && t >= 0 ? formatTimeExact(t) : "00:00:00.000";
 
+function ZoomControls({
+  zoomIndex,
+  zoomLevel,
+  zoomMaxIndex,
+  onZoomIn,
+  onZoomOut,
+}: {
+  zoomIndex: number;
+  zoomLevel: number;
+  zoomMaxIndex: number;
+  onZoomIn: (shift: boolean) => void;
+  onZoomOut: (shift: boolean) => void;
+}) {
+  return (
+    <div className="flex items-center gap-1 shrink-0">
+      <Button
+        variant="ghost"
+        size="icon"
+        className="size-5"
+        onClick={(e) => onZoomOut(e.shiftKey)}
+        disabled={zoomIndex <= 0}
+        title="Zoom out (Shift to reset)"
+      >
+        <ZoomOut className="size-3" />
+      </Button>
+      <span
+        className="text-[11px] tabular-nums select-none w-7 text-center shrink-0"
+        title="Zoom level"
+      >
+        {zoomLevel}%
+      </span>
+      <Button
+        variant="ghost"
+        size="icon"
+        className="size-5"
+        onClick={(e) => onZoomIn(e.shiftKey)}
+        disabled={zoomIndex >= zoomMaxIndex}
+        title="Zoom in (Shift to max)"
+      >
+        <ZoomIn className="size-3" />
+      </Button>
+    </div>
+  );
+}
+
 interface MarkerPinProps {
   t: number;
   idx: number;
@@ -55,6 +103,8 @@ interface MarkerPinProps {
   isTouch: boolean;
   onSeek: (t: number, idx: number) => void;
   onDelete: (idx: number) => void;
+  viewportStart?: number;
+  viewportEnd?: number;
 }
 
 function MarkerPin({
@@ -66,6 +116,8 @@ function MarkerPin({
   isTouch,
   onSeek,
   onDelete,
+  viewportStart = 0,
+  viewportEnd,
 }: MarkerPinProps) {
   // Two-step delete protection: long-press on unselected marker selects it;
   // long-press on already-selected marker deletes it.
@@ -86,7 +138,15 @@ function MarkerPin({
       className={cn(
         "absolute top-0 flex h-full -translate-x-1/2 flex-col items-center pointer-events-none",
       )}
-      style={{ left: `${duration > 0 ? (t / duration) * 100 : 0}%` }}
+      style={{
+        left: `${
+          duration > 0 && viewportEnd !== undefined
+            ? ((t - viewportStart) / (viewportEnd - viewportStart)) * 100
+            : duration > 0
+              ? (t / duration) * 100
+              : 0
+        }%`,
+      }}
     >
       {/* Clickable badge — interaction limited to the top area so the
           seekbar below remains freely usable for seeking. */}
@@ -96,7 +156,7 @@ function MarkerPin({
           isUsed
             ? "bg-primary text-primary-foreground"
             : "bg-muted text-muted-foreground border",
-          isSelected && "ring-foreground ring-2 ring-offset-1",
+          isSelected && "bg-selected text-selected-foreground",
         )}
         onPointerDown={(e) => {
           e.stopPropagation();
@@ -138,8 +198,13 @@ function MarkerPin({
           pass through to the seekbar below. */}
       <div
         className={cn(
-          "w-0.5 flex-1 pointer-events-none",
-          isUsed ? "bg-primary" : "bg-muted-foreground/50",
+          "flex-1 pointer-events-none transition-all",
+          isSelected
+            ? "bg-selected"
+            : isUsed
+              ? "bg-primary"
+              : "bg-muted-foreground/50",
+          isSelected ? "w-1" : "w-0.5",
         )}
       />
     </div>
@@ -222,6 +287,7 @@ export default function TimestampEditor({
   );
   const videoRef = useRef<HTMLVideoElement>(null);
   const seekbarRef = useRef<HTMLDivElement>(null);
+  const overviewRef = useRef<HTMLDivElement>(null);
   const saveButtonRef = useRef<HTMLButtonElement>(null);
   const clickTimerRef = useRef<number | null>(null);
   const isTouch = useIsTouch();
@@ -252,6 +318,78 @@ export default function TimestampEditor({
 
   const toggleGrid = useCallback(() => setGridExpanded((v) => !v), []);
   const toggleMarkers = useCallback(() => setMarkersExpanded((v) => !v), []);
+
+  // Precomputed zoom levels — index-based approach guarantees perfect
+  // reversibility: step up then step down always returns to the same value.
+  const MIN_ZOOM = 100;
+  const MAX_ZOOM = 1000;
+  const ZOOM_LEVELS_COUNT = 7;
+
+  const ZOOM_LEVELS = Array.from({ length: ZOOM_LEVELS_COUNT }, (_, i) =>
+    Math.round(
+      MIN_ZOOM + ((MAX_ZOOM - MIN_ZOOM) * i) / (ZOOM_LEVELS_COUNT - 1),
+    ),
+  );
+
+  // Zoom state — stored as an index into ZOOM_LEVELS.
+  const [zoomIndex, setZoomIndex] = useState(0);
+  const zoomLevel = ZOOM_LEVELS[zoomIndex];
+  const [zoomOffset, setZoomOffset] = useState(0);
+
+  // Derived viewport values
+  const viewportWidth = duration > 0 ? duration / (zoomLevel / 100) : duration;
+
+  /** Adjust zoomOffset so the given time is centered in the visible viewport. */
+  const clampViewport = useCallback(
+    (t: number) => {
+      if (duration <= 0 || zoomIndex <= 0) return 0;
+      const half = viewportWidth / 2;
+      return Math.max(0, Math.min(duration - viewportWidth, t - half));
+    },
+    [duration, viewportWidth, zoomIndex],
+  );
+
+  const zoomIn = useCallback(
+    (shift: boolean) => {
+      setZoomIndex((prev) => {
+        const next = shift
+          ? ZOOM_LEVELS.length - 1
+          : Math.min(ZOOM_LEVELS.length - 1, prev + 1);
+        if (next !== prev) {
+          setZoomOffset(clampViewport(currentTime));
+        }
+        return next;
+      });
+    },
+    [currentTime, clampViewport],
+  );
+
+  const zoomOut = useCallback(
+    (shift: boolean) => {
+      setZoomIndex((prev) => {
+        const next = shift ? 0 : Math.max(0, prev - 1);
+        if (next <= 0) {
+          setZoomOffset(0);
+        } else {
+          setZoomOffset(clampViewport(currentTime));
+        }
+        return next;
+      });
+    },
+    [currentTime, clampViewport],
+  );
+
+  /** Ensure the playhead stays inside the visible viewport after any seek. */
+  const ensureViewportVisible = useCallback(
+    (t: number) => {
+      if (zoomIndex <= 0) return;
+      setZoomOffset((prev) => {
+        if (t >= prev && t <= prev + viewportWidth) return prev;
+        return clampViewport(t);
+      });
+    },
+    [zoomIndex, viewportWidth, clampViewport],
+  );
 
   useEffect(() => {
     const v = videoRef.current;
@@ -314,7 +452,7 @@ export default function TimestampEditor({
         1,
         Math.max(0, (clientX - rect.left) / rect.width),
       );
-      const t = ratio * duration;
+      const t = zoomOffset + ratio * viewportWidth;
       if (videoRef.current) videoRef.current.currentTime = t;
       setCurrentTime(t);
       setMarkers((prev) => {
@@ -329,7 +467,7 @@ export default function TimestampEditor({
         return next;
       });
     },
-    [duration, totalCells],
+    [duration, totalCells, zoomOffset, viewportWidth],
   );
 
   const seekbarHandler = useCallback(
@@ -341,11 +479,11 @@ export default function TimestampEditor({
         1,
         Math.max(0, (clientX - rect.left) / rect.width),
       );
-      const t = ratio * duration;
+      const t = zoomOffset + ratio * viewportWidth;
       if (videoRef.current) videoRef.current.currentTime = t;
       setCurrentTime(t);
     },
-    [duration],
+    [duration, zoomOffset, viewportWidth],
   );
 
   const addMarkerAtCurrentTime = useCallback(() => {
@@ -367,6 +505,12 @@ export default function TimestampEditor({
     setMarkers((prev) => prev.filter((_, i) => i !== idx));
     setSelectedMarker(null);
   }, []);
+
+  const deleteSelectedMarker = useCallback(() => {
+    if (selectedMarker !== null) {
+      deleteMarker(selectedMarker);
+    }
+  }, [selectedMarker, deleteMarker]);
 
   const clearAllMarkers = useCallback(() => {
     setMarkers([]);
@@ -390,12 +534,16 @@ export default function TimestampEditor({
     [totalCells],
   );
 
-  const seekToMarker = useCallback((t: number, idx: number) => {
-    const v = videoRef.current;
-    if (v) v.currentTime = t;
-    setCurrentTime(t);
-    setSelectedMarker(idx);
-  }, []);
+  const seekToMarker = useCallback(
+    (t: number, idx: number) => {
+      const v = videoRef.current;
+      if (v) v.currentTime = t;
+      setCurrentTime(t);
+      setSelectedMarker(idx);
+      ensureViewportVisible(t);
+    },
+    [ensureViewportVisible],
+  );
 
   /**
    * Subscribe only to the specific store fields we need for the grid preview.
@@ -458,9 +606,10 @@ export default function TimestampEditor({
       const nextTime = Math.min(duration, Math.max(0, v.currentTime + delta));
       v.currentTime = nextTime;
       setCurrentTime(nextTime);
+      ensureViewportVisible(nextTime);
       if (v.paused) return;
     },
-    [duration],
+    [duration, ensureViewportVisible],
   );
 
   // Mouse wheel seeking: same delta logic as arrow keys.
@@ -495,12 +644,16 @@ export default function TimestampEditor({
   useEffect(() => {
     const video = videoRef.current;
     const seekbar = seekbarRef.current;
+    const overview = overviewRef.current;
     if (video) video.addEventListener("wheel", handleWheel, { passive: false });
     if (seekbar)
       seekbar.addEventListener("wheel", handleWheel, { passive: false });
+    if (overview)
+      overview.addEventListener("wheel", handleWheel, { passive: false });
     return () => {
       if (video) video.removeEventListener("wheel", handleWheel);
       if (seekbar) seekbar.removeEventListener("wheel", handleWheel);
+      if (overview) overview.removeEventListener("wheel", handleWheel);
     };
   }, [handleWheel, blobUrl, videoError]);
 
@@ -582,7 +735,51 @@ export default function TimestampEditor({
     },
   ]);
 
-  const progressPct = duration > 0 ? (currentTime / duration) * 100 : 0;
+  // Playhead position as percentage within the current zoomed viewport
+  const progressPct =
+    duration > 0 && viewportWidth > 0
+      ? Math.min(
+          100,
+          Math.max(0, ((currentTime - zoomOffset) / viewportWidth) * 100),
+        )
+      : 0;
+
+  // Handler for clicking the mini-timeline overview to reposition viewport
+  const handleOverviewClick = useCallback(
+    (clientX: number) => {
+      const bar = overviewRef.current;
+      if (!bar || duration <= 0) return;
+      const rect = bar.getBoundingClientRect();
+      const ratio = Math.min(
+        1,
+        Math.max(0, (clientX - rect.left) / rect.width),
+      );
+      const t = ratio * duration;
+      setZoomOffset(clampViewport(t));
+      if (videoRef.current) videoRef.current.currentTime = t;
+      setCurrentTime(t);
+    },
+    [duration, clampViewport],
+  );
+
+  // Computed viewport times for MarkerPin positioning
+  const viewportStart = zoomOffset;
+  const viewportEnd = zoomOffset + viewportWidth;
+
+  // Overview drag state
+  const [overviewDragging, setOverviewDragging] = useState(false);
+
+  const handleOverviewPointerDown = useCallback(
+    (e: React.PointerEvent) => {
+      // Don't intercept pointer events on marker dots — let their onClick
+      // handler fire so the marker is selected.
+      if ((e.target as HTMLElement).closest("[data-marker-pin]")) return;
+      e.currentTarget.setPointerCapture(e.pointerId);
+      setOverviewDragging(true);
+      handleOverviewClick(e.clientX);
+    },
+    [handleOverviewClick],
+  );
 
   // How many markers will actually be used (capped at totalCells).
   const effectiveCount = Math.min(markers.length, totalCells);
@@ -664,7 +861,7 @@ export default function TimestampEditor({
               {/* Seekbar */}
               <div
                 ref={seekbarRef}
-                className="bg-muted relative h-11 w-full shrink-0 cursor-pointer touch-none rounded-md select-none lg:h-8"
+                className="bg-muted relative h-11 w-full shrink-0 cursor-pointer touch-none rounded-md select-none overflow-hidden lg:h-8"
                 onPointerDown={handleSeekbarPointerDown}
                 onPointerMove={(e) => isDragging && seekbarHandler(e.clientX)}
                 onPointerUp={(e) => {
@@ -696,21 +893,104 @@ export default function TimestampEditor({
                     isTouch={isTouch}
                     onSeek={seekToMarkerGuarded}
                     onDelete={deleteMarkerFromLongPress}
+                    viewportStart={viewportStart}
+                    viewportEnd={viewportEnd}
                   />
                 ))}
               </div>
 
-              {/* Timestamp Display */}
-              <div className="font-mono text-xs tabular-nums text-center">
-                {fmtT(currentTime)}
-                <span className="text-muted-foreground mx-1">/</span>
-                {fmtT(duration)}
+              {/* Mini-timeline overview bar — shows zoomed viewport position.
+                  When visible, zoom controls are placed on the same row so the
+                  user doesn't have to readjust their mouse/touch to zoom again. */}
+              {zoomLevel > MIN_ZOOM && (
+                <div className="flex items-center gap-2">
+                  <div
+                    ref={overviewRef}
+                    className="relative h-4 min-w-0 flex-1 cursor-pointer touch-none rounded-md select-none overflow-hidden"
+                    style={{ backgroundColor: "hsl(var(--muted))" }}
+                    onPointerDown={handleOverviewPointerDown}
+                    onPointerMove={(e) =>
+                      overviewDragging && handleOverviewClick(e.clientX)
+                    }
+                    onPointerUp={(e) => {
+                      setOverviewDragging(false);
+                      e.currentTarget.releasePointerCapture(e.pointerId);
+                    }}
+                  >
+                    {/* Viewport range indicator */}
+                    <div
+                      className="absolute top-0 h-full bg-primary/20 border-x border-primary/40 pointer-events-none"
+                      style={{
+                        left: `${(zoomOffset / duration) * 100}%`,
+                        width: `${(viewportWidth / duration) * 100}%`,
+                      }}
+                    />
+                    {/* Playhead */}
+                    <div
+                      className="bg-foreground pointer-events-none absolute top-0 h-full w-0.5 -translate-x-1/2"
+                      style={{ left: `${(currentTime / duration) * 100}%` }}
+                    />
+                    {/* Marker dots — clickable to select a marker */}
+                    {markers.map((t, idx) => {
+                      const isUsed = idx < totalCells;
+                      const isSelected = selectedMarker === idx;
+                      return (
+                        <div
+                          key={idx}
+                          data-marker-pin
+                          className={cn(
+                            "absolute top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full cursor-pointer",
+                            isSelected
+                              ? "bg-selected size-2 ring-1 ring-selected"
+                              : isUsed
+                                ? "bg-primary size-1.5"
+                                : "bg-muted-foreground/50 size-1",
+                          )}
+                          style={{ left: `${(t / duration) * 100}%` }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            seekToMarker(t, idx);
+                          }}
+                        />
+                      );
+                    })}
+                  </div>
+                  {/* Zoom controls — inline when overview bar is visible */}
+                  <ZoomControls
+                    zoomIndex={zoomIndex}
+                    zoomLevel={zoomLevel}
+                    zoomMaxIndex={ZOOM_LEVELS.length - 1}
+                    onZoomIn={zoomIn}
+                    onZoomOut={zoomOut}
+                  />
+                </div>
+              )}
+
+              {/* Timestamp Display with Zoom Controls */}
+              <div className="relative flex items-center justify-center">
+                {/* Zoom controls — shown only when overview bar is hidden */}
+                {zoomLevel <= MIN_ZOOM && (
+                  <div className="absolute right-0">
+                    <ZoomControls
+                      zoomIndex={zoomIndex}
+                      zoomLevel={zoomLevel}
+                      zoomMaxIndex={ZOOM_LEVELS.length - 1}
+                      onZoomIn={zoomIn}
+                      onZoomOut={zoomOut}
+                    />
+                  </div>
+                )}
+                {/* Timestamp — centered */}
+                <div className="font-mono text-xs tabular-nums text-center">
+                  {fmtT(currentTime)}
+                  <span className="text-muted-foreground mx-1">/</span>
+                  {fmtT(duration)}
+                </div>
               </div>
 
               {/* Transport Controls Bar */}
               <div className="relative flex items-center justify-center">
-                {/* Centered seek controls — margin auto pushes them to center
-                    regardless of the Add Marker button on the right */}
+                {/* Centered seek controls */}
                 <div className="flex items-center gap-1 mx-auto">
                   {/* Backward seeks */}
                   <Button
@@ -817,15 +1097,25 @@ export default function TimestampEditor({
                   </Button>
                 </div>
 
-                {/* Add Marker — positioned absolutely to the right so it
-                    doesn't affect the centered layout of the seek controls */}
-                <div className="absolute right-0">
+                {/* Marker controls — positioned absolutely to the right so they
+                    don't affect the centered layout of the seek controls */}
+                <div className="absolute right-0 flex items-center gap-1">
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="size-7 md:size-8"
+                    onClick={deleteSelectedMarker}
+                    disabled={selectedMarker === null}
+                    title="Delete selected marker"
+                  >
+                    <Minus className="size-3.5" />
+                  </Button>
                   <Button
                     variant="outline"
                     size="icon"
                     className="size-7 md:size-8"
                     onClick={addMarkerAtCurrentTime}
-                    title={`Add marker at current position $${isTouch ? " (M)" : ""}`}
+                    title={`Add marker at current position${isTouch ? " (M)" : ""}`}
                   >
                     <Plus className="size-3.5" />
                   </Button>
@@ -833,10 +1123,7 @@ export default function TimestampEditor({
               </div>
             </div>
 
-            {/* === RIGHT COLUMN: Collapsible Sections (full-width on mobile) === */}
-            {/* overflow-hidden only on desktop so the grid layout column clips
-                content properly; on mobile we need overflow visible so the
-                main scroll container can show a scrollbar */}
+            {/* Right column on Desktop / Flex on Mobile */}
             <div className="flex min-h-0 flex-col gap-2 md:overflow-auto">
               {/* Grid Layout Section */}
               {!isSequenceMode && (
@@ -1007,12 +1294,12 @@ export default function TimestampEditor({
                             className={cn(
                               "bg-muted/50 hover:bg-primary/50 flex cursor-pointer items-center gap-2 rounded-md border px-2 py-1.5 text-sm transition-colors box-content",
                               isSelected &&
-                                "bg-primary/75 text-primary-foreground border-primary outline outline-foreground",
+                                "bg-selected text-selected-foreground border-selected outline outline-selected",
                               !isUsed && "opacity-60",
                             )}
                             onClick={() => seekToMarker(t, idx)}
                           >
-                            <span className="text-foreground/75 w-7 shrink-0 font-mono text-[11px] tabular-nums">
+                            <span className="w-7 shrink-0 font-mono text-[11px] tabular-nums">
                               #{idx + 1}
                             </span>
                             <span className="min-w-0 flex-1 font-mono text-[11px] tabular-nums truncate">

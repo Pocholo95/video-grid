@@ -101,13 +101,13 @@ export default function GridPreview({
                     "bg-muted/50 text-muted-foreground",
                     (hasMarker ||
                       (isSelected && assignedCount !== undefined)) &&
-                      "border-green-500 dark:border-green-700",
+                      "border-selected",
                     isUnassigned &&
                       "bg-destructive/10 text-destructive/65 border-destructive/20",
                     onClickCell &&
                       "cursor-pointer bg-muted/50 hover:bg-primary/50 text-foreground",
                     isSelected &&
-                      "bg-primary/75 text-primary-foreground border-green-500 dark:border-green-700 ring-2 ring-green-500 dark:ring-green-700",
+                      "bg-selected text-selected-foreground border-selected ring-2 ring-selected",
                   )}
                   style={{ flex: `${cell.w} 0 0` }}
                   title={`Cell ${num}${isUnassigned ? " (unassigned)" : ""}`}

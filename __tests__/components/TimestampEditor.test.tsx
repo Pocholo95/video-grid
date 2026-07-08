@@ -331,7 +331,7 @@ describe("TimestampEditor", () => {
       );
       expect(markerListItems.length).toBe(4);
       // First item should have the selected indicator
-      expect(markerListItems[0].className).toContain("border-primary");
+      expect(markerListItems[0].className).toContain("border-selected");
     });
 
     it("auto-selects correct index after sorting (not always last)", async () => {
@@ -882,6 +882,352 @@ describe("TimestampEditor", () => {
       // We verify the initial render works
       renderTimestampEditor();
       expect(screen.getByTestId("dialog")).toBeTruthy();
+    });
+  });
+
+  describe("zoom controls", () => {
+    // Button titles changed to include Shift hints
+    const ZOOM_IN_TITLE = /Zoom in/i;
+    const ZOOM_OUT_TITLE = /Zoom out/i;
+
+    it("renders zoom in and zoom out buttons", () => {
+      renderTimestampEditor();
+      expect(screen.queryByTitle(ZOOM_IN_TITLE)).toBeTruthy();
+      expect(screen.queryByTitle(ZOOM_OUT_TITLE)).toBeTruthy();
+    });
+
+    it("displays 100% zoom level at default state", () => {
+      renderTimestampEditor();
+      const zoomPercent = screen.getByText("100%");
+      expect(zoomPercent).toBeTruthy();
+    });
+
+    it("zooms in when Zoom In button is clicked", async () => {
+      renderTimestampEditor();
+
+      const zoomInButton = screen.getByTitle(ZOOM_IN_TITLE);
+      fireEvent.click(zoomInButton);
+
+      await waitFor(() => {
+        expect(screen.queryByText("100%")).not.toBeTruthy();
+      });
+    });
+
+    it("zooms out when Zoom Out button is clicked", async () => {
+      renderTimestampEditor();
+
+      const zoomInButton = screen.getByTitle(ZOOM_IN_TITLE);
+      fireEvent.click(zoomInButton);
+
+      await waitFor(() => {
+        expect(screen.queryByText("100%")).not.toBeTruthy();
+      });
+
+      const zoomOutButton = screen.getByTitle(ZOOM_OUT_TITLE);
+      fireEvent.click(zoomOutButton);
+
+      await waitFor(() => {
+        expect(screen.getByText("100%")).toBeTruthy();
+      });
+    });
+
+    it("disables zoom out button at minimum zoom level", () => {
+      renderTimestampEditor();
+      const zoomOutButton = screen.getByTitle(ZOOM_OUT_TITLE);
+      expect(zoomOutButton).toBeDisabled();
+    });
+
+    it("disables zoom in button at maximum zoom level", async () => {
+      renderTimestampEditor();
+
+      for (let i = 0; i < 6; i++) {
+        const zoomInButton = screen.getByTitle(ZOOM_IN_TITLE);
+        fireEvent.click(zoomInButton);
+
+        await waitFor(() => {
+          if (i < 5) {
+            const overviewBar = document.querySelector(
+              '[class*="h-4"][class*="cursor-pointer"]',
+            );
+            expect(overviewBar).toBeTruthy();
+          }
+        });
+      }
+
+      const zoomInButton = screen.getByTitle(ZOOM_IN_TITLE);
+      expect(zoomInButton).toBeDisabled();
+    });
+
+    it("shows overview bar when zoomed in", async () => {
+      renderTimestampEditor();
+
+      const zoomInButton = screen.getByTitle(ZOOM_IN_TITLE);
+      fireEvent.click(zoomInButton);
+
+      await waitFor(() => {
+        const overviewBar = document.querySelector(
+          '[class*="h-4"][class*="cursor-pointer"]',
+        );
+        expect(overviewBar).toBeTruthy();
+      });
+    });
+
+    it("hides overview bar at 100% zoom", () => {
+      renderTimestampEditor();
+      const overviewBar = document.querySelector(
+        '[class*="h-4"][class*="cursor-pointer"]',
+      );
+      expect(overviewBar).not.toBeTruthy();
+    });
+
+    it("shows viewport range indicator in overview bar when zoomed", async () => {
+      renderTimestampEditor();
+
+      const zoomInButton = screen.getByTitle(ZOOM_IN_TITLE);
+      fireEvent.click(zoomInButton);
+
+      await waitFor(() => {
+        const viewportIndicator = document.querySelector(
+          '[class*="bg-primary/20"][class*="border-x"]',
+        );
+        expect(viewportIndicator).toBeTruthy();
+      });
+    });
+
+    it("updates zoom level display when zooming", async () => {
+      renderTimestampEditor();
+
+      const zoomInButton = screen.getByTitle(ZOOM_IN_TITLE);
+      fireEvent.click(zoomInButton);
+
+      await waitFor(() => {
+        const zoomDisplay = document.querySelector(
+          '[class*="tabular-nums"][class*="select-none"]',
+        );
+        expect(zoomDisplay).toBeTruthy();
+        expect(zoomDisplay?.textContent).not.toBe("100%");
+      });
+    });
+
+    it("marker dots are visible in overview bar", async () => {
+      renderTimestampEditor();
+
+      const zoomInButton = screen.getByTitle(ZOOM_IN_TITLE);
+      fireEvent.click(zoomInButton);
+
+      await waitFor(() => {
+        const overviewBar = document.querySelector(
+          '[class*="h-4"][class*="cursor-pointer"]',
+        );
+        const dots = overviewBar?.querySelectorAll('[class*="rounded-full"]');
+        expect(dots?.length).toBeGreaterThan(0);
+      });
+    });
+
+    it("clicking a marker dot in overview bar selects that marker", async () => {
+      renderTimestampEditor();
+
+      const zoomInButton = screen.getByTitle(ZOOM_IN_TITLE);
+      fireEvent.click(zoomInButton);
+
+      await waitFor(() => {
+        const overviewBar = document.querySelector(
+          '[class*="h-4"][class*="cursor-pointer"]',
+        );
+        expect(overviewBar).toBeTruthy();
+      });
+
+      const overviewBar = document.querySelector(
+        '[class*="h-4"][class*="cursor-pointer"]',
+      );
+      const dots = overviewBar?.querySelectorAll('[class*="rounded-full"]');
+
+      if (dots && dots.length > 0) {
+        fireEvent.click(dots[0]);
+
+        await waitFor(() => {
+          const markerListItems = document.querySelectorAll(
+            '[class*="cursor-pointer"][class*="rounded-md"][class*="border"]',
+          );
+          expect(markerListItems[0]?.className).toContain("border-selected");
+        });
+      }
+    });
+
+    it("selected marker dot has different styling in overview bar", async () => {
+      renderTimestampEditor();
+
+      const zoomInButton = screen.getByTitle(ZOOM_IN_TITLE);
+      fireEvent.click(zoomInButton);
+
+      await waitFor(() => {
+        const overviewBar = document.querySelector(
+          '[class*="h-4"][class*="cursor-pointer"]',
+        );
+        expect(overviewBar).toBeTruthy();
+      });
+
+      const overviewBar = document.querySelector(
+        '[class*="h-4"][class*="cursor-pointer"]',
+      );
+      const dots = overviewBar?.querySelectorAll('[class*="rounded-full"]');
+
+      if (dots && dots.length > 0) {
+        fireEvent.click(dots[0]);
+
+        await waitFor(() => {
+          const selectedDot = dots[0];
+          expect(selectedDot?.className).toContain("bg-selected");
+        });
+      }
+    });
+
+    it("Shift+Click Zoom In jumps to max zoom (1000%)", async () => {
+      renderTimestampEditor();
+
+      const zoomInButton = screen.getByTitle(ZOOM_IN_TITLE);
+      fireEvent.click(zoomInButton, { shiftKey: true });
+
+      await waitFor(() => {
+        expect(screen.getByText("1000%")).toBeTruthy();
+      });
+
+      // Button should now be disabled at max
+      expect(screen.getByTitle(ZOOM_IN_TITLE)).toBeDisabled();
+    });
+
+    it("Shift+Click Zoom Out jumps to 100%", async () => {
+      renderTimestampEditor();
+
+      // First zoom in a few times
+      const zoomInButton = screen.getByTitle(ZOOM_IN_TITLE);
+      fireEvent.click(zoomInButton);
+      fireEvent.click(zoomInButton);
+      fireEvent.click(zoomInButton);
+
+      await waitFor(() => {
+        expect(screen.queryByText("100%")).not.toBeTruthy();
+      });
+
+      // Shift+Click Zoom Out
+      const zoomOutButton = screen.getByTitle(ZOOM_OUT_TITLE);
+      fireEvent.click(zoomOutButton, { shiftKey: true });
+
+      await waitFor(() => {
+        expect(screen.getByText("100%")).toBeTruthy();
+      });
+    });
+
+    it("wheel events on overview bar seek through video", async () => {
+      renderTimestampEditor();
+
+      const zoomInButton = screen.getByTitle(ZOOM_IN_TITLE);
+      fireEvent.click(zoomInButton);
+
+      await waitFor(() => {
+        const overviewBar = document.querySelector(
+          '[class*="h-4"][class*="cursor-pointer"]',
+        );
+        expect(overviewBar).toBeTruthy();
+      });
+
+      const overviewBar = document.querySelector(
+        '[class*="h-4"][class*="cursor-pointer"]',
+      );
+
+      const wheelEvent = new WheelEvent("wheel", {
+        bubbles: true,
+        cancelable: true,
+        deltaY: 30,
+      });
+
+      await act(async () => {
+        overviewBar?.dispatchEvent(wheelEvent);
+      });
+
+      await waitFor(() => {
+        expect(screen.getByText(/00:00:01/)).toBeTruthy();
+      });
+    });
+  });
+
+  describe("delete selected marker button", () => {
+    it("renders the delete selected marker button", () => {
+      renderTimestampEditor();
+      const deleteButton = screen.getByTitle("Delete selected marker");
+      expect(deleteButton).toBeTruthy();
+    });
+
+    it("enables delete button when a marker is selected", async () => {
+      renderTimestampEditor();
+
+      // selectedMarker starts as null and is only set when videoReady becomes
+      // true. The event listeners are attached in a useEffect, so we must wait
+      // for that effect to run before dispatching loadedmetadata.
+      const video = document.querySelector("video");
+      expect(video).toBeTruthy();
+
+      // Wait a tick for the useEffect to attach event listeners, then fire
+      // loadedmetadata which sets videoReady → triggers the selection effect.
+      await act(async () => {
+        await new Promise((r) => setTimeout(r, 0));
+        video?.dispatchEvent(new Event("loadedmetadata"));
+      });
+
+      // Now the useEffect should have set selectedMarker = 0
+      const deleteButton = screen.getByTitle("Delete selected marker");
+      await waitFor(() => {
+        expect(deleteButton).not.toBeDisabled();
+      });
+    });
+
+    it("deletes the selected marker when button is clicked", async () => {
+      renderTimestampEditor({ totalCells: 5 });
+
+      // selectedMarker is null until videoReady → loadedmetadata fires.
+      // Event listeners are attached in a useEffect, so wait for that first.
+      const video = document.querySelector("video");
+      await act(async () => {
+        await new Promise((r) => setTimeout(r, 0));
+        video?.dispatchEvent(new Event("loadedmetadata"));
+      });
+
+      // Initially 5 markers
+      await waitFor(() => {
+        expect(screen.getByText(/5 markers set for 5 cells/)).toBeTruthy();
+      });
+
+      const deleteButton = screen.getByTitle("Delete selected marker");
+      await waitFor(() => {
+        expect(deleteButton).not.toBeDisabled();
+      });
+
+      fireEvent.click(deleteButton);
+
+      await waitFor(() => {
+        // After deleting one marker, 4 remain (still for 5 cells)
+        expect(screen.getByText(/4 markers set for 5 cells/)).toBeTruthy();
+      });
+    });
+
+    it("disables delete button after deleting last selected marker", async () => {
+      // Start with just 1 marker
+      const item = createMockTaskItem({
+        timestampMode: "custom",
+        customTimestamps: [50],
+      });
+
+      renderTimestampEditor({ item, totalCells: 5 });
+
+      expect(screen.getByText(/1 marker set for 5 cells/)).toBeTruthy();
+
+      const deleteButton = screen.getByTitle("Delete selected marker");
+      fireEvent.click(deleteButton);
+
+      await waitFor(() => {
+        // After deletion, no markers remain, so button should be disabled
+        expect(deleteButton).toBeDisabled();
+      });
     });
   });
 });
