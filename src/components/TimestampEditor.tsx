@@ -906,7 +906,7 @@ export default function TimestampEditor({
                 <div className="flex items-center gap-2">
                   <div
                     ref={overviewRef}
-                    className="relative h-4 min-w-0 flex-1 cursor-pointer touch-none rounded-md select-none overflow-hidden"
+                    className="relative h-4 min-w-0 flex-1 cursor-pointer touch-none rounded-md select-none overflow-hidden border"
                     style={{ backgroundColor: "hsl(var(--muted))" }}
                     onPointerDown={handleOverviewPointerDown}
                     onPointerMove={(e) =>
@@ -930,30 +930,6 @@ export default function TimestampEditor({
                       className="bg-foreground pointer-events-none absolute top-0 h-full w-0.5 -translate-x-1/2"
                       style={{ left: `${(currentTime / duration) * 100}%` }}
                     />
-                    {/* Marker dots — clickable to select a marker */}
-                    {markers.map((t, idx) => {
-                      const isUsed = idx < totalCells;
-                      const isSelected = selectedMarker === idx;
-                      return (
-                        <div
-                          key={idx}
-                          data-marker-pin
-                          className={cn(
-                            "absolute top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full cursor-pointer",
-                            isSelected
-                              ? "bg-selected size-2 ring-1 ring-selected"
-                              : isUsed
-                                ? "bg-primary size-1.5"
-                                : "bg-muted-foreground/50 size-1",
-                          )}
-                          style={{ left: `${(t / duration) * 100}%` }}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            seekToMarker(t, idx);
-                          }}
-                        />
-                      );
-                    })}
                   </div>
                   {/* Zoom controls — inline when overview bar is visible */}
                   <ZoomControls
