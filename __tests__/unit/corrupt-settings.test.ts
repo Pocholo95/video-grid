@@ -9,7 +9,12 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { APP_STORAGE_KEY, STORAGE_SCHEMA_VERSION } from "@/constants";
+import {
+  APP_STORAGE_KEY,
+  STORAGE_SCHEMA_VERSION,
+  ESTIMATION_MAX_FRAMES,
+  ESTIMATION_MAX_PIXELS,
+} from "@/constants";
 import type { AppSettings } from "@/types";
 
 /** Helper to write raw JSON directly to localStorage (bypassing the storage API). */
@@ -165,6 +170,8 @@ describe("corrupt / incomplete settings recovery", () => {
       theme: "light",
       showPreview: false,
       corsModalDismissed: false,
+      estimationMaxFrames: ESTIMATION_MAX_FRAMES,
+      estimationMaxPixels: ESTIMATION_MAX_PIXELS,
     };
     writeRawSettings(partialSettings);
 

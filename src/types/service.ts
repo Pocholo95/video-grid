@@ -31,8 +31,7 @@ export interface IFFmpegService {
   /** Register callback for FFmpeg stderr log lines (passes full array with total count) */
   onLog(
     callback:
-      | ((taskId: string, logs: string[], totalLines: number) => void)
-      | null,
+      ((taskId: string, logs: string[], totalLines: number) => void) | null,
   ): void;
   /** Register callback for FFmpeg progress events ({ progress: number }) */
   onProgress(callback: ((data: { progress: number }) => void) | null): void;
@@ -60,9 +59,9 @@ export interface IFFmpegService {
 export interface IMediaInfoService {
   /** Initialize MediaInfo WASM instance. Idempotent. */
   init(): Promise<void>;
-  /** Read video metadata from a File */
+  /** Read video metadata from a File or Blob */
   analyze(
-    file: File,
+    blob: Blob,
     onProgress?: (pct: number, status: string) => void,
   ): Promise<VideoMetadata>;
   /** Release resources */

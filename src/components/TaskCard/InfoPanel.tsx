@@ -1,4 +1,4 @@
-import { Cloud, Download, RotateCcw } from "lucide-react";
+import { Cloud, Download, RotateCcw, AlertTriangle, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { CopyField } from "@/components/CopyField";
 import { Field, FieldLabel } from "@/components/ui/field";
@@ -8,10 +8,11 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import type { AnimationEstimate } from "@/types";
 import type { TaskItem } from "@/types";
 import type { UploadDestination } from "@/types";
 import { isUploadEligible } from "@/uploadUtils";
-import { buildBbcodeTitle, humanSize } from "@/utils";
+import { buildBbcodeTitle, humanPixels, humanSize } from "@/utils";
 
 interface Props {
   item: TaskItem;
@@ -21,6 +22,9 @@ interface Props {
   destinations: UploadDestination[];
   canUpload: boolean;
   canRequeue: boolean;
+  estimate: AnimationEstimate | null;
+  estimationMaxFrames: number;
+  estimationMaxPixels: number;
   onUpload: () => void;
   onRequeue: () => void;
 }
@@ -33,6 +37,9 @@ export default function InfoPanel({
   destinations,
   canUpload,
   canRequeue,
+  estimate,
+  estimationMaxFrames,
+  estimationMaxPixels,
   onUpload,
   onRequeue,
 }: Props) {
@@ -61,19 +68,124 @@ export default function InfoPanel({
           {statusText}
         </span>
       </p>
-      <p>
-        <span className="text-muted-foreground">Output name: </span>
-        <span className="break-all">{item.outputName ?? "—"}</span>
-      </p>
-      <p>
-        <span className="text-muted-foreground">Output size: </span>
-        {item.outputSize ? humanSize(item.outputSize) : "—"}
-        {outputDimensions && (
-          <span className="text-muted-foreground">
-            {` (${outputDimensions.width}×${outputDimensions.height})`}
-          </span>
-        )}
-      </p>
+      {/* Animation estimates (shown while queued/processing for animated output) */}
+      {estimate && !isDone && (
+        <div className="flex flex-col gap-1 pt-1">
+          <span className="text-muted-foreground">Animation estimates:</span>
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
+            {/* Frames */}
+            <span className="flex items-center gap-1">
+              {estimationMaxFrames > 0 &&
+              estimate.totalFrames >= estimationMaxFrames ? (
+                <AlertTriangle className="size-3.5 shrink-0 text-amber-500" />
+              ) : (
+                <Check className="size-3.5 shrink-0 text-emerald-500" />
+              )}
+              <span
+                className={
+                  estimationMaxFrames > 0 &&
+                  estimate.totalFrames >= estimationMaxFrames
+                    ? "text-amber-600 dark:text-amber-400 font-medium"
+                    : ""
+                }
+              >
+                {estimate.totalFrames.toLocaleString()} frames
+              </span>
+            </span>
+            {/* Pixels */}
+            <span className="flex items-center gap-1">
+              {estimationMaxPixels > 0 &&
+              estimate.totalPixels >= estimationMaxPixels ? (
+                <AlertTriangle className="size-3.5 shrink-0 text-amber-500" />
+              ) : (
+                <Check className="size-3.5 shrink-0 text-emerald-500" />
+              )}
+              <span
+                className={
+                  estimationMaxPixels > 0 &&
+                  estimate.totalPixels >= estimationMaxPixels
+                    ? "text-amber-600 dark:text-amber-400 font-medium"
+                    : ""
+                }
+              >
+                {humanPixels(estimate.totalPixels)} pixels
+              </span>
+            </span>
+            {/* Canvas dimensions */}
+            <span className="text-muted-foreground">
+              ({estimate.canvasWidth}×{estimate.canvasHeight})
+            </span>
+          </div>
+        </div>
+      )}
+      {/* Output details (shown when task is done) */}
+      {isDone && (
+        <div className="flex flex-col gap-1 pt-1">
+          <span className="text-muted-foreground">Output details:</span>
+          <div className="flex flex-col gap-1 text-xs">
+            {/* File size + dimensions */}
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+              {item.outputSize && (
+                <span>File size: {humanSize(item.outputSize)}</span>
+              )}
+              {outputDimensions && (
+                <span className="text-muted-foreground">
+                  ({outputDimensions.width}×{outputDimensions.height})
+                </span>
+              )}
+            </div>
+            {/* Animation-specific details (only for animated output) */}
+            {estimate && (
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                {/* Frames */}
+                <span className="flex items-center gap-1">
+                  {estimationMaxFrames > 0 &&
+                  estimate.totalFrames >= estimationMaxFrames ? (
+                    <AlertTriangle className="size-3.5 shrink-0 text-amber-500" />
+                  ) : (
+                    <Check className="size-3.5 shrink-0 text-emerald-500" />
+                  )}
+                  <span
+                    className={
+                      estimationMaxFrames > 0 &&
+                      estimate.totalFrames >= estimationMaxFrames
+                        ? "text-amber-600 dark:text-amber-400 font-medium"
+                        : ""
+                    }
+                  >
+                    {estimate.totalFrames.toLocaleString()} frames
+                  </span>
+                </span>
+                {/* Pixels */}
+                <span className="flex items-center gap-1">
+                  {estimationMaxPixels > 0 &&
+                  estimate.totalPixels >= estimationMaxPixels ? (
+                    <AlertTriangle className="size-3.5 shrink-0 text-amber-500" />
+                  ) : (
+                    <Check className="size-3.5 shrink-0 text-emerald-500" />
+                  )}
+                  <span
+                    className={
+                      estimationMaxPixels > 0 &&
+                      estimate.totalPixels >= estimationMaxPixels
+                        ? "text-amber-600 dark:text-amber-400 font-medium"
+                        : ""
+                    }
+                  >
+                    {humanPixels(estimate.totalPixels)} pixels
+                  </span>
+                </span>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+      {item.outputName && (
+        <p>
+          <span className="text-muted-foreground">Output name: </span>
+          <span className="break-all">{item.outputName}</span>
+        </p>
+      )}
       <div className="flex flex-col gap-1 my-2">
         <span className="text-xs font-medium">
           BBCode – video title + resolution

@@ -38,11 +38,7 @@ export type VideoDecoderSetup = {
 };
 
 export type Position =
-  | "top-left"
-  | "top-right"
-  | "bottom-left"
-  | "bottom-right"
-  | "disabled";
+  "top-left" | "top-right" | "bottom-left" | "bottom-right" | "disabled";
 
 /** Metadata extracted from a video file by the MediaInfo service. */
 export type VideoMetadata = {
@@ -81,11 +77,7 @@ export type VideoMetadata = {
  * "disabled" means no VR processing is applied.
  */
 export type VrMode =
-  | "disabled"
-  | "sbs-left"
-  | "sbs-right"
-  | "tb-left"
-  | "tb-right";
+  "disabled" | "sbs-left" | "sbs-right" | "tb-left" | "tb-right";
 
 /**
  * Controls how sample timestamps are chosen for a specific queued file.
@@ -236,6 +228,12 @@ export type TaskItem = {
   outputBlob?: Blob;
   /** Video metadata extracted before processing. */
   metadata?: VideoMetadata;
+  /**
+   * Actual animation metrics captured from the generated output file.
+   * Stored so the displayed info reflects the real output rather than
+   * a live estimate that changes when settings are modified afterwards.
+   */
+  outputAnimationInfo?: AnimationEstimate;
   /** Timestamp (ms) when processing started for this task. */
   processingStartedAt?: number;
   /** Elapsed processing time in milliseconds. */
@@ -273,6 +271,23 @@ export type TaskItem = {
    * element and observing the error event (same method as TimestampEditor).
    */
   canNativelyPlay?: boolean;
+};
+
+// - Animation Estimate
+
+/** Estimated animation metrics computed from metadata and grid options. */
+export type AnimationEstimate = {
+  /** Total number of frames in the final animation. */
+  totalFrames: number;
+  /**
+   * Total pixel count across all frames:
+   * (canvasWidth × canvasHeight) × totalFrames.
+   */
+  totalPixels: number;
+  /** Canvas width in pixels. */
+  canvasWidth: number;
+  /** Canvas height in pixels. */
+  canvasHeight: number;
 };
 
 // - Settings / Options
@@ -378,4 +393,17 @@ export type AppSettings = {
    * with cross-origin errors.  Default: false.
    */
   corsModalDismissed: boolean;
+  /**
+   * Maximum acceptable frame count for animated output before showing a
+   * warning indicator. Used to estimate whether an upload host will reject
+   * the file based on frame limits.  Default: 120.
+   */
+  estimationMaxFrames: number;
+  /**
+   * Maximum acceptable total pixel count (canvas area × frames) for animated
+   * output before showing a warning indicator. Used to estimate whether an
+   * upload host will reject the file based on pixel-budget limits.
+   * Default: 50_000_000 (50 million).
+   */
+  estimationMaxPixels: number;
 };

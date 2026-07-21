@@ -2,7 +2,8 @@ import { useCallback, useRef } from "react";
 import { ANIMATED_COMPOSE_PCT, ANIMATED_ENCODE_PCT } from "../constants";
 import type { IGridRenderer } from "../types/service";
 import type { IFFmpegService, IMediaInfoService } from "../types/service";
-import type { TaskItem, SavedOptions } from "../types";
+import type { TaskItem, SavedOptions, AnimationEstimate } from "../types";
+import { computeAnimationEstimate } from "../gridUtils";
 import {
   buildStaticGridOptions,
   buildAnimatedGridOptions,
@@ -265,6 +266,35 @@ export function useBatchProcessor(
 
             const ffmpegLogs = ffmpeg.getAndClearLogs(item.id);
             const itemCancelledMidProcessing = cancelRef.current;
+            // Analyze the actual output blob to get real animation metrics
+            // (frames, dimensions) from the generated file, not estimates.
+            let outputAnimationInfo: AnimationEstimate | undefined;
+            if (isAnimated && res.outputBlob) {
+              try {
+                const outputMeta = await mediainfo.analyze(res.outputBlob);
+                if (
+                  outputMeta.duration > 0 &&
+                  outputMeta.fps &&
+                  outputMeta.fps > 0
+                ) {
+                  const totalFrames = Math.round(
+                    outputMeta.duration * outputMeta.fps,
+                  );
+                  outputAnimationInfo = {
+                    totalFrames,
+                    totalPixels:
+                      outputMeta.width * outputMeta.height * totalFrames,
+                    canvasWidth: outputMeta.width,
+                    canvasHeight: outputMeta.height,
+                  };
+                }
+              } catch {
+                // If output analysis fails, fall back to estimate from settings
+                outputAnimationInfo = item.metadata
+                  ? (computeAnimationEstimate(item.metadata, opts) ?? undefined)
+                  : undefined;
+              }
+            }
             useTaskStore.getState().updateItem(item.id, {
               outputName: res.outputName,
               outputSize: res.outputSize,
@@ -273,6 +303,7 @@ export function useBatchProcessor(
               error: undefined,
               processingDurationMs: Date.now() - itemStartTime,
               ffmpegLogs,
+              outputAnimationInfo,
             });
 
             if (!itemCancelledMidProcessing) {

@@ -13,7 +13,12 @@ import {
   VersionedStorage,
   createVersionedStorage,
 } from "@/services/storage.service";
-import { STORAGE_SCHEMA_VERSION, APP_STORAGE_KEY } from "@/constants";
+import {
+  STORAGE_SCHEMA_VERSION,
+  APP_STORAGE_KEY,
+  ESTIMATION_MAX_FRAMES,
+  ESTIMATION_MAX_PIXELS,
+} from "@/constants";
 import type { AppSettings } from "@/types";
 
 /** - Test fixtures */
@@ -28,6 +33,8 @@ function getDefaultSettings(): AppSettings {
     theme: "dark",
     showPreview: true,
     corsModalDismissed: false,
+    estimationMaxFrames: ESTIMATION_MAX_FRAMES,
+    estimationMaxPixels: ESTIMATION_MAX_PIXELS,
   };
 }
 

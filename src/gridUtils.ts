@@ -8,6 +8,7 @@ import {
 } from "./constants";
 import { computeTemplatePixelRects, templateFromUniform } from "./gridTemplate";
 import type {
+  AnimationEstimate,
   GridTemplate,
   Position,
   VideoDecoderSetup,
@@ -446,6 +447,114 @@ export const drawErrorPlaceholder = (
   ctx.fillText("FAILED", x + cellWidth / 2, y + cellHeight / 2);
   ctx.textAlign = "left";
   ctx.textBaseline = "alphabetic";
+};
+
+/**
+ * Estimates the header canvas height without actually rendering it.
+ * Mirrors the height calculation in `createHeaderCanvas` by using the same
+ * line-counting logic (buildMetadataLines + VR line when active).
+ *
+ * @param opts - Subset of SavedOptions needed for header sizing.
+ * @param meta - Video metadata (used to count info lines via buildMetadataLines).
+ * @returns Estimated header height in pixels, 0 when header is disabled.
+ */
+export const estimateHeaderHeight = (
+  opts: {
+    header: boolean;
+    width: number;
+    vrMode: VrMode;
+    headerFontSizeAuto: boolean;
+    headerFontSize: number;
+  },
+  meta: VideoMetadata,
+): number => {
+  if (!opts.header) return 0;
+
+  const safeHeaderFontSize = Number.isFinite(opts.headerFontSize)
+    ? opts.headerFontSize
+    : DEFAULTS.headerFontSize;
+  const headerFontSz = opts.headerFontSizeAuto
+    ? Math.max(14, Math.round(opts.width * 0.0125))
+    : Math.max(FONT_SIZE_MIN, Math.min(FONT_SIZE_MAX, safeHeaderFontSize));
+  const lineSpacing = headerFontSz + 2;
+
+  // Mirror createHeaderCanvas: count lines from buildMetadataLines + VR line.
+  // createHeaderCanvas calls buildMetadataLines(meta, file.name, file.size) which
+  // adds 2 extra lines (Filename, Size) that we can't know at estimate time,
+  // so we add 2 to account for them.
+  const vrActive = opts.vrMode !== "disabled";
+  const infoLines = buildMetadataLines(meta);
+  const numLines = infoLines.length + 2 + (vrActive ? 1 : 0);
+
+  return HEADER_PADDING_LEFT * 2 + numLines * lineSpacing;
+};
+
+/**
+ * Estimates animation metrics from video metadata and grid options.
+ * Returns `null` when animation is not enabled.
+ *
+ * @param meta - Video metadata (width, height, duration).
+ * @param opts - Current grid/options configuration.
+ * @returns AnimationEstimate with estimated frames, pixels, and canvas dimensions.
+ */
+export const computeAnimationEstimate = (
+  meta: VideoMetadata,
+  opts: {
+    animated: boolean;
+    animSequence: boolean;
+    animSegments: number;
+    animDuration: number;
+    animFps: number;
+    width: number;
+    cols: number;
+    rows: number;
+    spacing: number;
+    header: boolean;
+    vrMode: VrMode;
+    gridTemplate?: GridTemplate;
+    headerFontSizeAuto: boolean;
+    headerFontSize: number;
+  },
+): AnimationEstimate | null => {
+  if (!opts.animated) return null;
+
+  // Estimate header height
+  const headerHeight = estimateHeaderHeight(
+    {
+      header: opts.header,
+      width: opts.width,
+      vrMode: opts.vrMode,
+      headerFontSizeAuto: opts.headerFontSizeAuto,
+      headerFontSize: opts.headerFontSize,
+    },
+    meta,
+  );
+
+  // Compute canvas dimensions using existing grid layout logic
+  const { canvasWidth, canvasHeight } = getGridLayout(
+    {
+      width: opts.width,
+      cols: opts.cols,
+      rows: opts.rows,
+      spacing: opts.spacing,
+      gridTemplate: opts.gridTemplate,
+      vrMode: opts.vrMode,
+    },
+    meta,
+    headerHeight,
+  );
+
+  // Calculate total frames
+  const totalFrames = opts.animSequence
+    ? Math.ceil(opts.animSegments * opts.animDuration * opts.animFps)
+    : Math.ceil(opts.animDuration * opts.animFps);
+
+  return {
+    totalFrames,
+    totalPixels: canvasWidth * canvasHeight * totalFrames,
+    canvasWidth,
+    canvasHeight,
+  };
 };
 
 /**

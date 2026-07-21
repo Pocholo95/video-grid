@@ -81,9 +81,7 @@ interface CorsTunnelError {
 }
 
 type CorsTunnelOutgoingMessage =
-  | CorsTunnelPong
-  | CorsTunnelResponse
-  | CorsTunnelError;
+  CorsTunnelPong | CorsTunnelResponse | CorsTunnelError;
 
 // Incoming message from the page
 interface IncomingTunnelMessage {

@@ -72,8 +72,7 @@ let currentLogTaskId: string | null = null;
  * to the current task's buffer. Passes (taskId, logs, totalLines).
  */
 let onLogsChanged:
-  | ((id: string, logs: string[], totalLines: number) => void)
-  | null = null;
+  ((id: string, logs: string[], totalLines: number) => void) | null = null;
 
 /** - Internal helpers */
 
@@ -372,8 +371,7 @@ export class FFmpegService implements IFFmpegService {
   /** Register callback for FFmpeg log lines. */
   public onLog(
     callback:
-      | ((taskId: string, logs: string[], totalLines: number) => void)
-      | null,
+      ((taskId: string, logs: string[], totalLines: number) => void) | null,
   ): void {
     onLogsChanged = callback;
   }

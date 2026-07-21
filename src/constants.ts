@@ -197,6 +197,12 @@ export const ANIMATED_ENCODE_PCT = 100 - ANIMATED_COMPOSE_PCT;
 /** Enable verbose console logging. Controlled via VITE_DEBUG env variable. */
 export const DEBUG = import.meta.env.VITE_DEBUG === "true";
 
+/** Default max frames for animation estimation threshold. */
+export const ESTIMATION_MAX_FRAMES = 120;
+
+/** Default max total pixels for animation estimation threshold (50 million). */
+export const ESTIMATION_MAX_PIXELS = 50_000_000;
+
 /** Default color swatch palette used by the ColorPicker component. */
 export const COLOR_SWATCHES = [
   "#000000",

@@ -42,15 +42,15 @@ export class MediaInfoService implements IMediaInfoService {
   }
 
   /**
-   * Read video metadata from a file using MediaInfo.
+   * Read video metadata from a file or blob using MediaInfo.
    * Returns zeroed fields on failure rather than throwing.
    *
-   * @param file       - The video file to analyze.
+   * @param blob       - The video file/blob to analyze.
    * @param onProgress - Optional callback for progress updates (0-100, status message).
    * @returns Parsed metadata including duration, dimensions, and bitrate.
    */
   public async analyze(
-    file: File,
+    blob: Blob,
     onProgress?: (pct: number, status: string) => void,
   ): Promise<VideoMetadata> {
     onProgress?.(5, "Loading MediaInfo…");
@@ -62,26 +62,23 @@ export class MediaInfoService implements IMediaInfoService {
       chunkSize: number,
       offset: number,
     ): Promise<Uint8Array> => {
-      const buf = await file.slice(offset, offset + chunkSize).arrayBuffer();
+      const buf = await blob.slice(offset, offset + chunkSize).arrayBuffer();
       return new Uint8Array(buf);
     };
 
     try {
-      const result = await mi.analyzeData(file.size, readChunk);
+      const result = await mi.analyzeData(blob.size, readChunk);
       onProgress?.(90, "Parsing track info…");
 
       const tracks = result.media?.track ?? [];
       const general = tracks.find((t) => t["@type"] === "General") as
-        | Record<string, string>
-        | undefined;
+        Record<string, string> | undefined;
       const videoTracks = tracks.filter((t) => t["@type"] === "Video");
       const audioTracks = tracks.filter((t) => t["@type"] === "Audio");
       const video = videoTracks[0] as unknown as
-        | Record<string, string>
-        | undefined;
+        Record<string, string> | undefined;
       const audio = audioTracks[0] as unknown as
-        | Record<string, string>
-        | undefined;
+        Record<string, string> | undefined;
 
       const duration =
         parseFloat(video?.Duration ?? general?.Duration ?? "0") || 0;

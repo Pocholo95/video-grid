@@ -204,7 +204,12 @@ export default function TaskList({
   return (
     <>
       {/* Compact bar shown when controls scroll offscreen */}
-      <div className="fixed top-0 left-0 right-0 z-45">
+      <div
+        className={cn(
+          "fixed top-0 left-0 right-0 z-45",
+          !isCompact && "pointer-events-none",
+        )}
+      >
         <div
           className={cn(
             "transition-transform duration-250 ease-out",

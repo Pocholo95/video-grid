@@ -12,6 +12,8 @@ import {
   STORAGE_SCHEMA_VERSION,
   DEFAULT_DEST_ALLOWED_EXTENSIONS,
   DEFAULT_DEST_MAX_SIZE_MB,
+  ESTIMATION_MAX_FRAMES,
+  ESTIMATION_MAX_PIXELS,
 } from "@/constants";
 import type { AppSettings, SavedOptions, UploadDestination } from "@/types";
 import { createTestOpts, createTestPresets } from "./helpers/mockServices";
@@ -30,6 +32,8 @@ function makeAppSettings(presetOverride?: Partial<SavedOptions>): AppSettings {
     theme: "dark",
     showPreview: true,
     corsModalDismissed: false,
+    estimationMaxFrames: ESTIMATION_MAX_FRAMES,
+    estimationMaxPixels: ESTIMATION_MAX_PIXELS,
   };
 }
 
@@ -168,6 +172,8 @@ describe("migrateSettings", () => {
       theme: "dark",
       showPreview: true,
       corsModalDismissed: false,
+      estimationMaxFrames: ESTIMATION_MAX_FRAMES,
+      estimationMaxPixels: ESTIMATION_MAX_PIXELS,
     };
     const result = migrateSettings(settings, 1);
 
@@ -212,6 +218,8 @@ describe("migrateSettings", () => {
       theme: "dark",
       showPreview: true,
       corsModalDismissed: false,
+      estimationMaxFrames: ESTIMATION_MAX_FRAMES,
+      estimationMaxPixels: ESTIMATION_MAX_PIXELS,
     };
     const result = migrateSettings(settings, 1);
 
@@ -233,6 +241,8 @@ describe("migrateSettings", () => {
       theme: "dark",
       showPreview: true,
       corsModalDismissed: false,
+      estimationMaxFrames: ESTIMATION_MAX_FRAMES,
+      estimationMaxPixels: ESTIMATION_MAX_PIXELS,
     };
     const result = migrateSettings(settings, 1);
 
@@ -285,6 +295,8 @@ describe("migrateSettings v3 → v4", () => {
       theme: "dark",
       showPreview: true,
       corsModalDismissed: false,
+      estimationMaxFrames: ESTIMATION_MAX_FRAMES,
+      estimationMaxPixels: ESTIMATION_MAX_PIXELS,
     };
   }
 

@@ -8,6 +8,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { renderHook, act } from "@testing-library/react";
 import { useAppSettings } from "@/hooks/useAppSettings";
 import * as presets from "@/presets";
+import { ESTIMATION_MAX_FRAMES, ESTIMATION_MAX_PIXELS } from "@/constants";
 import type { AppSettings } from "@/types";
 
 const baseSettings: AppSettings = {
@@ -16,6 +17,8 @@ const baseSettings: AppSettings = {
   theme: "dark",
   showPreview: true,
   corsModalDismissed: false,
+  estimationMaxFrames: ESTIMATION_MAX_FRAMES,
+  estimationMaxPixels: ESTIMATION_MAX_PIXELS,
 };
 
 describe("useAppSettings", () => {

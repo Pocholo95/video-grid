@@ -93,6 +93,22 @@ export const formatElapsed = (ms: number): string => {
   return `${s.toFixed(3)}s`;
 };
 
+/**
+ * Formats a pixel count as a human-readable string (K, M, B).
+ *
+ * @param pixels - The raw pixel count.
+ */
+export const humanPixels = (pixels: number): string => {
+  const units = ["", "K", "M", "B"];
+  let size = pixels;
+  let i = 0;
+  while (size >= 1000 && i < units.length - 1) {
+    size /= 1000;
+    i++;
+  }
+  return `${size.toFixed(i === 0 ? 0 : 1)}${units[i]}`;
+};
+
 /** Generates a random UUID string suitable for use as an item ID. */
 export const makeId = (): string => crypto.randomUUID();
 
