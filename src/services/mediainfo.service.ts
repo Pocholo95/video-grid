@@ -72,16 +72,13 @@ export class MediaInfoService implements IMediaInfoService {
 
       const tracks = result.media?.track ?? [];
       const general = tracks.find((t) => t["@type"] === "General") as
-        | Record<string, string>
-        | undefined;
+        Record<string, string> | undefined;
       const videoTracks = tracks.filter((t) => t["@type"] === "Video");
       const audioTracks = tracks.filter((t) => t["@type"] === "Audio");
       const video = videoTracks[0] as unknown as
-        | Record<string, string>
-        | undefined;
+        Record<string, string> | undefined;
       const audio = audioTracks[0] as unknown as
-        | Record<string, string>
-        | undefined;
+        Record<string, string> | undefined;
 
       const duration =
         parseFloat(video?.Duration ?? general?.Duration ?? "0") || 0;

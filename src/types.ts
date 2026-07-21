@@ -38,11 +38,7 @@ export type VideoDecoderSetup = {
 };
 
 export type Position =
-  | "top-left"
-  | "top-right"
-  | "bottom-left"
-  | "bottom-right"
-  | "disabled";
+  "top-left" | "top-right" | "bottom-left" | "bottom-right" | "disabled";
 
 /** Metadata extracted from a video file by the MediaInfo service. */
 export type VideoMetadata = {
@@ -81,11 +77,7 @@ export type VideoMetadata = {
  * "disabled" means no VR processing is applied.
  */
 export type VrMode =
-  | "disabled"
-  | "sbs-left"
-  | "sbs-right"
-  | "tb-left"
-  | "tb-right";
+  "disabled" | "sbs-left" | "sbs-right" | "tb-left" | "tb-right";
 
 /**
  * Controls how sample timestamps are chosen for a specific queued file.

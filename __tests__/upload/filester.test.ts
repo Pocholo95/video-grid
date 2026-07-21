@@ -120,8 +120,7 @@ describe("uploadBlob - filester", () => {
         options?: RequestInit,
       ) => {
         capturedHeaders = options?.headers as
-          | Record<string, string>
-          | undefined;
+          Record<string, string> | undefined;
         return {
           ok: true,
           status: 200,
@@ -160,8 +159,7 @@ describe("uploadBlob - filester", () => {
         options?: RequestInit,
       ) => {
         capturedHeaders = options?.headers as
-          | Record<string, string>
-          | undefined;
+          Record<string, string> | undefined;
         return {
           ok: true,
           status: 200,
