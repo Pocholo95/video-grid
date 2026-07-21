@@ -6,7 +6,12 @@ import type {
   UploadDestination,
 } from "./types";
 import { createVersionedStorage } from "./services/storage.service";
-import { APP_STORAGE_KEY, DEFAULTS } from "./constants";
+import {
+  APP_STORAGE_KEY,
+  DEFAULTS,
+  ESTIMATION_MAX_FRAMES,
+  ESTIMATION_MAX_PIXELS,
+} from "./constants";
 
 // ---------------------------------------------------------------------------
 // Built-in Presets
@@ -45,7 +50,7 @@ export const BUILT_IN_PRESETS: BuiltInPreset[] = [
   {
     name: "Animated Hero Light",
     opts: {
-      width: 1280,
+      width: 1152,
       animated: true,
       webpMethod: 6,
       webpQuality: 75,
@@ -218,6 +223,8 @@ const DEFAULT: AppSettings = {
   theme: "dark",
   showPreview: true,
   corsModalDismissed: false,
+  estimationMaxFrames: ESTIMATION_MAX_FRAMES,
+  estimationMaxPixels: ESTIMATION_MAX_PIXELS,
 };
 
 /**

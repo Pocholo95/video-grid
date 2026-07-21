@@ -732,54 +732,82 @@ describe("fetchWithCORSFallback", () => {
 // ─── Modal state management ──────────────────────────────────────────
 
 describe("Modal state management", () => {
+  let loadAppSettingsSpy: ReturnType<typeof vi.spyOn>;
+
   beforeEach(async () => {
     resetBatchState();
-    // Mock loadAppSettings to return settings with corsModalDismissed = false
-    // so the modal is not permanently dismissed
+    // Mock loadAppSettings so shouldShowCORSModal sees corsModalDismissed = false.
+    // We set it to false so the "permanently dismissed" branch is skipped.
+    // However we must avoid the `corsModalDismissed === false` reset branch
+    // which would clear tunnelState.modalShownThisBatch before the check.
+    // We achieve this by having the spy throw in tests that need the batch flag
+    // to be respected (simulating localStorage unavailable).
     const presets = await import("@/presets");
-    vi.spyOn(presets, "loadAppSettings").mockReturnValue({
-      presets: { entries: {}, lastUsed: null },
-      destinations: [],
-      theme: "dark",
-      showPreview: true,
-      // corsModalDismissed undefined at runtime = not yet dismissed (default state)
-      corsModalDismissed: undefined as unknown as boolean,
-    });
+    loadAppSettingsSpy = vi.spyOn(presets, "loadAppSettings");
   });
 
   afterEach(() => {
     resetBatchState();
+    loadAppSettingsSpy?.mockRestore();
     vi.restoreAllMocks();
   });
 
   it("shouldShowCORSModal returns true initially", () => {
+    // Simulate localStorage unavailable → falls through to catch → checks batch flag
+    loadAppSettingsSpy!.mockImplementationOnce(() => {
+      throw new Error("localStorage unavailable");
+    });
     expect(shouldShowCORSModal()).toBe(true);
   });
 
   it("shouldShowCORSModal returns false after markModalShown", () => {
+    loadAppSettingsSpy!.mockImplementationOnce(() => {
+      throw new Error("localStorage unavailable");
+    });
     markModalShown();
     expect(shouldShowCORSModal()).toBe(false);
   });
 
   it("clearModalShown allows modal to show again", () => {
+    loadAppSettingsSpy!.mockImplementationOnce(() => {
+      throw new Error("localStorage unavailable");
+    });
     markModalShown();
     expect(shouldShowCORSModal()).toBe(false);
 
     clearModalShown();
+    loadAppSettingsSpy!.mockImplementationOnce(() => {
+      throw new Error("localStorage unavailable");
+    });
     expect(shouldShowCORSModal()).toBe(true);
   });
 
   it("markModalShown persists across calls within same batch", () => {
+    loadAppSettingsSpy!.mockImplementationOnce(() => {
+      throw new Error("localStorage unavailable");
+    });
     markModalShown();
+    loadAppSettingsSpy!.mockImplementationOnce(() => {
+      throw new Error("localStorage unavailable");
+    });
     expect(shouldShowCORSModal()).toBe(false);
+    loadAppSettingsSpy!.mockImplementationOnce(() => {
+      throw new Error("localStorage unavailable");
+    });
     expect(shouldShowCORSModal()).toBe(false);
   });
 
   it("resetBatchState allows modal to show again", () => {
+    loadAppSettingsSpy!.mockImplementationOnce(() => {
+      throw new Error("localStorage unavailable");
+    });
     markModalShown();
     expect(shouldShowCORSModal()).toBe(false);
 
     resetBatchState();
+    loadAppSettingsSpy!.mockImplementationOnce(() => {
+      throw new Error("localStorage unavailable");
+    });
     expect(shouldShowCORSModal()).toBe(true);
   });
 });

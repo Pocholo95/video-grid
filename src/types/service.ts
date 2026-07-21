@@ -60,9 +60,9 @@ export interface IFFmpegService {
 export interface IMediaInfoService {
   /** Initialize MediaInfo WASM instance. Idempotent. */
   init(): Promise<void>;
-  /** Read video metadata from a File */
+  /** Read video metadata from a File or Blob */
   analyze(
-    file: File,
+    blob: Blob,
     onProgress?: (pct: number, status: string) => void,
   ): Promise<VideoMetadata>;
   /** Release resources */

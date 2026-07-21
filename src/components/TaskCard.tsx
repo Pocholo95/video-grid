@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AlertTriangle, ChevronDown, RotateCcw, Trash2 } from "lucide-react";
 import type { SavedOptions, TaskItem } from "@/types";
 import { useUiStore, selectTotalCells } from "@/store/uiStore";
 import { useSettingsStore } from "@/store/settingsStore";
+import { computeAnimationEstimate } from "@/gridUtils";
 import { isUploadEligible } from "@/uploadUtils";
 import { formatElapsed } from "@/utils";
 import { useTick } from "@/lib/useTick";
@@ -70,7 +71,24 @@ export default function TaskCard({
   const totalCells = useUiStore(selectTotalCells);
   const showPreview = useSettingsStore((s) => s.settings.showPreview);
   const destinations = useSettingsStore((s) => s.settings.destinations);
+  const estimationMaxFrames = useSettingsStore(
+    (s) => s.settings.estimationMaxFrames,
+  );
+  const estimationMaxPixels = useSettingsStore(
+    (s) => s.settings.estimationMaxPixels,
+  );
   const opts = useUiStore((s) => s.opts);
+
+  // For done tasks, prefer the stored outputAnimationInfo (captured at
+  // completion time) so the displayed info doesn't change when settings
+  // are modified. For in-progress / queued tasks, compute a live estimate.
+  const estimate = useMemo(() => {
+    if (item.status === "done" && item.outputAnimationInfo) {
+      return item.outputAnimationInfo;
+    }
+    if (!item.metadata) return null;
+    return computeAnimationEstimate(item.metadata, opts);
+  }, [item.status, item.outputAnimationInfo, item.metadata, opts]);
 
   /**
    * Determine if this task will use FFmpeg processing based on current options.
@@ -266,15 +284,6 @@ export default function TaskCard({
           </>
         )}
       >
-        {/* Source Info */}
-        {item.metadata && (
-          <SourceInfoSection
-            metadata={item.metadata}
-            filename={item.file.name}
-            fileSize={item.file.size}
-          />
-        )}
-
         {/* Warning row */}
         {item.warning && (
           <Alert className="py-2 px-3">
@@ -301,6 +310,15 @@ export default function TaskCard({
               proceed.
             </AlertDescription>
           </Alert>
+        )}
+
+        {/* Source Info */}
+        {item.metadata && (
+          <SourceInfoSection
+            metadata={item.metadata}
+            filename={item.file.name}
+            fileSize={item.file.size}
+          />
         )}
 
         {/* FFmpeg Logs — shown when processing + FFmpeg needed, or when logs exist */}
@@ -341,6 +359,9 @@ export default function TaskCard({
             destinations={destinations}
             canUpload={canUpload}
             canRequeue={canRequeue}
+            estimate={estimate}
+            estimationMaxFrames={estimationMaxFrames}
+            estimationMaxPixels={estimationMaxPixels}
             onUpload={() => onUpload(item.id)}
             onRequeue={() => onRequeue(item.id)}
           />

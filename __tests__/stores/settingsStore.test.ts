@@ -16,6 +16,8 @@ const defaultSettings = vi.hoisted(() => {
     theme: "dark",
     showPreview: true,
     corsModalDismissed: false,
+    estimationMaxFrames: 120,
+    estimationMaxPixels: 50_000_000,
   } as AppSettings;
 });
 
@@ -37,7 +39,6 @@ beforeEach(() => {
   vi.clearAllMocks();
   useSettingsStore.getState().settings = structuredClone(defaultSettings);
   useSettingsStore.getState().showSettingsDialog = false;
-  useSettingsStore.getState().originalSettings = null;
 });
 
 describe("settingsStore - initial state", () => {
@@ -90,17 +91,8 @@ describe("handleThemeChange", () => {
     useSettingsStore.getState().handleThemeChange("light");
     expect(useSettingsStore.getState().settings.theme).toBe("light");
     expect(document.documentElement.className).toBe("light");
-    // Persists when dialog is closed
+    // Persists immediately
     expect(persistAppSettings).toHaveBeenCalled();
-  });
-
-  it("does not persist when dialog is open", async () => {
-    const { persistAppSettings } = await import("@/presets");
-    vi.clearAllMocks();
-    useSettingsStore.getState().showSettingsDialog = true;
-    useSettingsStore.getState().handleThemeChange("light");
-    expect(useSettingsStore.getState().settings.theme).toBe("light");
-    expect(persistAppSettings).not.toHaveBeenCalled();
   });
 });
 
@@ -119,10 +111,9 @@ describe("applyTheme", () => {
 });
 
 describe("dialog state management", () => {
-  it("opens settings dialog and saves original settings", () => {
+  it("opens settings dialog", () => {
     useSettingsStore.getState().handleOpenSettingsDialog();
     expect(useSettingsStore.getState().showSettingsDialog).toBe(true);
-    expect(useSettingsStore.getState().originalSettings).not.toBeNull();
   });
 
   it("closes settings dialog", () => {
@@ -131,27 +122,10 @@ describe("dialog state management", () => {
     expect(useSettingsStore.getState().showSettingsDialog).toBe(false);
   });
 
-  it("cancels settings and restores original", async () => {
-    const { persistAppSettings } = await import("@/presets");
-    // Open dialog
-    useSettingsStore.getState().handleOpenSettingsDialog();
-    // Make changes
+  it("settings are auto-saved on change (no snapshot needed)", () => {
+    // With immediate persistence, changes are saved right away
     useSettingsStore.getState().updateSettings({ theme: "light" });
-    // Cancel
-    useSettingsStore.getState().handleCancelSettings();
-    expect(useSettingsStore.getState().showSettingsDialog).toBe(false);
-    expect(useSettingsStore.getState().settings.theme).toBe("dark");
-    expect(persistAppSettings).toHaveBeenCalled();
-  });
-
-  it("saves and closes settings dialog", async () => {
-    const { persistAppSettings } = await import("@/presets");
-    useSettingsStore.getState().handleOpenSettingsDialog();
-    useSettingsStore.getState().updateSettings({ theme: "light" });
-    useSettingsStore.getState().saveAndCloseSettings();
-    expect(useSettingsStore.getState().showSettingsDialog).toBe(false);
     expect(useSettingsStore.getState().settings.theme).toBe("light");
-    expect(persistAppSettings).toHaveBeenCalled();
   });
 });
 

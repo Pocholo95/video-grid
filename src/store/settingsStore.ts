@@ -6,7 +6,6 @@ import {
   seedBuiltInPresets,
 } from "@/presets";
 import type { AppSettings } from "@/types";
-import { deepClone } from "@/lib/deepClone";
 import { resetBatchState } from "@/lib/cors-tunnel";
 
 /**
@@ -14,8 +13,7 @@ import { resetBatchState } from "@/lib/cors-tunnel";
  * Replaces: src/context/settingsContext.tsx + src/hooks/useAppSettings.ts
  *
  * Settings are persisted to localStorage immediately on every change.
- * The settings dialog tracks a snapshot of the original settings so the
- * user can cancel and revert changes.
+ * No snapshot tracking is needed since changes auto-save.
  */
 interface SettingsState {
   // --- Core state ---
@@ -23,7 +21,6 @@ interface SettingsState {
 
   // --- Settings dialog ---
   showSettingsDialog: boolean;
-  originalSettings: AppSettings | null;
 
   // --- Actions ---
   loadSettings: () => void;
@@ -35,8 +32,7 @@ interface SettingsState {
   // --- Dialog ---
   setShowSettingsDialog: (open: boolean) => void;
   handleOpenSettingsDialog: () => void;
-  handleCancelSettings: () => void;
-  saveAndCloseSettings: () => void;
+  handleCloseSettingsDialog: () => void;
 
   // --- Helpers ---
   applyTheme: (theme: AppSettings["theme"]) => void;
@@ -47,7 +43,6 @@ export const useSettingsStore = create<SettingsState>()(
     // --- Initial state ---
     settings: loadAppSettings(),
     showSettingsDialog: false,
-    originalSettings: null,
 
     // --- Load from localStorage ---
     loadSettings: () => {
@@ -80,16 +75,14 @@ export const useSettingsStore = create<SettingsState>()(
     handleThemeChange: (theme) =>
       set((state) => {
         state.settings.theme = theme;
-        // Persist only when dialog is closed (saveAndCloseSettings handles it)
-        if (!state.showSettingsDialog) persistAppSettings(state.settings);
+        persistAppSettings(state.settings);
         document.documentElement.className = theme;
       }),
 
     handleShowPreviewChange: (show) =>
       set((state) => {
         state.settings.showPreview = show;
-        // Persist only when dialog is closed (saveAndCloseSettings handles it)
-        if (!state.showSettingsDialog) persistAppSettings(state.settings);
+        persistAppSettings(state.settings);
       }),
 
     applyTheme: (theme) => {
@@ -104,34 +97,11 @@ export const useSettingsStore = create<SettingsState>()(
 
     handleOpenSettingsDialog: () =>
       set((state) => {
-        if (!state.originalSettings) {
-          // deepClone safely copies Immer proxies into plain objects
-          state.originalSettings = deepClone(state.settings);
-        }
         state.showSettingsDialog = true;
       }),
 
-    handleCancelSettings: () =>
+    handleCloseSettingsDialog: () =>
       set((state) => {
-        if (state.originalSettings) {
-          // Preserve current destinations — do NOT overwrite changes made in
-          // the Upload Destinations dialog (add/edit/delete are persisted
-          // immediately, enabled state is persisted on its own Save & close).
-          const currentDestinations = state.settings.destinations;
-          state.settings = deepClone(state.originalSettings);
-          state.settings.destinations = currentDestinations;
-          persistAppSettings(state.settings);
-          // Restore the original theme CSS class
-          document.documentElement.className = state.settings.theme;
-          state.originalSettings = null;
-        }
-        state.showSettingsDialog = false;
-      }),
-
-    saveAndCloseSettings: () =>
-      set((state) => {
-        persistAppSettings(state.settings);
-        state.originalSettings = null;
         state.showSettingsDialog = false;
       }),
   })),

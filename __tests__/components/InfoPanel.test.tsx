@@ -9,6 +9,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import InfoPanel from "@/components/TaskCard/InfoPanel";
 import { createTestTaskItem } from "../helpers/mockServices";
+import { ESTIMATION_MAX_FRAMES, ESTIMATION_MAX_PIXELS } from "@/constants";
 import type { UploadDestination } from "@/types";
 
 // Mock Radix Popover to avoid Portal/animation complexity in tests
@@ -67,6 +68,12 @@ const mockHandlers = {
   onRequeue: vi.fn(),
 };
 
+const defaultInfoPanelProps = {
+  estimate: null,
+  estimationMaxFrames: ESTIMATION_MAX_FRAMES,
+  estimationMaxPixels: ESTIMATION_MAX_PIXELS,
+};
+
 beforeEach(() => {
   vi.clearAllMocks();
 });
@@ -91,6 +98,7 @@ describe("InfoPanel - upload button logic", () => {
         canRequeue={false}
         onUpload={mockHandlers.onUpload}
         onRequeue={mockHandlers.onRequeue}
+        {...defaultInfoPanelProps}
       />,
     );
 
@@ -130,6 +138,7 @@ describe("InfoPanel - upload button logic", () => {
         canRequeue={false}
         onUpload={mockHandlers.onUpload}
         onRequeue={mockHandlers.onRequeue}
+        {...defaultInfoPanelProps}
       />,
     );
 
@@ -164,6 +173,7 @@ describe("InfoPanel - upload button logic", () => {
         canRequeue={false}
         onUpload={mockHandlers.onUpload}
         onRequeue={mockHandlers.onRequeue}
+        {...defaultInfoPanelProps}
       />,
     );
 
@@ -190,6 +200,7 @@ describe("InfoPanel - upload button logic", () => {
         canRequeue={false}
         onUpload={mockHandlers.onUpload}
         onRequeue={mockHandlers.onRequeue}
+        {...defaultInfoPanelProps}
       />,
     );
 
@@ -225,6 +236,7 @@ describe("InfoPanel - upload button logic", () => {
         canRequeue={false}
         onUpload={mockHandlers.onUpload}
         onRequeue={mockHandlers.onRequeue}
+        {...defaultInfoPanelProps}
       />,
     );
 
@@ -257,6 +269,7 @@ describe("InfoPanel - upload button logic", () => {
         canRequeue={false}
         onUpload={mockHandlers.onUpload}
         onRequeue={mockHandlers.onRequeue}
+        {...defaultInfoPanelProps}
       />,
     );
 
@@ -290,6 +303,7 @@ describe("InfoPanel - mutual exclusivity", () => {
         canRequeue={false}
         onUpload={mockHandlers.onUpload}
         onRequeue={mockHandlers.onRequeue}
+        {...defaultInfoPanelProps}
       />,
     );
 
@@ -319,6 +333,7 @@ describe("InfoPanel - mutual exclusivity", () => {
         canRequeue={false}
         onUpload={mockHandlers.onUpload}
         onRequeue={mockHandlers.onRequeue}
+        {...defaultInfoPanelProps}
       />,
     );
 
@@ -350,6 +365,7 @@ describe("InfoPanel - upload progress", () => {
         canRequeue={false}
         onUpload={mockHandlers.onUpload}
         onRequeue={mockHandlers.onRequeue}
+        {...defaultInfoPanelProps}
       />,
     );
 
@@ -379,6 +395,7 @@ describe("InfoPanel - upload progress", () => {
         canRequeue={false}
         onUpload={mockHandlers.onUpload}
         onRequeue={mockHandlers.onRequeue}
+        {...defaultInfoPanelProps}
       />,
     );
 
@@ -413,10 +430,91 @@ describe("InfoPanel - popover content", () => {
         canRequeue={false}
         onUpload={mockHandlers.onUpload}
         onRequeue={mockHandlers.onRequeue}
+        {...defaultInfoPanelProps}
       />,
     );
 
     expect(screen.getByText("Upload unavailable")).toBeTruthy();
+  });
+});
+
+describe("InfoPanel - animation estimate warnings", () => {
+  it("shows no warning when estimation thresholds are 0 (disabled)", () => {
+    const estimate = {
+      totalFrames: 9999,
+      totalPixels: 999999999,
+      canvasWidth: 4096,
+      canvasHeight: 2160,
+    };
+
+    const item = createTestTaskItem({
+      status: "processing",
+      outputName: "output.webp",
+    });
+
+    render(
+      <InfoPanel
+        item={item}
+        blobUrl={null}
+        statusText="processing"
+        outputDimensions={null}
+        destinations={mockDestinations}
+        canUpload={false}
+        canRequeue={false}
+        estimate={estimate}
+        estimationMaxFrames={0}
+        estimationMaxPixels={0}
+        onUpload={mockHandlers.onUpload}
+        onRequeue={mockHandlers.onRequeue}
+      />,
+    );
+
+    // Should still show the estimate text (toLocaleString format varies by locale)
+    expect(
+      screen.getByText(/9['\s,]?999 frames/i, { exact: false }),
+    ).toBeTruthy();
+
+    // Frame text should NOT have amber warning class
+    const framesSpan = screen.getByText(/9['\s,]?999 frames/i, {
+      exact: false,
+    });
+    expect(framesSpan.className).not.toContain("text-amber");
+  });
+
+  it("shows warning when estimate exceeds non-zero threshold", () => {
+    const estimate = {
+      totalFrames: 200,
+      totalPixels: 60_000_000,
+      canvasWidth: 1920,
+      canvasHeight: 1080,
+    };
+
+    const item = createTestTaskItem({
+      status: "processing",
+      outputName: "output.webp",
+    });
+
+    render(
+      <InfoPanel
+        item={item}
+        blobUrl={null}
+        statusText="processing"
+        outputDimensions={null}
+        destinations={mockDestinations}
+        canUpload={false}
+        canRequeue={false}
+        estimate={estimate}
+        estimationMaxFrames={ESTIMATION_MAX_FRAMES}
+        estimationMaxPixels={ESTIMATION_MAX_PIXELS}
+        onUpload={mockHandlers.onUpload}
+        onRequeue={mockHandlers.onRequeue}
+      />,
+    );
+
+    // Should show estimate text with amber warning styling
+    expect(screen.getByText(/200 frames/i)).toBeTruthy();
+    const framesSpan = screen.getByText(/200 frames/i);
+    expect(framesSpan.className).toContain("text-amber");
   });
 });
 
@@ -450,6 +548,7 @@ describe("InfoPanel - MP4 eligibility", () => {
         canRequeue={false}
         onUpload={mockHandlers.onUpload}
         onRequeue={mockHandlers.onRequeue}
+        {...defaultInfoPanelProps}
       />,
     );
 
@@ -487,6 +586,7 @@ describe("InfoPanel - MP4 eligibility", () => {
         canRequeue={false}
         onUpload={mockHandlers.onUpload}
         onRequeue={mockHandlers.onRequeue}
+        {...defaultInfoPanelProps}
       />,
     );
 
@@ -524,6 +624,7 @@ describe("InfoPanel - MP4 eligibility", () => {
         canRequeue={false}
         onUpload={mockHandlers.onUpload}
         onRequeue={mockHandlers.onRequeue}
+        {...defaultInfoPanelProps}
       />,
     );
 
@@ -561,6 +662,7 @@ describe("InfoPanel - MP4 eligibility", () => {
         canRequeue={false}
         onUpload={mockHandlers.onUpload}
         onRequeue={mockHandlers.onRequeue}
+        {...defaultInfoPanelProps}
       />,
     );
 

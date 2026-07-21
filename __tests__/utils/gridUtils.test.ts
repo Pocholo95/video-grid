@@ -7,6 +7,7 @@ import {
   getTimecodePosition,
   calculateSampleTimes,
   resolveTimestamps,
+  computeAnimationEstimate,
 } from "@/gridUtils";
 import { createTestMeta, createTestOpts } from "../helpers/mockServices";
 
@@ -277,6 +278,309 @@ describe("gridUtils", () => {
       const result = resolveTimestamps([50, 10, 30], 3, 100);
       expect(result[0]).toBeLessThan(result[1]);
       expect(result[1]).toBeLessThan(result[2]);
+    });
+  });
+
+  describe("computeAnimationEstimate", () => {
+    const mockMeta = createTestMeta({ duration: 100 });
+
+    it("returns null when animation is disabled", () => {
+      const opts = createTestOpts({ animated: false });
+      const result = computeAnimationEstimate(mockMeta, {
+        animated: opts.animated,
+        animSequence: opts.animSequence,
+        animSegments: opts.animSegments,
+        animDuration: opts.animDuration,
+        animFps: opts.animFps,
+        width: opts.width,
+        cols: opts.cols,
+        rows: opts.rows,
+        spacing: opts.spacing,
+        header: opts.header,
+        vrMode: opts.vrMode,
+        headerFontSizeAuto: opts.headerFontSizeAuto,
+        headerFontSize: opts.headerFontSize,
+      });
+      expect(result).toBeNull();
+    });
+
+    it("returns estimates when animation is enabled", () => {
+      const opts = createTestOpts({ animated: true });
+      const result = computeAnimationEstimate(mockMeta, {
+        animated: opts.animated,
+        animSequence: opts.animSequence,
+        animSegments: opts.animSegments,
+        animDuration: opts.animDuration,
+        animFps: opts.animFps,
+        width: opts.width,
+        cols: opts.cols,
+        rows: opts.rows,
+        spacing: opts.spacing,
+        header: opts.header,
+        vrMode: opts.vrMode,
+        headerFontSizeAuto: opts.headerFontSizeAuto,
+        headerFontSize: opts.headerFontSize,
+      });
+      expect(result).not.toBeNull();
+      expect(result!.totalFrames).toBeGreaterThan(0);
+      expect(result!.totalPixels).toBeGreaterThan(0);
+      expect(result!.canvasWidth).toBeGreaterThan(0);
+      expect(result!.canvasHeight).toBeGreaterThan(0);
+    });
+
+    it("calculates frames correctly in normal mode (duration * fps)", () => {
+      const opts = createTestOpts({
+        animated: true,
+        animSequence: false,
+        animDuration: 5,
+        animFps: 10,
+      });
+      const result = computeAnimationEstimate(mockMeta, {
+        animated: opts.animated,
+        animSequence: opts.animSequence,
+        animSegments: opts.animSegments,
+        animDuration: opts.animDuration,
+        animFps: opts.animFps,
+        width: opts.width,
+        cols: opts.cols,
+        rows: opts.rows,
+        spacing: opts.spacing,
+        header: opts.header,
+        vrMode: opts.vrMode,
+        headerFontSizeAuto: opts.headerFontSizeAuto,
+        headerFontSize: opts.headerFontSize,
+      });
+      // 5 seconds * 10 fps = 50 frames
+      expect(result!.totalFrames).toBe(50);
+    });
+
+    it("calculates frames correctly in sequence mode (segments * duration * fps)", () => {
+      const opts = createTestOpts({
+        animated: true,
+        animSequence: true,
+        animSegments: 3,
+        animDuration: 2,
+        animFps: 10,
+      });
+      const result = computeAnimationEstimate(mockMeta, {
+        animated: opts.animated,
+        animSequence: opts.animSequence,
+        animSegments: opts.animSegments,
+        animDuration: opts.animDuration,
+        animFps: opts.animFps,
+        width: opts.width,
+        cols: opts.cols,
+        rows: opts.rows,
+        spacing: opts.spacing,
+        header: opts.header,
+        vrMode: opts.vrMode,
+        headerFontSizeAuto: opts.headerFontSizeAuto,
+        headerFontSize: opts.headerFontSize,
+      });
+      // 3 segments * 2 seconds * 10 fps = 60 frames
+      expect(result!.totalFrames).toBe(60);
+    });
+
+    it("calculates total pixels as (canvasWidth * canvasHeight * totalFrames)", () => {
+      const opts = createTestOpts({
+        animated: true,
+        animSequence: false,
+        animDuration: 5,
+        animFps: 10,
+        header: false,
+      });
+      const result = computeAnimationEstimate(mockMeta, {
+        animated: opts.animated,
+        animSequence: opts.animSequence,
+        animSegments: opts.animSegments,
+        animDuration: opts.animDuration,
+        animFps: opts.animFps,
+        width: opts.width,
+        cols: opts.cols,
+        rows: opts.rows,
+        spacing: opts.spacing,
+        header: opts.header,
+        vrMode: opts.vrMode,
+        headerFontSizeAuto: opts.headerFontSizeAuto,
+        headerFontSize: opts.headerFontSize,
+      });
+      expect(result!.totalPixels).toBe(
+        result!.canvasWidth * result!.canvasHeight * result!.totalFrames,
+      );
+    });
+
+    it("includes header height in canvas height when header is enabled", () => {
+      const optsNoHeader = createTestOpts({
+        animated: true,
+        header: false,
+        animDuration: 5,
+        animFps: 10,
+      });
+      const optsWithHeader = createTestOpts({
+        animated: true,
+        header: true,
+        animDuration: 5,
+        animFps: 10,
+      });
+
+      const resultNoHeader = computeAnimationEstimate(mockMeta, {
+        animated: optsNoHeader.animated,
+        animSequence: optsNoHeader.animSequence,
+        animSegments: optsNoHeader.animSegments,
+        animDuration: optsNoHeader.animDuration,
+        animFps: optsNoHeader.animFps,
+        width: optsNoHeader.width,
+        cols: optsNoHeader.cols,
+        rows: optsNoHeader.rows,
+        spacing: optsNoHeader.spacing,
+        header: optsNoHeader.header,
+        vrMode: optsNoHeader.vrMode,
+        headerFontSizeAuto: optsNoHeader.headerFontSizeAuto,
+        headerFontSize: optsNoHeader.headerFontSize,
+      });
+
+      const resultWithHeader = computeAnimationEstimate(mockMeta, {
+        animated: optsWithHeader.animated,
+        animSequence: optsWithHeader.animSequence,
+        animSegments: optsWithHeader.animSegments,
+        animDuration: optsWithHeader.animDuration,
+        animFps: optsWithHeader.animFps,
+        width: optsWithHeader.width,
+        cols: optsWithHeader.cols,
+        rows: optsWithHeader.rows,
+        spacing: optsWithHeader.spacing,
+        header: optsWithHeader.header,
+        vrMode: optsWithHeader.vrMode,
+        headerFontSizeAuto: optsWithHeader.headerFontSizeAuto,
+        headerFontSize: optsWithHeader.headerFontSize,
+      });
+
+      expect(resultWithHeader!.canvasHeight).toBeGreaterThan(
+        resultNoHeader!.canvasHeight,
+      );
+    });
+
+    it("handles VR mode correctly", () => {
+      const opts = createTestOpts({
+        animated: true,
+        vrMode: "sbs-left",
+        animDuration: 5,
+        animFps: 10,
+      });
+      const result = computeAnimationEstimate(mockMeta, {
+        animated: opts.animated,
+        animSequence: opts.animSequence,
+        animSegments: opts.animSegments,
+        animDuration: opts.animDuration,
+        animFps: opts.animFps,
+        width: opts.width,
+        cols: opts.cols,
+        rows: opts.rows,
+        spacing: opts.spacing,
+        header: opts.header,
+        vrMode: opts.vrMode,
+        headerFontSizeAuto: opts.headerFontSizeAuto,
+        headerFontSize: opts.headerFontSize,
+      });
+      expect(result).not.toBeNull();
+      expect(result!.canvasWidth).toBeGreaterThan(0);
+      expect(result!.canvasHeight).toBeGreaterThan(0);
+    });
+
+    it("handles zero duration edge case", () => {
+      const opts = createTestOpts({
+        animated: true,
+        animDuration: 0,
+        animFps: 10,
+      });
+      const result = computeAnimationEstimate(mockMeta, {
+        animated: opts.animated,
+        animSequence: opts.animSequence,
+        animSegments: opts.animSegments,
+        animDuration: opts.animDuration,
+        animFps: opts.animFps,
+        width: opts.width,
+        cols: opts.cols,
+        rows: opts.rows,
+        spacing: opts.spacing,
+        header: opts.header,
+        vrMode: opts.vrMode,
+        headerFontSizeAuto: opts.headerFontSizeAuto,
+        headerFontSize: opts.headerFontSize,
+      });
+      // 0 duration means 0 frames, so 0 total pixels
+      expect(result!.totalFrames).toBe(0);
+      expect(result!.totalPixels).toBe(0);
+    });
+
+    it("rounds up frame count with ceil for fractional frames", () => {
+      const opts = createTestOpts({
+        animated: true,
+        animDuration: 5.5,
+        animFps: 3,
+      });
+      const result = computeAnimationEstimate(mockMeta, {
+        animated: opts.animated,
+        animSequence: opts.animSequence,
+        animSegments: opts.animSegments,
+        animDuration: opts.animDuration,
+        animFps: opts.animFps,
+        width: opts.width,
+        cols: opts.cols,
+        rows: opts.rows,
+        spacing: opts.spacing,
+        header: opts.header,
+        vrMode: opts.vrMode,
+        headerFontSizeAuto: opts.headerFontSizeAuto,
+        headerFontSize: opts.headerFontSize,
+      });
+      // ceil(5.5 * 3) = ceil(16.5) = 17
+      expect(result!.totalFrames).toBe(17);
+    });
+
+    it("produces consistent results for same inputs", () => {
+      const opts = createTestOpts({
+        animated: true,
+        animDuration: 10,
+        animFps: 15,
+        cols: 3,
+        rows: 3,
+        header: true,
+      });
+
+      const result1 = computeAnimationEstimate(mockMeta, {
+        animated: opts.animated,
+        animSequence: opts.animSequence,
+        animSegments: opts.animSegments,
+        animDuration: opts.animDuration,
+        animFps: opts.animFps,
+        width: opts.width,
+        cols: opts.cols,
+        rows: opts.rows,
+        spacing: opts.spacing,
+        header: opts.header,
+        vrMode: opts.vrMode,
+        headerFontSizeAuto: opts.headerFontSizeAuto,
+        headerFontSize: opts.headerFontSize,
+      });
+
+      const result2 = computeAnimationEstimate(mockMeta, {
+        animated: opts.animated,
+        animSequence: opts.animSequence,
+        animSegments: opts.animSegments,
+        animDuration: opts.animDuration,
+        animFps: opts.animFps,
+        width: opts.width,
+        cols: opts.cols,
+        rows: opts.rows,
+        spacing: opts.spacing,
+        header: opts.header,
+        vrMode: opts.vrMode,
+        headerFontSizeAuto: opts.headerFontSizeAuto,
+        headerFontSize: opts.headerFontSize,
+      });
+
+      expect(result1).toEqual(result2);
     });
   });
 });

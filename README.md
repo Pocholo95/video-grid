@@ -319,6 +319,11 @@ There are two modes for **Animated output**:
 Both modes are affected by the timestamps defined for each file in their
 respective [Timestamp Editor](#custom-timestamps).
 
+> **Note:** You can configure warning thresholds for large animations in the
+> **[Animations Tab](#animations-tab)** of the Settings dialog. These help
+> identify when an animated output might be too large for upload hosts or
+> browser memory limits.
+
 ### Animation settings
 
 The **Animation settings** panel is shown below the main options whenever
@@ -534,17 +539,25 @@ copy the same formats but for all the completed (and uploaded) tasks.
 
 ## Settings
 
-A few app-wide settings are available through the **⚙️ Settings** icon in the header:
+A few app-wide settings are available through the **⚙️ Settings** icon in the header. The settings dialog is organized into three tabs: **General**, **Uploads**, and **Animations**.
 
-| Setting                 | Description                                                                                                                                             |
-| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Themes**              | Choose a visual style for the app (Dark, Light, Dimmed, or Classic). The change visually applies immediately to the UI but need to be saved to persist. |
-| **Show Previews**       | Toggle visibility of thumbnail previews in the tasks list.                                                                                              |
-| **Upload Destinations** | Button that opens a new dialog window to manage the upload destinations for the generated files. See [Upload Destinations](#upload-destinations).       |
+### General Tab
 
-These settings are independent of presets; they persist separately and affect only the application's appearance and behavior, not your grid generation options.
+| Setting           | Description                                                                                                                                             |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Themes**        | Choose a visual style for the app (Dark, Light, Dimmed, or Classic). The change visually applies immediately to the UI but need to be saved to persist. |
+| **Show Previews** | Toggle visibility of thumbnail previews in the tasks list.                                                                                              |
 
-### Upload Destinations
+### Uploads Tab
+
+This tab manages upload destinations and CORS Tunnel status:
+
+| Setting          | Description                                                                                                       |
+| ---------------- | ----------------------------------------------------------------------------------------------------------------- |
+| **CORS Tunnel**  | Status and management for the [CORS Tunnel](#cors-restrictions) userscript.                                       |
+| **Destinations** | Configure, enable/disable, edit, and delete upload destinations. See [Upload Destinations](#upload-destinations). |
+
+#### Upload Destinations
 
 VidGrid-HTML supports several image/file hosting providers out of the box.
 Each provider has its own authentication requirements, URL format, and file
@@ -560,7 +573,7 @@ size limits.
 All destinations are configured in **Settings > Upload Destinations** and
 persist in `localStorage` between sessions.
 
-#### CORS restrictions
+##### CORS restrictions
 
 Some image hosts do not send proper `Access-Control-Allow-Origin` headers on
 their upload endpoints, which causes the browser to block the response with a
@@ -620,6 +633,17 @@ manager. From there you can:
   cancel.
   Destinations are stored in `localStorage` alongside presets and persist between
   sessions.
+
+### Animations Tab
+
+Found in the **Animations** tab of the Settings dialog, these thresholds help you identify when an animated output might be too large for upload hosts or browser memory limits:
+
+| Setting        | Description                                                                                                                    | Default    |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------------ | ---------- |
+| **Max Frames** | Warning threshold for total frame count in animated output. Values above this limit are highlighted with an amber warning.     | 120 frames |
+| **Max Pixels** | Warning threshold for total pixel count (canvas area × frames). Values above this limit are highlighted with an amber warning. | 50 MP      |
+
+Set either threshold to **0** to disable that warning. The warnings appear both in the Info Panel while processing (as "Animation estimates") and after completion (as "Output details") on each task card.
 
 ---
 

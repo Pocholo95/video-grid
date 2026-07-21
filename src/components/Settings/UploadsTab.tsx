@@ -1,19 +1,15 @@
-import { useEffect, useState } from "react";
-import { Cloud, Info, Pencil, Plus, Trash2 } from "lucide-react";
-import type { UploadDestination, DestinationType } from "../types";
-import { makeId } from "../utils";
-import { getProvider, getProviderDefaults } from "@/upload/providers";
-import { Button } from "@/components/ui/button";
-import { Switch } from "@/components/ui/switch";
+import { Cloud, Pencil, Plus, Trash2, Info } from "lucide-react";
+import { useSettingsStore } from "@/store/settingsStore";
 import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import {
   Select,
   SelectContent,
@@ -21,29 +17,40 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { cn } from "@/lib/utils";
+import { FieldDescription, FieldLabel, FieldSet } from "@/components/ui/field";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import type { UploadDestination, DestinationType } from "@/types";
+import { makeId } from "@/utils";
+import { getProvider, getProviderDefaults } from "@/upload/providers";
+import { cn } from "@/lib/utils";
 import {
   UPLOAD_DESTINATION_PROVIDERS,
   DEFAULT_DEST_ALLOWED_EXTENSIONS,
 } from "@/constants";
 import RangeNumberInput from "@/components/control/RangeNumberInput";
-
-/**
- * Returns all registered provider types. Derived from the provider registry
- * so that adding a new provider module automatically makes it available here.
- */
-function getAvailableTypes(): DestinationType[] {
-  return Object.keys(UPLOAD_DESTINATION_PROVIDERS) as DestinationType[];
-}
+import { useState } from "react";
+import CORSStatus from "./CORSStatus";
 
 const CHEVERETO_DEFAULTS = getProviderDefaults("chevereto");
 
-const EMPTY: Omit<UploadDestination, "id"> = {
+const EMPTY_DRAFT: {
+  name: string;
+  type: DestinationType;
+  apiKey: string;
+  url: string;
+  enabled: boolean;
+  allowedExtensions: string;
+  maxSizeMb: number;
+  options: Record<string, unknown>;
+} = {
   name: "",
   type: "chevereto",
   apiKey: "",
@@ -54,39 +61,35 @@ const EMPTY: Omit<UploadDestination, "id"> = {
   options: {},
 };
 
-interface Props {
-  open: boolean;
-  destinations: UploadDestination[];
-  onSave: (destinations: UploadDestination[]) => void;
-  onUpdate: (destinations: UploadDestination[]) => void;
-  onClose: () => void;
+function getAvailableTypes(): DestinationType[] {
+  return Object.keys(UPLOAD_DESTINATION_PROVIDERS) as DestinationType[];
 }
 
-export default function DestinationManager({
-  open,
-  destinations,
-  onSave,
-  onUpdate,
-  onClose,
-}: Props) {
-  const [list, setList] = useState<UploadDestination[]>(() =>
-    structuredClone(destinations),
+interface UploadsTabProps {
+  dialogOpen: boolean;
+}
+
+export default function UploadsTab({ dialogOpen }: UploadsTabProps) {
+  const settings = useSettingsStore((s) => s.settings);
+  const updateDestinations = useSettingsStore((s) => s.updateDestinations);
+
+  const [destList, setDestList] = useState<UploadDestination[]>(() =>
+    structuredClone(settings.destinations),
   );
   const [editing, setEditing] = useState<UploadDestination | null>(null);
-  const [draft, setDraft] = useState<Omit<UploadDestination, "id">>(EMPTY);
-  const [error, setError] = useState("");
+  const [draft, setDraft] = useState<typeof EMPTY_DRAFT>({ ...EMPTY_DRAFT });
+  const [draftError, setDraftError] = useState("");
+  const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
 
-  // Re‑initialize list from the latest saved settings every time dialog opens
-  useEffect(() => {
-    if (open) {
-      setList(structuredClone(destinations));
-    }
-  }, [open, destinations]);
+  // Sync when settings change externally
+  useState(() => {
+    // This is a placeholder to trigger re-render when needed
+  });
 
   const openAdd = () => {
-    setEditing({ id: "__new__", ...EMPTY });
-    setDraft({ ...EMPTY });
-    setError("");
+    setEditing({ id: "__new__", ...EMPTY_DRAFT });
+    setDraft({ ...EMPTY_DRAFT });
+    setDraftError("");
   };
 
   const openEdit = (d: UploadDestination) => {
@@ -101,68 +104,64 @@ export default function DestinationManager({
       maxSizeMb: d.maxSizeMb,
       options: d.options ?? {},
     });
-    setError("");
+    setDraftError("");
   };
 
   const cancelEdit = () => {
     setEditing(null);
-    setError("");
+    setDraftError("");
   };
 
   const confirmEdit = () => {
     if (!draft.name.trim()) {
-      setError("Name is required.");
+      setDraftError("Name is required.");
       return;
     }
 
-    // Normalize: trim and strip trailing slash so providers can safely append endpoints
     const normalizedUrl = draft.url.trim().replace(/\/+$/, "");
     if (!normalizedUrl) {
-      setError("Upload URL is required.");
+      setDraftError("Upload URL is required.");
       return;
     }
     try {
       new URL(normalizedUrl);
     } catch {
-      setError("Upload URL is not a valid URL.");
+      setDraftError("Upload URL is not a valid URL.");
       return;
     }
     if (!normalizedUrl.startsWith("https://")) {
-      setError("Upload URL must start with https://.");
+      setDraftError("Upload URL must start with https://.");
       return;
     }
 
-    // {key} placeholder validation is driven by provider config
+    const providerConfig = UPLOAD_DESTINATION_PROVIDERS[draft.type];
     if (
       providerConfig?.requiresKeyPlaceholder &&
       !normalizedUrl.includes("{key}")
     ) {
-      setError(
+      setDraftError(
         "Upload URL must contain {key} as a placeholder for the API key.",
       );
       return;
     }
 
-    // API key requirement is driven by provider config
     if (providerConfig?.apiKeyRequired && !draft.apiKey.trim()) {
-      setError("API key is required for this destination type.");
+      setDraftError("API key is required for this destination type.");
       return;
     }
 
-    // Merge provider-specific options with their default values
     const provider = getProvider(draft.type);
     const mergedOptions: Record<string, unknown> = {};
     for (const opt of provider.optionsSchema) {
       mergedOptions[opt.key] = draft.options?.[opt.key] ?? opt.defaultValue;
     }
 
-    // Validate & normalize allowedExtensions: comma-separated, alphanumeric only
     const rawExt = draft.allowedExtensions.trim();
     let normalizedExt = rawExt;
     if (rawExt) {
       const parts = rawExt.split(",").map((s) => s.trim().replace(/^\.+/, ""));
       if (parts.some((p) => p && /[^\w]/.test(p))) {
-        setError(
+        setDraftError(
           "Allowed extensions must be comma-separated alphanumeric names (e.g. jpg,webp).",
         );
         return;
@@ -182,76 +181,70 @@ export default function DestinationManager({
     };
 
     if (editing!.id === "__new__") {
-      const newList = [
-        ...list,
-        {
-          id: makeId(),
-          ...base,
-        },
-      ];
-      setList(newList);
-      onUpdate(newList); // Persist immediately
+      const newList = [...destList, { id: makeId(), ...base }];
+      setDestList(newList);
+      updateDestinations(newList);
     } else {
-      const newList = list.map((d) =>
+      const newList = destList.map((d) =>
         d.id === editing!.id ? { ...d, ...base } : d,
       );
-      setList(newList);
-      onUpdate(newList); // Persist immediately
+      setDestList(newList);
+      updateDestinations(newList);
     }
     setEditing(null);
-    setError("");
+    setDraftError("");
   };
 
-  const toggleEnabled = (id: string) => {
-    const newList = list.map((d) =>
+  const toggleDestEnabled = (id: string) => {
+    const newList = destList.map((d) =>
       d.id === id ? { ...d, enabled: !d.enabled } : d,
     );
-    setList(newList);
-    // Enabled state is persisted only when user clicks "Save & close" below
-    // (via onSave → updateDestinations → persistAppSettings)
+    setDestList(newList);
+    updateDestinations(newList);
   };
 
-  const removeItem = (id: string) => {
-    const newList = list.filter((d) => d.id !== id);
-    setList(newList);
-    onUpdate(newList); // Persist immediately
+  const confirmDeleteDest = () => {
+    if (deleteTarget) {
+      removeDest(deleteTarget);
+      setDeleteTarget(null);
+    }
+  };
+
+  const removeDest = (id: string) => {
+    const newList = destList.filter((d) => d.id !== id);
+    setDestList(newList);
+    updateDestinations(newList);
     setEditing(null);
-    setError("");
+    setDraftError("");
   };
 
-  const handleSaveAndClose = () => {
-    onSave(list);
-    onClose();
-  };
-
-  const handleDiscardAndClose = () => {
-    // Just close without saving - list will be reset on next open from parent
-    onClose();
-  };
-
-  // Provider config is computed once per render and reused in validation + UI
   const providerConfig = UPLOAD_DESTINATION_PROVIDERS[draft.type];
 
   return (
-    <Dialog
-      open={open}
-      onOpenChange={(isOpen) => !isOpen && handleDiscardAndClose()}
-    >
-      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Cloud className="size-5" />
-            <span>Upload Destinations</span>
-          </DialogTitle>
-        </DialogHeader>
+    <>
+      {/* CORS Tunnel Section */}
+      <CORSStatus dialogOpen={dialogOpen} />
 
-        <div className="flex flex-col gap-2">
-          {list.length === 0 && (
+      {/* Destinations Section */}
+      <FieldSet className="p-4 rounded-lg border bg-muted/30 min-w-0 mt-4">
+        <FieldLabel className="flex items-center gap-2 mb-2">
+          <Cloud className="size-4" />
+          Upload Destinations
+          <span className="text-muted-foreground text-xs font-normal">
+            ({destList.filter((d) => d.enabled).length}/{destList.length})
+          </span>
+        </FieldLabel>
+        <FieldDescription className="mb-3">
+          Configure where to upload the generated files
+        </FieldDescription>
+
+        <div className="flex flex-col gap-2 max-h-60 overflow-y-auto">
+          {destList.length === 0 && (
             <p className="text-muted-foreground text-sm">
               No destinations yet. Add one below.
             </p>
           )}
-          {list.map((d) => (
+          {destList.map((d) => (
             <div
               key={d.id}
               className={cn(
@@ -261,7 +254,7 @@ export default function DestinationManager({
             >
               <Switch
                 checked={d.enabled}
-                onCheckedChange={() => toggleEnabled(d.id)}
+                onCheckedChange={() => toggleDestEnabled(d.id)}
               />
               <span className="bg-secondary text-secondary-foreground rounded px-2 py-0.5 font-mono text-xs">
                 {d.type}
@@ -284,7 +277,7 @@ export default function DestinationManager({
                 <Button
                   variant="ghost"
                   size="icon"
-                  onClick={() => removeItem(d.id)}
+                  onClick={() => setDeleteTarget(d.id)}
                   title="Delete"
                   className="text-destructive hover:text-destructive"
                 >
@@ -296,7 +289,7 @@ export default function DestinationManager({
         </div>
 
         {editing && (
-          <div className="bg-card flex flex-col gap-4 rounded-md border p-4">
+          <div className="bg-card flex flex-col gap-4 rounded-md border p-4 mt-3">
             <h3 className="text-sm font-semibold">
               {editing.id === "__new__"
                 ? "Add destination"
@@ -412,7 +405,10 @@ export default function DestinationManager({
                 value={draft.allowedExtensions}
                 placeholder={DEFAULT_DEST_ALLOWED_EXTENSIONS}
                 onChange={(e) =>
-                  setDraft((p) => ({ ...p, allowedExtensions: e.target.value }))
+                  setDraft((p) => ({
+                    ...p,
+                    allowedExtensions: e.target.value,
+                  }))
                 }
               />
               <p className="text-muted-foreground text-xs">
@@ -504,8 +500,10 @@ export default function DestinationManager({
               ));
             })()}
 
-            {error && (
-              <p className="text-destructive text-sm font-medium">{error}</p>
+            {draftError && (
+              <p className="text-destructive text-sm font-medium">
+                {draftError}
+              </p>
             )}
 
             <div className="flex justify-end gap-2">
@@ -520,28 +518,35 @@ export default function DestinationManager({
         )}
 
         {!editing && (
-          <Button variant="outline" onClick={openAdd} className="w-full">
+          <Button variant="outline" onClick={openAdd} className="w-full mt-3">
             <Plus className="size-4" /> Add destination
           </Button>
         )}
+      </FieldSet>
 
-        <DialogFooter>
-          <Button
-            variant="secondary"
-            onClick={handleDiscardAndClose}
-            disabled={editing !== null}
-          >
-            Discard changes
-          </Button>
-          <Button
-            variant="default"
-            onClick={handleSaveAndClose}
-            disabled={editing !== null}
-          >
-            Save & close
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+      <AlertDialog
+        open={deleteTarget !== null}
+        onOpenChange={(isOpen) => !isOpen && setDeleteTarget(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete destination?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently remove the upload destination. This action
+              cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmDeleteDest}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   );
 }

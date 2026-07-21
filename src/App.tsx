@@ -44,17 +44,9 @@ export default function App() {
   const downloadAll = useUiStore((s) => s.downloadAll);
 
   const settings = useSettingsStore((s) => s.settings);
-  const showSettingsDialog = useSettingsStore((s) => s.showSettingsDialog);
   const handleOpenSettingsDialog = useSettingsStore(
     (s) => s.handleOpenSettingsDialog,
   );
-  const handleCancelSettings = useSettingsStore((s) => s.handleCancelSettings);
-  const saveAndCloseSettings = useSettingsStore((s) => s.saveAndCloseSettings);
-  const handleThemeChange = useSettingsStore((s) => s.handleThemeChange);
-  const handleShowPreviewChange = useSettingsStore(
-    (s) => s.handleShowPreviewChange,
-  );
-  const updateDestinations = useSettingsStore((s) => s.updateDestinations);
   const updateSettings = useSettingsStore((s) => s.updateSettings);
 
   // --- Hooks ---
@@ -215,22 +207,8 @@ export default function App() {
 
       <Footer />
 
-      {/* Settings Dialog with nested Upload Destinations */}
-      <Settings
-        open={showSettingsDialog}
-        theme={settings.theme}
-        showPreview={settings.showPreview}
-        corsModalDismissed={!!settings.corsModalDismissed}
-        destinations={settings.destinations}
-        onThemeChange={handleThemeChange}
-        onShowPreviewChange={handleShowPreviewChange}
-        onCorsModalDismissedChange={(dismissed) =>
-          updateSettings({ corsModalDismissed: dismissed })
-        }
-        onSaveAndClose={saveAndCloseSettings}
-        onCancel={handleCancelSettings}
-        updateDestinations={updateDestinations}
-      />
+      {/* Settings Dialog */}
+      <Settings />
     </div>
   );
 }

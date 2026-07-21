@@ -31,6 +31,8 @@ interface Props {
   hardMin?: number;
   /** Invisible absolute maximum (defaults to max if not provided). */
   hardMax?: number;
+  /** Custom width for the text input field (CSS width string like "100px" or "8rem"). When not provided, defaults to "w-21" (84px). */
+  textInputWidth?: string;
 }
 
 /**
@@ -54,6 +56,7 @@ export default function RangeNumberInput({
   unbounded = false,
   hardMin,
   hardMax,
+  textInputWidth,
 }: Props) {
   const containerRef = React.useRef<HTMLDivElement>(null);
   const [hoverRef, isArmed] = useHoverArm(250);
@@ -176,12 +179,14 @@ export default function RangeNumberInput({
               }
             }}
             className={cn(
-              "w-21 text-right tabular-nums",
+              "text-right tabular-nums",
+              !textInputWidth && "w-21",
               isOutOfRange && "border-ring",
             )}
-            style={
-              suffix ? { paddingRight: `${suffixWidth + 16}px` } : undefined
-            }
+            style={{
+              ...(textInputWidth ? { width: textInputWidth } : {}),
+              ...(suffix ? { paddingRight: `${suffixWidth + 16}px` } : {}),
+            }}
           />
           {suffix && (
             <span
