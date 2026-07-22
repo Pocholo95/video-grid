@@ -52,18 +52,18 @@ export default function ControlPanel({
           presets={presets}
           setPresets={setPresets}
         />
-        <GridSection
-          opts={opts}
-          setOpts={setOpts}
-          expanded={sections.grid}
-          onToggle={() => toggleSection("grid")}
-          groupKey="control-panel"
-        />
         <OutputModesSection
           opts={opts}
           setOpts={setOpts}
           expanded={sections.modes}
           onToggle={() => toggleSection("modes")}
+          groupKey="control-panel"
+        />
+        <GridSection
+          opts={opts}
+          setOpts={setOpts}
+          expanded={sections.grid}
+          onToggle={() => toggleSection("grid")}
           groupKey="control-panel"
         />
         <StyleSection

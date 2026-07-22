@@ -17,7 +17,7 @@ import {
 } from "@/components/ui/popover";
 import Section from "./Section";
 import RangeNumberInput from "./RangeNumberInput";
-import type { SavedOptions, VrMode } from "../../types";
+import type { OutputMode, SavedOptions, VrMode } from "../../types";
 
 interface Props {
   opts: SavedOptions;
@@ -34,15 +34,15 @@ export default function OutputModesSection({
   onToggle,
   groupKey,
 }: Props) {
-  const isAnimated = opts.animated ?? false;
-  const isSequence = isAnimated && (opts.animSequence ?? false);
+  const outputMode = opts.outputMode ?? DEFAULTS.outputMode;
+  const isAnimated = outputMode === "animated" || outputMode === "sequence";
+  const isSequence = outputMode === "sequence";
+  const isGallery = outputMode === "gallery";
   const isVideoWithAudio =
     isSequence &&
     (opts.sequenceMode ?? DEFAULTS.sequenceMode) === "video_with_audio";
 
   // Reactively enforce constraints when "Video with audio" is active.
-  // This ensures the UI state is consistent even if the user toggles sequence
-  // mode off, changes options, and re-enables it.
   useEffect(() => {
     if (!isVideoWithAudio) return;
     const needsChange =
@@ -59,21 +59,21 @@ export default function OutputModesSection({
     }
   }, [isVideoWithAudio, opts, setOpts]);
 
-  const checkField = (key: "header" | "animated" | "animSequence") => ({
+  const checkField = (key: "header") => ({
     checked: opts[key] ?? false,
     onCheckedChange: (checked: boolean | "indeterminate") => {
       const val = checked === true;
-      const next = { ...opts, [key]: val };
-      // Sequence requires animated to be on
-      if (key === "animated" && !val) {
-        next.animSequence = false;
-      }
-      setOpts(next);
+      setOpts({ ...opts, [key]: val });
     },
   });
 
-  // Use items-start so animated sub-options expanding doesn't shift the right
-  // column vertically.
+  const handleModeChange = (mode: OutputMode) => {
+    setOpts({
+      ...opts,
+      outputMode: mode,
+    });
+  };
+
   return (
     <Section
       label="Output Modes"
@@ -82,37 +82,57 @@ export default function OutputModesSection({
       groupKey={groupKey}
       bodyClassName="grid grid-cols-1 gap-4 border-t p-4 sm:grid-cols-2 sm:items-start"
     >
-      {/* Left column: Timecode / Header / Preview / VR */}
+      {/* Left column: Output mode / Timecode / Header / VR */}
       <div className="flex flex-col gap-3">
-        <Field orientation="horizontal">
-          <Switch
-            id="cp-chk-header"
-            label="Show header metadata"
-            disabled={isVideoWithAudio}
-            {...checkField("header")}
-          />
-        </Field>
         <Field>
-          <FieldLabel htmlFor="cp-tc-pos">Timecode position</FieldLabel>
-          <Select
-            value={opts.tcPosition}
-            disabled={isVideoWithAudio}
-            onValueChange={(v) =>
-              setOpts({ ...opts, tcPosition: v as SavedOptions["tcPosition"] })
-            }
-          >
-            <SelectTrigger id="cp-tc-pos" className="w-full">
+          <FieldLabel htmlFor="cp-output-mode">Output mode</FieldLabel>
+          <Select value={outputMode} onValueChange={handleModeChange}>
+            <SelectTrigger id="cp-output-mode" className="w-full">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="disabled">Disabled</SelectItem>
-              <SelectItem value="top-left">Top-Left</SelectItem>
-              <SelectItem value="top-right">Top-Right</SelectItem>
-              <SelectItem value="bottom-left">Bottom-Left</SelectItem>
-              <SelectItem value="bottom-right">Bottom-Right</SelectItem>
+              <SelectItem value="static">Static Grid</SelectItem>
+              <SelectItem value="animated">Animated Grid</SelectItem>
+              <SelectItem value="sequence">Sequence</SelectItem>
+              <SelectItem value="gallery">Gallery</SelectItem>
             </SelectContent>
           </Select>
         </Field>
+        {!isGallery && !isVideoWithAudio && (
+          <Field orientation="horizontal">
+            <Switch
+              id="cp-chk-header"
+              className="my-2.5"
+              label="Show metadata header"
+              {...checkField("header")}
+            />
+          </Field>
+        )}
+        {!isVideoWithAudio && (
+          <Field>
+            <FieldLabel htmlFor="cp-tc-pos">Timecode position</FieldLabel>
+            <Select
+              value={opts.tcPosition}
+              onValueChange={(v) =>
+                setOpts({
+                  ...opts,
+                  tcPosition: v as SavedOptions["tcPosition"],
+                })
+              }
+            >
+              <SelectTrigger id="cp-tc-pos" className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="disabled">Disabled</SelectItem>
+                <SelectItem value="top-left">Top-Left</SelectItem>
+                <SelectItem value="top-right">Top-Right</SelectItem>
+                <SelectItem value="bottom-left">Bottom-Left</SelectItem>
+                <SelectItem value="bottom-right">Bottom-Right</SelectItem>
+              </SelectContent>
+            </Select>
+          </Field>
+        )}
         <Field>
           <FieldLabel htmlFor="cp-vr">VR Video</FieldLabel>
           <Select
@@ -135,52 +155,12 @@ export default function OutputModesSection({
         </Field>
       </div>
 
-      {/* Right column: Animated WebP */}
+      {/* Right column: Mode-specific options */}
       <div className="flex flex-col gap-3">
-        <Field orientation="horizontal">
-          <Switch
-            id="cp-chk-animated"
-            label="Animated output"
-            {...checkField("animated")}
-          />
-        </Field>
+        {/* Animated + Sequence options */}
         {isAnimated && (
           <div className="bg-muted/30 grid grid-cols-1 lg:grid-cols-2 gap-3 rounded-md border p-3">
-            {/* Sequence toggle inside animated options */}
-            <Field
-              orientation="horizontal"
-              className="col-span-1 lg:col-span-2 items-center gap-2"
-            >
-              <Switch
-                id="cp-chk-sequence"
-                label="Sequence mode"
-                {...checkField("animSequence")}
-              />
-              <Popover>
-                <PopoverTrigger asChild>
-                  <button
-                    type="button"
-                    className="size-6 flex items-center justify-center rounded-full text-muted-foreground hover:text-foreground transition-colors"
-                    aria-label="About Sequence mode"
-                  >
-                    <Info className="size-4" />
-                  </button>
-                </PopoverTrigger>
-                <PopoverContent className="max-w-72 text-xs leading-relaxed">
-                  <p className="font-medium mb-1">Sequence mode</p>
-                  <p>
-                    Instead of a grid, generates a single-cell output that plays
-                    video segments sequentially like a fast visual summary of
-                    the entire video.
-                  </p>
-                  <p className="mt-1 text-muted-foreground">
-                    Once enabled you can adjust the number of segments,
-                    duration, and FPS below to control the output.
-                  </p>
-                </PopoverContent>
-              </Popover>
-            </Field>
-            {/* Segments - only shown in sequence mode */}
+            {/* Sequence sub-options */}
             {isSequence && (
               <Field>
                 <FieldLabel htmlFor="cp-seq-segments">
@@ -198,7 +178,6 @@ export default function OutputModesSection({
                 />
               </Field>
             )}
-            {/* Sequence render mode - only shown in sequence mode */}
             {isSequence && (
               <Field>
                 <div className="flex items-center gap-2">
@@ -336,6 +315,59 @@ export default function OutputModesSection({
                 />
               </Field>
             )}
+          </div>
+        )}
+        {/* Gallery-specific options */}
+        {isGallery && (
+          <div className="bg-muted/30 grid grid-cols-1 gap-3 rounded-md border p-3">
+            <Field>
+              <FieldLabel htmlFor="cp-gallery-count">
+                Number of frames
+              </FieldLabel>
+              <RangeNumberInput
+                id="cp-gallery-count"
+                value={opts.galleryCount ?? DEFAULTS.galleryCount ?? 6}
+                min={1}
+                max={20}
+                onChange={(v) => setOpts({ ...opts, galleryCount: v })}
+                unbounded
+                hardMin={1}
+                hardMax={100}
+              />
+            </Field>
+            <Field orientation="horizontal">
+              <Switch
+                id="cp-chk-gallery-original"
+                label="Original resolution"
+                checked={
+                  opts.galleryOriginalResolution ??
+                  DEFAULTS.galleryOriginalResolution
+                }
+                onCheckedChange={(checked) => {
+                  const val = checked === true;
+                  setOpts({ ...opts, galleryOriginalResolution: val });
+                }}
+              />
+              <Popover>
+                <PopoverTrigger asChild>
+                  <button
+                    type="button"
+                    className="size-6 flex items-center justify-center rounded-full text-muted-foreground hover:text-foreground transition-colors"
+                    aria-label="About Original resolution"
+                  >
+                    <Info className="size-4" />
+                  </button>
+                </PopoverTrigger>
+                <PopoverContent className="max-w-72 text-xs leading-relaxed">
+                  <p className="font-medium mb-1">Original resolution</p>
+                  <p>
+                    When enabled, each frame is captured at the video's native
+                    resolution instead of the configured cell width. This
+                    produces larger file sizes but preserves full image quality.
+                  </p>
+                </PopoverContent>
+              </Popover>
+            </Field>
           </div>
         )}
       </div>

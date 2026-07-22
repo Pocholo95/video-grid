@@ -224,6 +224,37 @@ export interface SequenceRenderOptions extends StaticGridRenderOptions {
   format: "webp" | "mp4";
 }
 
+/**
+ * Gallery mode rendering options.
+ * Captures individual JPEG frames at specified timestamps.
+ */
+export interface GalleryRenderOptions {
+  /** Output canvas width in pixels (used when originalResolution is false) */
+  width: number;
+  /** Number of frames to capture */
+  count: number;
+  /** Position of the timecode overlay on each cell */
+  tcPosition: Position;
+  /** Background color of the canvas (hex string) */
+  bgColor: string;
+  /** Color of timecode text (hex string) */
+  textColor: string;
+  /** 360° VR cropping mode */
+  vrMode: VrMode;
+  /** Font family for timecode overlay text */
+  fontFamily: string;
+  /** When true, timecode font size scales with canvas width */
+  tcFontSizeAuto: boolean;
+  /** Explicit timecode font size in pixels */
+  tcFontSize: number;
+  /** Duration of source video in seconds */
+  duration: number;
+  /** When true, use full native video resolution */
+  originalResolution: boolean;
+  /** User-supplied timestamps, or undefined for auto-spaced */
+  customTimestamps: number[] | undefined;
+}
+
 /** Return type for grid rendering methods */
 export interface GridRenderOutput {
   /** Suggested file name for the rendered output */
@@ -259,6 +290,13 @@ export type EncodeProgressCallback = (data: {
 export type SequenceSegmentCallback = (
   segmentIndex: number,
   totalSegments: number,
+  timestampSec: number,
+) => void;
+
+/** Callback for gallery frame progress */
+export type GalleryFrameCallback = (
+  frameIndex: number,
+  totalFrames: number,
   timestampSec: number,
 ) => void;
 
@@ -304,6 +342,19 @@ export interface IGridRenderer {
     onEncodeProgress: EncodeProgressCallback,
     onWarning: WarningCallback,
   ): Promise<GridRenderOutput>;
+
+  /**
+   * Render individual JPEG frames for Gallery mode output.
+   * Returns an array of {blob, filename} pairs.
+   */
+  renderGallery(
+    file: File,
+    meta: VideoMetadata,
+    opts: GalleryRenderOptions,
+    isCancelled: () => boolean,
+    onFrameDone: GalleryFrameCallback,
+    onWarning: WarningCallback,
+  ): Promise<{ blob: Blob; filename: string }[]>;
 
   /** Release resources (async to clean up cached FFmpeg virtual filesystem files) */
   destroy(): Promise<void>;

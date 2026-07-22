@@ -16,6 +16,8 @@ import type {
   EncodeProgressCallback,
   WarningCallback,
   SequenceSegmentCallback,
+  GalleryRenderOptions,
+  GalleryFrameCallback,
 } from "../types/service";
 import type { VideoMetadata, VrMode } from "../types";
 import {
@@ -1258,6 +1260,219 @@ export class GridRenderer implements IGridRenderer {
     } finally {
       this.ffmpeg.offProgress(progressHandler);
     }
+  }
+
+  /** - Gallery Mode */
+
+  public async renderGallery(
+    file: File,
+    meta: VideoMetadata,
+    opts: GalleryRenderOptions,
+    isCancelled: () => boolean,
+    onFrameDone: GalleryFrameCallback,
+    onWarning: WarningCallback,
+  ): Promise<{ blob: Blob; filename: string }[]> {
+    const duration = Math.max(1, opts.duration || 1);
+    const count = Math.max(1, opts.count);
+    const vrActive = opts.vrMode !== "disabled";
+
+    const times =
+      opts.customTimestamps && opts.customTimestamps.length > 0
+        ? resolveTimestamps(opts.customTimestamps, count, duration)
+        : calculateSampleTimes(count, duration);
+
+    const decoder = await setupVideoDecoder(file, meta, onWarning);
+    const video = decoder.video;
+    const videoCleanup = decoder.videoCleanup;
+    let canNativelyPlay = decoder.canNativelyPlay;
+
+    const baseName = file.name.replace(/\.[^.]+$/, "");
+    const results: { blob: Blob; filename: string }[] = [];
+
+    let ffmpegFailedFrames = 0;
+    const extractOneFFmpegFrame = async (
+      index: number,
+      timestamp: number,
+      targetW: number,
+      targetH: number,
+    ): Promise<ImageBitmap | null> => {
+      log(
+        `  [Gallery] Switching to FFmpeg frame extraction ` +
+          `for frame ${index + 1}/${count}…`,
+      );
+      const bitmap = await this.extractFrameViaFFmpeg(
+        file,
+        timestamp,
+        isCancelled,
+        targetW,
+        targetH,
+        meta.rotation,
+      );
+      if (!bitmap) {
+        ffmpegFailedFrames++;
+        onWarning(`FFmpeg frame ${index + 1}/${count} failed to decode`);
+        if (ffmpegFailedFrames > 2) {
+          throw new Error(
+            "FFmpeg decoding failed repeatedly — " +
+              "likely OOM or unsupported codec.",
+          );
+        }
+      }
+      return bitmap;
+    };
+
+    for (let i = 0; i < times.length; i++) {
+      if (isCancelled()) {
+        // Already-captured frame blobs will be garbage collected.
+        throw new DOMException("Processing cancelled", "AbortError");
+      }
+
+      const tSec = times[i];
+      log(
+        `  [Gallery] Frame ${i + 1}/${count} — ` +
+          `t=${tSec.toFixed(3)}s (${formatTime(tSec)}) ` +
+          `from "${file.name}"`,
+      );
+
+      // Determine target dimensions
+      let targetW: number;
+      let targetH: number;
+      if (opts.originalResolution) {
+        targetW = meta.width;
+        targetH = meta.height;
+      } else {
+        // Use configured width, derive height from aspect ratio
+        targetW = opts.width;
+        targetH = Math.round(targetW * (meta.height / meta.width));
+      }
+
+      let frameBlob: Blob | null = null;
+
+      // Try native capture first
+      if (canNativelyPlay) {
+        try {
+          await seekVideo(video, tSec);
+          const tmpCanvas = document.createElement("canvas");
+          tmpCanvas.width = targetW;
+          tmpCanvas.height = targetH;
+          const tmpCtx = tmpCanvas.getContext("2d")!;
+          tmpCtx.fillStyle = opts.bgColor;
+          tmpCtx.fillRect(0, 0, targetW, targetH);
+          if (vrActive) {
+            const vw = video.videoWidth || meta.width;
+            const vh = video.videoHeight || meta.height;
+            const { sx, sy, sw, sh } = getVrCropRect(
+              vw,
+              vh,
+              opts.vrMode as Exclude<VrMode, "disabled">,
+            );
+            tmpCtx.drawImage(video, sx, sy, sw, sh, 0, 0, targetW, targetH);
+          } else {
+            tmpCtx.drawImage(video, 0, 0, targetW, targetH);
+          }
+          // Draw timecode overlay
+          if (opts.tcPosition !== "disabled") {
+            drawTimecodeOverlay(
+              tmpCtx,
+              tSec,
+              0,
+              0,
+              targetW,
+              targetH,
+              targetW,
+              opts.tcPosition,
+              opts.bgColor,
+              opts.textColor,
+              opts.fontFamily,
+              opts.tcFontSizeAuto,
+              opts.tcFontSize,
+            );
+          }
+          const dataUrl = tmpCanvas.toDataURL("image/jpeg", JPEG_QUALITY);
+          const resp = await fetch(dataUrl);
+          frameBlob = await resp.blob();
+        } catch (seekErr) {
+          const msg =
+            seekErr instanceof Error ? seekErr.message : String(seekErr);
+          warn(`  [Gallery] Native seek failed at frame ${i + 1}: ${msg}`);
+          onWarning(
+            `Native seek failed at frame ${i + 1} (${msg}) ` +
+              `— switching to FFmpeg`,
+          );
+          canNativelyPlay = false;
+        }
+      }
+
+      // FFmpeg fallback
+      if (!frameBlob && !canNativelyPlay) {
+        try {
+          const bitmap = await extractOneFFmpegFrame(i, tSec, targetW, targetH);
+          if (bitmap) {
+            const tmpCanvas = document.createElement("canvas");
+            tmpCanvas.width = targetW;
+            tmpCanvas.height = targetH;
+            const tmpCtx = tmpCanvas.getContext("2d")!;
+            tmpCtx.fillStyle = opts.bgColor;
+            tmpCtx.fillRect(0, 0, targetW, targetH);
+            if (vrActive) {
+              const { sx, sy, sw, sh } = getVrCropRect(
+                bitmap.width,
+                bitmap.height,
+                opts.vrMode as Exclude<VrMode, "disabled">,
+              );
+              tmpCtx.drawImage(bitmap, sx, sy, sw, sh, 0, 0, targetW, targetH);
+            } else {
+              tmpCtx.drawImage(bitmap, 0, 0, targetW, targetH);
+            }
+            bitmap.close();
+            // Draw timecode overlay
+            if (opts.tcPosition !== "disabled") {
+              drawTimecodeOverlay(
+                tmpCtx,
+                tSec,
+                0,
+                0,
+                targetW,
+                targetH,
+                targetW,
+                opts.tcPosition,
+                opts.bgColor,
+                opts.textColor,
+                opts.fontFamily,
+                opts.tcFontSizeAuto,
+                opts.tcFontSize,
+              );
+            }
+            const dataUrl = tmpCanvas.toDataURL("image/jpeg", JPEG_QUALITY);
+            const resp = await fetch(dataUrl);
+            frameBlob = await resp.blob();
+          } else {
+            onWarning(
+              `FFmpeg returned no image for frame ${i + 1} ` +
+                `— frame skipped`,
+            );
+          }
+        } catch (ffErr) {
+          const msg = ffErr instanceof Error ? ffErr.message : String(ffErr);
+          errlog(
+            `  [Gallery] FFmpeg extraction failed at frame ${i + 1}:`,
+            msg,
+          );
+          onWarning(`FFmpeg extraction failed at frame ${i + 1} (${msg})`);
+        }
+      }
+
+      if (frameBlob) {
+        const frameNum = String(i + 1).padStart(3, "0");
+        const filename = `${baseName}_frame_${frameNum}.jpg`;
+        results.push({ blob: frameBlob, filename });
+        onFrameDone(i, count, tSec);
+      }
+    }
+
+    videoCleanup();
+    log(`  [Gallery] Complete: ${results.length}/${count} frames captured`);
+    return results;
   }
 
   private async encodeAnimatedWebPFromFS(

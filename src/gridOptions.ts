@@ -5,6 +5,7 @@ import type {
   AnimatedGridRenderOptions,
   CellExtractionOptions,
   SequenceRenderOptions,
+  GalleryRenderOptions,
 } from "./types/service";
 
 /**
@@ -80,6 +81,42 @@ export function buildAnimatedGridOptions(
       Math.max(5, opts.webpQuality ?? DEFAULTS.webpQuality),
     ),
     format: opts.animFormat ?? DEFAULTS.animFormat,
+  };
+}
+
+/**
+ * Build gallery mode render options for a single task item.
+ * Gallery mode captures individual JPEG frames at specified timestamps,
+ * returning separate image files instead of a composed grid.
+ */
+export function buildGalleryOptions(
+  opts: SavedOptions,
+  item: TaskItem,
+  meta: VideoMetadata,
+): GalleryRenderOptions {
+  const customTimestamps =
+    item.timestampMode === "custom" &&
+    item.customTimestamps &&
+    item.customTimestamps.length > 0
+      ? item.customTimestamps
+      : undefined;
+
+  return {
+    width: Math.max(MIN_CELL_WIDTH, opts.width || DEFAULTS.width),
+    count: Math.max(1, opts.galleryCount ?? DEFAULTS.galleryCount ?? 6),
+    tcPosition: opts.tcPosition ?? DEFAULTS.tcPosition,
+    bgColor: opts.bgColor || DEFAULTS.bgColor,
+    textColor: opts.textColor || DEFAULTS.textColor,
+    vrMode: opts.vrMode ?? DEFAULTS.vrMode,
+    fontFamily: opts.fontFamily ?? DEFAULTS.fontFamily,
+    tcFontSizeAuto: opts.tcFontSizeAuto ?? DEFAULTS.tcFontSizeAuto,
+    tcFontSize: opts.tcFontSize ?? DEFAULTS.tcFontSize,
+    duration: Math.max(1, meta.duration || 1),
+    originalResolution:
+      opts.galleryOriginalResolution ??
+      DEFAULTS.galleryOriginalResolution ??
+      true,
+    customTimestamps,
   };
 }
 

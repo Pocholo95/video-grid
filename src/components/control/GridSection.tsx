@@ -18,6 +18,7 @@ import { Switch } from "@/components/ui/switch";
 import { Field, FieldLabel } from "@/components/ui/field";
 import Section from "./Section";
 import RangeNumberInput from "./RangeNumberInput";
+import { DEFAULTS } from "../../constants";
 import type { GridTemplate, SavedOptions } from "../../types";
 
 interface Props {
@@ -38,6 +39,12 @@ export default function GridSection({
   const [showTemplateEditor, setShowTemplateEditor] = useState(false);
   const [confirmDiscardTemplate, setConfirmDiscardTemplate] = useState(false);
 
+  const outputMode = opts.outputMode ?? DEFAULTS.outputMode;
+  const isGridLocked = outputMode === "sequence" || outputMode === "gallery";
+  const isGallery = outputMode === "gallery";
+  const galleryOriginalRes =
+    isGallery &&
+    (opts.galleryOriginalResolution ?? DEFAULTS.galleryOriginalResolution);
   const hasTemplate = !!(
     opts.gridTemplate && opts.gridTemplate.cells.length > 0
   );
@@ -80,43 +87,54 @@ export default function GridSection({
     ? new Set(opts.gridTemplate.cells.map((c) => c.y)).size
     : 0;
 
+  // In gallery mode with original resolution, the section has nothing to show
+  // (width is hidden, grid is locked). Hide it entirely.
+  if (isGallery && galleryOriginalRes) {
+    return null;
+  }
+
   return (
     <>
       <Section
-        label="Grid"
+        label={isGridLocked ? "Output Dimensions" : "Grid"}
         expanded={expanded}
         onToggle={onToggle}
         groupKey={groupKey}
         bodyClassName="sm:grid-cols-1 lg:grid-cols-2"
       >
-        <Field>
-          <FieldLabel htmlFor="cp-width">Output width (px)</FieldLabel>
-          <RangeNumberInput
-            id="cp-width"
-            value={opts.width}
-            min={240}
-            max={3840}
-            step={10}
-            onChange={(v) => setOpts({ ...opts, width: v })}
-            suffix="px"
-            unbounded
-            hardMin={240}
-            hardMax={16384}
-          />
-        </Field>
-        <Field>
-          <FieldLabel htmlFor="cp-spacing">Cell spacing (px)</FieldLabel>
-          <RangeNumberInput
-            id="cp-spacing"
-            value={opts.spacing}
-            min={0}
-            max={48}
-            onChange={(v) => setOpts({ ...opts, spacing: v })}
-            suffix="px"
-            disabled={!!opts.animSequence}
-          />
-        </Field>
-        {!isCustomTemplate && (
+        {!galleryOriginalRes && (
+          <Field>
+            <FieldLabel htmlFor="cp-width">
+              {isGallery ? "Image width (px)" : "Output width (px)"}
+            </FieldLabel>
+            <RangeNumberInput
+              id="cp-width"
+              value={opts.width}
+              min={240}
+              max={3840}
+              step={10}
+              onChange={(v) => setOpts({ ...opts, width: v })}
+              suffix="px"
+              unbounded
+              hardMin={240}
+              hardMax={16384}
+            />
+          </Field>
+        )}
+        {!isGridLocked && (
+          <Field>
+            <FieldLabel htmlFor="cp-spacing">Cell spacing (px)</FieldLabel>
+            <RangeNumberInput
+              id="cp-spacing"
+              value={opts.spacing}
+              min={0}
+              max={48}
+              onChange={(v) => setOpts({ ...opts, spacing: v })}
+              suffix="px"
+            />
+          </Field>
+        )}
+        {!isGridLocked && !isCustomTemplate && (
           <>
             <Field>
               <FieldLabel htmlFor="cp-cols">Grid columns</FieldLabel>
@@ -128,7 +146,6 @@ export default function GridSection({
                 onChange={(v) => setOpts({ ...opts, cols: v })}
                 unbounded
                 hardMax={50}
-                disabled={!!opts.animSequence}
               />
             </Field>
             <Field>
@@ -141,47 +158,48 @@ export default function GridSection({
                 onChange={(v) => setOpts({ ...opts, rows: v })}
                 unbounded
                 hardMax={50}
-                disabled={!!opts.animSequence}
               />
             </Field>
           </>
         )}
-        <div className="bg-muted/30 flex flex-col gap-3 rounded-md border p-3 lg:col-span-2">
-          <Field orientation="horizontal">
-            <Switch
-              id="cp-tpl-toggle"
-              label="Custom grid template"
-              checked={isCustomTemplate}
-              onCheckedChange={handleToggleTemplate}
-              disabled={!!opts.animSequence}
-            />
-          </Field>
-          {isCustomTemplate && opts.gridTemplate && (
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              {/* Left: grid preview */}
-              <div className="bg-card overflow-x-auto rounded-md border p-2">
-                <GridPreview template={opts.gridTemplate} />
+        {!isGridLocked && (
+          <div className="bg-muted/30 flex flex-col gap-3 rounded-md border p-3 lg:col-span-2">
+            <Field orientation="horizontal">
+              <Switch
+                id="cp-tpl-toggle"
+                label="Custom grid template"
+                checked={isCustomTemplate}
+                onCheckedChange={handleToggleTemplate}
+              />
+            </Field>
+            {isCustomTemplate && opts.gridTemplate && (
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                {/* Left: grid preview */}
+                <div className="bg-card overflow-x-auto rounded-md border p-2">
+                  <GridPreview template={opts.gridTemplate} />
+                </div>
+                {/* Right: summary + edit button */}
+                <div className="flex flex-col justify-center gap-2">
+                  <span className="text-muted-foreground text-sm text-center">
+                    {cellCount} cell{cellCount !== 1 ? "s" : ""}
+                    {" · "}
+                    {rowCount} row{rowCount !== 1 ? "s" : ""}
+                  </span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full sm:w-auto"
+                    onClick={() => setShowTemplateEditor(true)}
+                    title="Open the Grid Template Editor"
+                  >
+                    <Grid3x3 className="size-4" />
+                    Edit Grid
+                  </Button>
+                </div>
               </div>
-              {/* Right: summary + edit button */}
-              <div className="flex flex-col justify-center gap-2">
-                <span className="text-muted-foreground text-sm text-center">
-                  {cellCount} cell{cellCount !== 1 ? "s" : ""} · {rowCount} row
-                  {rowCount !== 1 ? "s" : ""}
-                </span>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="w-full sm:w-auto"
-                  onClick={() => setShowTemplateEditor(true)}
-                  title="Open the Grid Template Editor"
-                >
-                  <Grid3x3 className="size-4" />
-                  Edit Grid
-                </Button>
-              </div>
-            </div>
-          )}
-        </div>
+            )}
+          </div>
+        )}
       </Section>
 
       {showTemplateEditor && (

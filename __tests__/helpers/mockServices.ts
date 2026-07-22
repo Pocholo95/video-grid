@@ -165,6 +165,12 @@ export function createMockGridRenderer(
       outputName: "test.webp",
       outputBlob: new Blob(["mock"], { type: "image/webp" }),
     }),
+    renderGallery: async () => [
+      {
+        blob: new Blob(["mock"], { type: "image/jpeg" }),
+        filename: "test_001.jpg",
+      },
+    ],
     destroy: async () => {},
     ...overrides,
   };

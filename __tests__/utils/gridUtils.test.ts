@@ -284,11 +284,10 @@ describe("gridUtils", () => {
   describe("computeAnimationEstimate", () => {
     const mockMeta = createTestMeta({ duration: 100 });
 
-    it("returns null when animation is disabled", () => {
-      const opts = createTestOpts({ animated: false });
+    it("returns null when output mode is static", () => {
+      const opts = createTestOpts({ outputMode: "static" });
       const result = computeAnimationEstimate(mockMeta, {
-        animated: opts.animated,
-        animSequence: opts.animSequence,
+        outputMode: opts.outputMode ?? "static",
         animSegments: opts.animSegments,
         animDuration: opts.animDuration,
         animFps: opts.animFps,
@@ -304,11 +303,10 @@ describe("gridUtils", () => {
       expect(result).toBeNull();
     });
 
-    it("returns estimates when animation is enabled", () => {
-      const opts = createTestOpts({ animated: true });
+    it("returns estimates when output mode is animated", () => {
+      const opts = createTestOpts({ outputMode: "animated" });
       const result = computeAnimationEstimate(mockMeta, {
-        animated: opts.animated,
-        animSequence: opts.animSequence,
+        outputMode: opts.outputMode ?? "static",
         animSegments: opts.animSegments,
         animDuration: opts.animDuration,
         animFps: opts.animFps,
@@ -328,16 +326,14 @@ describe("gridUtils", () => {
       expect(result!.canvasHeight).toBeGreaterThan(0);
     });
 
-    it("calculates frames correctly in normal mode (duration * fps)", () => {
+    it("calculates frames correctly in animated mode (duration * fps)", () => {
       const opts = createTestOpts({
-        animated: true,
-        animSequence: false,
+        outputMode: "animated",
         animDuration: 5,
         animFps: 10,
       });
       const result = computeAnimationEstimate(mockMeta, {
-        animated: opts.animated,
-        animSequence: opts.animSequence,
+        outputMode: opts.outputMode ?? "static",
         animSegments: opts.animSegments,
         animDuration: opts.animDuration,
         animFps: opts.animFps,
@@ -356,15 +352,13 @@ describe("gridUtils", () => {
 
     it("calculates frames correctly in sequence mode (segments * duration * fps)", () => {
       const opts = createTestOpts({
-        animated: true,
-        animSequence: true,
+        outputMode: "sequence",
         animSegments: 3,
         animDuration: 2,
         animFps: 10,
       });
       const result = computeAnimationEstimate(mockMeta, {
-        animated: opts.animated,
-        animSequence: opts.animSequence,
+        outputMode: opts.outputMode ?? "static",
         animSegments: opts.animSegments,
         animDuration: opts.animDuration,
         animFps: opts.animFps,
@@ -383,15 +377,13 @@ describe("gridUtils", () => {
 
     it("calculates total pixels as (canvasWidth * canvasHeight * totalFrames)", () => {
       const opts = createTestOpts({
-        animated: true,
-        animSequence: false,
+        outputMode: "animated",
         animDuration: 5,
         animFps: 10,
         header: false,
       });
       const result = computeAnimationEstimate(mockMeta, {
-        animated: opts.animated,
-        animSequence: opts.animSequence,
+        outputMode: opts.outputMode ?? "static",
         animSegments: opts.animSegments,
         animDuration: opts.animDuration,
         animFps: opts.animFps,
@@ -411,21 +403,20 @@ describe("gridUtils", () => {
 
     it("includes header height in canvas height when header is enabled", () => {
       const optsNoHeader = createTestOpts({
-        animated: true,
+        outputMode: "animated",
         header: false,
         animDuration: 5,
         animFps: 10,
       });
       const optsWithHeader = createTestOpts({
-        animated: true,
+        outputMode: "animated",
         header: true,
         animDuration: 5,
         animFps: 10,
       });
 
       const resultNoHeader = computeAnimationEstimate(mockMeta, {
-        animated: optsNoHeader.animated,
-        animSequence: optsNoHeader.animSequence,
+        outputMode: optsNoHeader.outputMode ?? "static",
         animSegments: optsNoHeader.animSegments,
         animDuration: optsNoHeader.animDuration,
         animFps: optsNoHeader.animFps,
@@ -440,8 +431,7 @@ describe("gridUtils", () => {
       });
 
       const resultWithHeader = computeAnimationEstimate(mockMeta, {
-        animated: optsWithHeader.animated,
-        animSequence: optsWithHeader.animSequence,
+        outputMode: optsWithHeader.outputMode ?? "static",
         animSegments: optsWithHeader.animSegments,
         animDuration: optsWithHeader.animDuration,
         animFps: optsWithHeader.animFps,
@@ -462,14 +452,13 @@ describe("gridUtils", () => {
 
     it("handles VR mode correctly", () => {
       const opts = createTestOpts({
-        animated: true,
+        outputMode: "animated",
         vrMode: "sbs-left",
         animDuration: 5,
         animFps: 10,
       });
       const result = computeAnimationEstimate(mockMeta, {
-        animated: opts.animated,
-        animSequence: opts.animSequence,
+        outputMode: opts.outputMode ?? "static",
         animSegments: opts.animSegments,
         animDuration: opts.animDuration,
         animFps: opts.animFps,
@@ -489,13 +478,12 @@ describe("gridUtils", () => {
 
     it("handles zero duration edge case", () => {
       const opts = createTestOpts({
-        animated: true,
+        outputMode: "animated",
         animDuration: 0,
         animFps: 10,
       });
       const result = computeAnimationEstimate(mockMeta, {
-        animated: opts.animated,
-        animSequence: opts.animSequence,
+        outputMode: opts.outputMode ?? "static",
         animSegments: opts.animSegments,
         animDuration: opts.animDuration,
         animFps: opts.animFps,
@@ -515,13 +503,12 @@ describe("gridUtils", () => {
 
     it("rounds up frame count with ceil for fractional frames", () => {
       const opts = createTestOpts({
-        animated: true,
+        outputMode: "animated",
         animDuration: 5.5,
         animFps: 3,
       });
       const result = computeAnimationEstimate(mockMeta, {
-        animated: opts.animated,
-        animSequence: opts.animSequence,
+        outputMode: opts.outputMode ?? "static",
         animSegments: opts.animSegments,
         animDuration: opts.animDuration,
         animFps: opts.animFps,
@@ -540,7 +527,7 @@ describe("gridUtils", () => {
 
     it("produces consistent results for same inputs", () => {
       const opts = createTestOpts({
-        animated: true,
+        outputMode: "animated",
         animDuration: 10,
         animFps: 15,
         cols: 3,
@@ -549,8 +536,7 @@ describe("gridUtils", () => {
       });
 
       const result1 = computeAnimationEstimate(mockMeta, {
-        animated: opts.animated,
-        animSequence: opts.animSequence,
+        outputMode: opts.outputMode ?? "static",
         animSegments: opts.animSegments,
         animDuration: opts.animDuration,
         animFps: opts.animFps,
@@ -565,8 +551,7 @@ describe("gridUtils", () => {
       });
 
       const result2 = computeAnimationEstimate(mockMeta, {
-        animated: opts.animated,
-        animSequence: opts.animSequence,
+        outputMode: opts.outputMode ?? "static",
         animSegments: opts.animSegments,
         animDuration: opts.animDuration,
         animFps: opts.animFps,

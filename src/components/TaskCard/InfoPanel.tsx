@@ -1,4 +1,11 @@
-import { Cloud, Download, RotateCcw, AlertTriangle, Check } from "lucide-react";
+import {
+  Cloud,
+  Download,
+  RotateCcw,
+  AlertTriangle,
+  Check,
+  Archive,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { CopyField } from "@/components/CopyField";
 import { Field, FieldLabel } from "@/components/ui/field";
@@ -27,6 +34,13 @@ interface Props {
   estimationMaxPixels: number;
   onUpload: () => void;
   onRequeue: () => void;
+  onDownloadGallery?: () => void;
+  /** Gallery: blob URLs for each frame (populated when outputMode === "gallery") */
+  galleryBlobUrls?: string[];
+  /** Gallery: current index being previewed */
+  galleryCurrentIndex?: number;
+  /** Gallery: filenames for each frame */
+  galleryImageNames?: string[];
 }
 
 export default function InfoPanel({
@@ -42,6 +56,10 @@ export default function InfoPanel({
   estimationMaxPixels,
   onUpload,
   onRequeue,
+  onDownloadGallery,
+  galleryBlobUrls,
+  galleryCurrentIndex,
+  galleryImageNames,
 }: Props) {
   const isDone = item.status === "done";
   const enabledDests = destinations.filter((d) => d.enabled);
@@ -126,7 +144,11 @@ export default function InfoPanel({
             {/* File size + dimensions */}
             <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
               {item.outputSize && (
-                <span>File size: {humanSize(item.outputSize)}</span>
+                <span>
+                  {item.galleryImages && item.galleryImages.length > 0
+                    ? `Total gallery size: ${humanSize(item.outputSize)} (${item.galleryImages.length} images)`
+                    : `File size: ${humanSize(item.outputSize)}`}
+                </span>
               )}
               {outputDimensions && (
                 <span className="text-muted-foreground">
@@ -195,13 +217,42 @@ export default function InfoPanel({
       <div className="mt-1 flex flex-wrap gap-2">
         {isDone && item.outputBlob && item.outputName && (
           <Button asChild variant="outline" size="sm">
-            <a href={blobUrl || "#"} download={item.outputName}>
+            <a
+              href={
+                galleryBlobUrls?.[galleryCurrentIndex ?? 0] ?? blobUrl ?? "#"
+              }
+              download={
+                galleryImageNames?.[galleryCurrentIndex ?? 0] ?? item.outputName
+              }
+            >
               <Download className="size-4" />
               Download{" "}
-              {item.outputName.split(".").pop()?.toUpperCase() ?? "File"}
+              {(
+                galleryImageNames?.[galleryCurrentIndex ?? 0] ?? item.outputName
+              )
+                .split(".")
+                .pop()
+                ?.toUpperCase() ?? "File"}
+              {galleryBlobUrls && galleryBlobUrls.length > 1
+                ? ` (Frame ${galleryCurrentIndex != null ? galleryCurrentIndex + 1 : 1})`
+                : ""}
             </a>
           </Button>
         )}
+        {isDone &&
+          item.galleryImages &&
+          item.galleryImages.length > 1 &&
+          onDownloadGallery && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={onDownloadGallery}
+              title={`Download all ${item.galleryImages.length} gallery frames as ZIP`}
+            >
+              <Archive className="size-4" />
+              Download Gallery (ZIP)
+            </Button>
+          )}
         {isDone && eligibleDests.length > 0 && !allDone && (
           <Button
             variant="default"

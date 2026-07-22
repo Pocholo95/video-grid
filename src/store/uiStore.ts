@@ -23,12 +23,18 @@ interface UiState {
   previewUrl: string | null;
   isZipping: boolean;
 
+  // --- Gallery preview state ---
+  galleryPreviewTaskId: string | null;
+  galleryPreviewIndex: number;
+
   // --- Actions ---
   setOpts: (
     updater: SavedOptions | ((prev: SavedOptions) => SavedOptions),
   ) => void;
   setPreviewUrl: (url: string | null) => void;
   downloadAll: () => Promise<void>;
+  downloadGallery: (taskId: string) => Promise<void>;
+  setGalleryPreview: (taskId: string | null, index?: number) => void;
 
   // --- Derived ---
   totalCells: number;
@@ -48,6 +54,8 @@ export const useUiStore = create<UiState>()(
     })(),
     previewUrl: null,
     isZipping: false,
+    galleryPreviewTaskId: null,
+    galleryPreviewIndex: 0,
 
     // --- Actions ---
     setOpts: (updater) =>
@@ -59,6 +67,12 @@ export const useUiStore = create<UiState>()(
     setPreviewUrl: (url) =>
       set((state) => {
         state.previewUrl = url;
+      }),
+
+    setGalleryPreview: (taskId, index = 0) =>
+      set((state) => {
+        state.galleryPreviewTaskId = taskId;
+        state.galleryPreviewIndex = index;
       }),
 
     downloadAll: async () => {
@@ -77,13 +91,64 @@ export const useUiStore = create<UiState>()(
         const existingNames = new Set<string>();
 
         for (const item of done) {
-          const uniqueName = makeUniqueName(item.outputName!, existingNames);
-          existingNames.add(uniqueName);
-          zip.file(uniqueName, item.outputBlob!);
+          // For gallery tasks, include all gallery images
+          if (item.galleryImages && item.galleryImages.length > 0) {
+            const baseName = item.outputName!.replace(/\.[^.]+$/, "");
+            for (let i = 0; i < item.galleryImages.length; i++) {
+              const fileName =
+                item.galleryImageNames?.[i] ??
+                `${baseName}_${String(i + 1).padStart(3, "0")}.jpg`;
+              const uniqueName = makeUniqueName(fileName, existingNames);
+              existingNames.add(uniqueName);
+              zip.file(uniqueName, item.galleryImages[i]);
+            }
+          } else {
+            const uniqueName = makeUniqueName(item.outputName!, existingNames);
+            existingNames.add(uniqueName);
+            zip.file(uniqueName, item.outputBlob!);
+          }
         }
 
         const blob = await zip.generateAsync({ type: "blob" });
         saveAs(blob, `${PROJECT_NAME.toLowerCase()}-outputs.zip`);
+      } finally {
+        set((state) => {
+          state.isZipping = false;
+        });
+      }
+    },
+
+    downloadGallery: async (taskId: string) => {
+      const item = useTaskStore.getState().items.find((i) => i.id === taskId);
+      if (!item || !item.galleryImages || item.galleryImages.length === 0) {
+        return;
+      }
+
+      // If only one image, download it directly
+      if (item.galleryImages.length === 1) {
+        const fileName =
+          item.galleryImageNames?.[0] ?? item.outputName ?? "gallery_001.jpg";
+        saveAs(item.galleryImages[0], fileName);
+        return;
+      }
+
+      set((state) => {
+        state.isZipping = true;
+      });
+
+      try {
+        const zip = new JSZip();
+        const baseName = (item.outputName ?? "gallery").replace(/\.[^.]+$/, "");
+
+        for (let i = 0; i < item.galleryImages.length; i++) {
+          const fileName =
+            item.galleryImageNames?.[i] ??
+            `${baseName}_${String(i + 1).padStart(3, "0")}.jpg`;
+          zip.file(fileName, item.galleryImages[i]);
+        }
+
+        const blob = await zip.generateAsync({ type: "blob" });
+        saveAs(blob, `${baseName}.zip`);
       } finally {
         set((state) => {
           state.isZipping = false;
@@ -101,8 +166,12 @@ export const useUiStore = create<UiState>()(
  * Use this selector for reactive access.
  */
 export const selectTotalCells = (state: UiState) => {
+  /* In gallery mode, total cells = number of gallery images. */
+  if (state.opts.outputMode === "gallery") {
+    return Math.max(1, state.opts.galleryCount ?? 1);
+  }
   /* In sequence mode, total cells = number of segments. */
-  if (state.opts.animSequence) {
+  if (state.opts.outputMode === "sequence") {
     return Math.max(1, state.opts.animSegments ?? 1);
   }
   if (state.opts.gridTemplate && state.opts.gridTemplate.cells.length > 0) {

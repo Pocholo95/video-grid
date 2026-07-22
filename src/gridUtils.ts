@@ -491,7 +491,7 @@ export const estimateHeaderHeight = (
 
 /**
  * Estimates animation metrics from video metadata and grid options.
- * Returns `null` when animation is not enabled.
+ * Returns `null` when animation is not enabled (i.e. outputMode is "static").
  *
  * @param meta - Video metadata (width, height, duration).
  * @param opts - Current grid/options configuration.
@@ -500,8 +500,7 @@ export const estimateHeaderHeight = (
 export const computeAnimationEstimate = (
   meta: VideoMetadata,
   opts: {
-    animated: boolean;
-    animSequence: boolean;
+    outputMode: "static" | "animated" | "sequence" | "gallery";
     animSegments: number;
     animDuration: number;
     animFps: number;
@@ -516,7 +515,8 @@ export const computeAnimationEstimate = (
     headerFontSize: number;
   },
 ): AnimationEstimate | null => {
-  if (!opts.animated) return null;
+  if (opts.outputMode === "static" || opts.outputMode === "gallery")
+    return null;
 
   // Estimate header height
   const headerHeight = estimateHeaderHeight(
@@ -545,9 +545,10 @@ export const computeAnimationEstimate = (
   );
 
   // Calculate total frames
-  const totalFrames = opts.animSequence
-    ? Math.ceil(opts.animSegments * opts.animDuration * opts.animFps)
-    : Math.ceil(opts.animDuration * opts.animFps);
+  const totalFrames =
+    opts.outputMode === "sequence"
+      ? Math.ceil(opts.animSegments * opts.animDuration * opts.animFps)
+      : Math.ceil(opts.animDuration * opts.animFps);
 
   return {
     totalFrames,

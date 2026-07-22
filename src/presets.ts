@@ -51,7 +51,7 @@ export const BUILT_IN_PRESETS: BuiltInPreset[] = [
     name: "Animated Hero Light",
     opts: {
       width: 1152,
-      animated: true,
+      outputMode: "animated",
       webpMethod: 6,
       webpQuality: 75,
       gridTemplate: {
@@ -72,12 +72,10 @@ export const BUILT_IN_PRESETS: BuiltInPreset[] = [
   {
     name: "Gallery",
     opts: {
-      cols: 4,
-      rows: 6,
-      gridTemplate: {
-        cols: 60,
-        cells: [...row(0, 4), ...row(1, 2), ...row(2, 1), ...row(3, 4)],
-      },
+      outputMode: "gallery",
+      galleryCount: 8,
+      galleryOriginalResolution: true,
+      tcPosition: "disabled",
     },
   },
   {
@@ -159,8 +157,7 @@ export const BUILT_IN_PRESETS: BuiltInPreset[] = [
     name: "Sequence Static Frames WebP",
     opts: {
       width: 1280,
-      animated: true,
-      animSequence: true,
+      outputMode: "sequence",
       sequenceMode: "static",
       animSegments: 10,
       animFormat: "webp",
@@ -174,8 +171,7 @@ export const BUILT_IN_PRESETS: BuiltInPreset[] = [
     name: "Sequence Video WebP",
     opts: {
       width: 1024,
-      animated: true,
-      animSequence: true,
+      outputMode: "sequence",
       sequenceMode: "video",
       animSegments: 6,
       animFormat: "webp",
@@ -189,8 +185,7 @@ export const BUILT_IN_PRESETS: BuiltInPreset[] = [
     name: "Sequence Video MP4",
     opts: {
       width: 1024,
-      animated: true,
-      animSequence: true,
+      outputMode: "sequence",
       sequenceMode: "video",
       animSegments: 8,
       animFormat: "mp4",
@@ -202,8 +197,7 @@ export const BUILT_IN_PRESETS: BuiltInPreset[] = [
     name: "Sequence Video with audio MP4",
     opts: {
       width: 1024,
-      animated: true,
-      animSequence: true,
+      outputMode: "sequence",
       sequenceMode: "video_with_audio",
       animSegments: 5,
       animFormat: "mp4",
@@ -308,9 +302,26 @@ export const persistAppSettings = (settings: AppSettings): void => {
  * Pure display concern — does not modify stored preset names.
  */
 export function getPresetSummary(opts: SavedOptions): string {
-  const isSequence = opts.animated && opts.animSequence;
-  const mode = isSequence ? "Sequence" : opts.animated ? "Animated" : "Static";
+  const outputMode = opts.outputMode ?? DEFAULTS.outputMode;
+  const isSequence = outputMode === "sequence";
+  const isGallery = outputMode === "gallery";
+
+  let mode: string;
+  if (isSequence) mode = "Sequence";
+  else if (isGallery) mode = "Gallery";
+  else if (outputMode === "animated") mode = "Animated";
+  else mode = "Static";
+
   const width = `${opts.width}px`;
+
+  // Gallery mode shows frame count and resolution info
+  if (isGallery) {
+    const res =
+      (opts.galleryOriginalResolution ?? DEFAULTS.galleryOriginalResolution)
+        ? "Original"
+        : width;
+    return `${mode} · ${res} · ${opts.galleryCount ?? DEFAULTS.galleryCount ?? 6} frames`;
+  }
 
   // Sequence mode shows segments instead of grid
   if (isSequence) {

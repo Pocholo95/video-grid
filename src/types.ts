@@ -271,6 +271,24 @@ export type TaskItem = {
    * element and observing the error event (same method as TimestampEditor).
    */
   canNativelyPlay?: boolean;
+  /**
+   * Array of individual JPEG blobs for Gallery mode output.
+   * Each blob corresponds to a frame captured at a specific timestamp.
+   */
+  galleryImages?: Blob[];
+  /**
+   * Filenames for each gallery image (e.g. "task_001.jpg").
+   */
+  galleryImageNames?: string[];
+  /**
+   * Current preview index for the gallery UI. Defaults to 0.
+   */
+  galleryCurrentIndex?: number;
+  /**
+   * The output mode that was used when this task completed processing.
+   * Stored so the preview doesn't change when the user modifies global options.
+   */
+  completedOutputMode?: OutputMode;
 };
 
 // - Animation Estimate
@@ -305,6 +323,12 @@ export type Theme = "dark" | "light" | "dimmed" | "classic";
 /** Output format for animated modes. */
 export type AnimFormat = "webp" | "mp4";
 
+/**
+ * Unified output mode selector. Replaces the boolean-based mode toggles
+ * (animated/animSequence) with a single explicit mode choice.
+ */
+export type OutputMode = "static" | "animated" | "sequence" | "gallery";
+
 /** Grid rendering options persisted with presets. */
 export type SavedOptions = {
   /** Output canvas width in pixels. */
@@ -323,14 +347,10 @@ export type SavedOptions = {
   textColor: string;
   /** Whether to render a header row with the filename. */
   header: boolean;
-  /** Whether to produce animated output instead of static JPEG. */
-  animated: boolean;
   /**
-   * When true (and animated is true), uses 1-cell sequence mode where each
-   * segment plays sequentially instead of a grid layout. Grid controls are
-   * disabled but still visible.
+   * Unified output mode selector. Default: "static".
    */
-  animSequence: boolean;
+  outputMode?: OutputMode;
   /**
    * Number of sequential segments in sequence mode. Each segment is rendered
    * for the specified animDuration at the specified animFps.
@@ -369,6 +389,16 @@ export type SavedOptions = {
   sectionStates?: SectionStates;
   /** Custom grid layout; when set, overrides the uniform cols × rows grid. */
   gridTemplate?: GridTemplate;
+  /**
+   * Number of images to capture in Gallery mode. Each image is a single
+   * frame capture at an evenly-distributed (or custom) timestamp.
+   */
+  galleryCount?: number;
+  /**
+   * When true (default), Gallery mode captures frames at the full native
+   * video resolution instead of resizing to the configured output width.
+   */
+  galleryOriginalResolution?: boolean;
 };
 
 /** Named preset configurations, keyed by display name. */

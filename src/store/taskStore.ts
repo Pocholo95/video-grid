@@ -78,6 +78,10 @@ export const useTaskStore = create<TaskState>()(
           item.uploads = undefined;
           item.ffmpegLogs = [];
           item.ffmpegTotalLines = 0;
+          item.galleryImages = undefined;
+          item.galleryImageNames = undefined;
+          item.galleryCurrentIndex = undefined;
+          item.completedOutputMode = undefined;
         }
       }),
 
@@ -100,6 +104,10 @@ export const useTaskStore = create<TaskState>()(
             item.uploads = undefined;
             item.ffmpegLogs = [];
             item.ffmpegTotalLines = 0;
+            item.galleryImages = undefined;
+            item.galleryImageNames = undefined;
+            item.galleryCurrentIndex = undefined;
+            item.completedOutputMode = undefined;
           }
         }
       }),

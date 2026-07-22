@@ -3,6 +3,7 @@ import { AlertTriangle, ChevronDown, RotateCcw, Trash2 } from "lucide-react";
 import type { SavedOptions, TaskItem } from "@/types";
 import { useUiStore, selectTotalCells } from "@/store/uiStore";
 import { useSettingsStore } from "@/store/settingsStore";
+import { DEFAULTS } from "@/constants";
 import { computeAnimationEstimate } from "@/gridUtils";
 import { isUploadEligible } from "@/uploadUtils";
 import { formatElapsed } from "@/utils";
@@ -15,6 +16,7 @@ import SourceInfoSection from "./TaskCard/SourceInfoSection";
 import FfmpegLogsSection from "./TaskCard/FfmpegLogsSection";
 import TimestampRow from "./TaskCard/TimestampRow";
 import PreviewSection from "./TaskCard/PreviewSection";
+import GalleryPreview from "./TaskCard/GalleryPreview";
 import InfoPanel from "./TaskCard/InfoPanel";
 import UploadResultsSection from "./TaskCard/UploadResultsSection";
 
@@ -82,12 +84,33 @@ export default function TaskCard({
   // For done tasks, prefer the stored outputAnimationInfo (captured at
   // completion time) so the displayed info doesn't change when settings
   // are modified. For in-progress / queued tasks, compute a live estimate.
+  // Only compute estimates for animated/sequence modes.
   const estimate = useMemo(() => {
     if (item.status === "done" && item.outputAnimationInfo) {
       return item.outputAnimationInfo;
     }
-    if (!item.metadata) return null;
-    return computeAnimationEstimate(item.metadata, opts);
+    if (!item.metadata || !opts) return null;
+    // Only compute animation estimates for animated/sequence modes
+    const mode =
+      item.status === "done"
+        ? item.completedOutputMode
+        : (opts.outputMode ?? "static");
+    if (mode !== "animated" && mode !== "sequence") return null;
+    return computeAnimationEstimate(item.metadata, {
+      outputMode: opts.outputMode ?? "static",
+      animSegments: opts.animSegments ?? DEFAULTS.animSegments!,
+      animDuration: opts.animDuration ?? DEFAULTS.animDuration!,
+      animFps: opts.animFps ?? DEFAULTS.animFps!,
+      width: opts.width ?? DEFAULTS.width!,
+      cols: opts.cols ?? DEFAULTS.cols!,
+      rows: opts.rows ?? DEFAULTS.rows!,
+      spacing: opts.spacing ?? DEFAULTS.spacing!,
+      header: Boolean(opts.header),
+      vrMode: opts.vrMode ?? DEFAULTS.vrMode!,
+      gridTemplate: opts.gridTemplate,
+      headerFontSizeAuto: Boolean(opts.headerFontSizeAuto),
+      headerFontSize: opts.headerFontSize ?? DEFAULTS.headerFontSize!,
+    });
   }, [item.status, item.outputAnimationInfo, item.metadata, opts]);
 
   /**
@@ -97,7 +120,8 @@ export default function TaskCard({
    * when native browser video decoding fails, which we can't predict in advance.
    * The FFmpeg logs section will still appear for static mode once logs populate.
    */
-  const needsFfmpeg = (o: SavedOptions): boolean => o.animated;
+  const needsFfmpeg = (o: SavedOptions): boolean =>
+    (o.outputMode ?? "static") !== "static";
 
   const urlRef = useRef<string | null>(null);
   const mountedRef = useRef(true);
@@ -147,6 +171,12 @@ export default function TaskCard({
       setOutputDimensions(null);
     };
   }, [item.outputBlob]);
+
+  // --- Gallery blob URLs for download button ---
+  const galleryBlobUrls = useMemo(() => {
+    if (!item.galleryImages || item.galleryImages.length === 0) return [];
+    return item.galleryImages.map((blob) => getOrCreateUrl(blob));
+  }, [item.galleryImages]);
 
   // --- Live tick using useTick (replaces manual setInterval) ---
   useTick(item.status === "processing" && !!item.processingStartedAt, 100);
@@ -344,13 +374,25 @@ export default function TaskCard({
 
         {/* Preview + info grid */}
         <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-          <PreviewSection
-            item={item}
-            blobUrl={blobUrl}
-            showPreview={showPreview}
-            onPreview={onPreview}
-            onShowPreviewDialog={handleShowPreviewDialog}
-          />
+          {/* For done tasks, use the stored completedOutputMode so switching
+             global options doesn't change the preview type. */}
+          {(item.status === "done" && item.completedOutputMode === "gallery") ||
+          (item.status !== "done" && opts.outputMode === "gallery") ? (
+            <GalleryPreview
+              item={item}
+              showPreview={showPreview}
+              onPreview={onPreview}
+              onShowPreviewDialog={handleShowPreviewDialog}
+            />
+          ) : (
+            <PreviewSection
+              item={item}
+              blobUrl={blobUrl}
+              showPreview={showPreview}
+              onPreview={onPreview}
+              onShowPreviewDialog={handleShowPreviewDialog}
+            />
+          )}
           <InfoPanel
             item={item}
             blobUrl={blobUrl}
@@ -364,6 +406,12 @@ export default function TaskCard({
             estimationMaxPixels={estimationMaxPixels}
             onUpload={() => onUpload(item.id)}
             onRequeue={() => onRequeue(item.id)}
+            onDownloadGallery={() => {
+              useUiStore.getState().downloadGallery(item.id);
+            }}
+            galleryBlobUrls={galleryBlobUrls}
+            galleryCurrentIndex={item.galleryCurrentIndex}
+            galleryImageNames={item.galleryImageNames}
           />
         </div>
 

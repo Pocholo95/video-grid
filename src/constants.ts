@@ -34,8 +34,7 @@ export const DEFAULTS: SavedOptions = {
   bgColor: "#000000",
   textColor: "#ffffff",
   header: true,
-  animated: false,
-  animSequence: false,
+  outputMode: "static",
   animSegments: 6,
   sequenceMode: "video",
   animFormat: "webp",
@@ -51,6 +50,8 @@ export const DEFAULTS: SavedOptions = {
   headerFontSize: 24,
   sectionStates: { grid: true, style: true, modes: true },
   gridTemplate: undefined,
+  galleryCount: 8,
+  galleryOriginalResolution: true,
 };
 
 // Header layout
@@ -87,7 +88,7 @@ export const MIN_CELL_WIDTH = 240;
 export const JPEG_QUALITY = 0.95;
 
 /** Current schema version for stored settings (used by migration system) */
-export const STORAGE_SCHEMA_VERSION = 5;
+export const STORAGE_SCHEMA_VERSION = 6;
 
 /**
  * Default configuration per upload-destination provider type.

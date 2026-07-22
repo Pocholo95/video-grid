@@ -136,7 +136,7 @@ function migrateV1toV2(data: unknown): AppSettings {
 }
 
 /**
- * v2 → v3: Add animSequence, animSegments, and animFormat fields.
+ * v2 → v3: Add animSegments and animFormat fields.
  *
  * Presets created before v3 lack the new sequence mode fields.
  * This migration injects default values so existing presets continue
@@ -156,10 +156,6 @@ function migrateV2toV3(data: unknown): AppSettings {
         key,
         {
           ...opts,
-          animSequence:
-            typeof legacy.animSequence === "boolean"
-              ? legacy.animSequence
-              : DEFAULTS.animSequence,
           animSegments:
             typeof legacy.animSegments === "number" &&
             Number.isFinite(legacy.animSegments)
@@ -198,6 +194,69 @@ function migrateV4toV5(data: unknown): AppSettings {
   };
 }
 
+/**
+ * v5 → v6: Add outputMode field, gallery defaults, and remove legacy booleans.
+ *
+ * Presets created before v6 lack the unified `outputMode` selector and
+ * gallery-related fields. This migration derives `outputMode` from the
+ * existing `animated`/`animSequence` booleans, removes those deprecated
+ * fields, and adds gallery defaults.
+ */
+function migrateV5toV6(data: unknown): AppSettings {
+  const settings = data as AppSettings;
+  if (!settings?.presets?.entries) return settings;
+
+  type LegacyPreset = Record<string, unknown>;
+
+  const migratedEntries: Presets = Object.fromEntries(
+    Object.entries(settings.presets.entries).map(([key, opts]) => {
+      const legacy = opts as LegacyPreset;
+
+      // Derive outputMode from legacy booleans
+      const animated = legacy.animated === true;
+      const animSequence = legacy.animSequence === true;
+      let outputMode = DEFAULTS.outputMode;
+      if (animated) {
+        outputMode = animSequence ? "sequence" : "animated";
+      }
+
+      // Remove legacy fields by spreading without them
+      const {
+        animated: _animated,
+        animSequence: _animSequence,
+        ...rest
+      } = legacy;
+      void _animated;
+      void _animSequence;
+
+      return [
+        key,
+        {
+          ...rest,
+          outputMode,
+          galleryCount:
+            typeof legacy.galleryCount === "number" &&
+            Number.isFinite(legacy.galleryCount)
+              ? legacy.galleryCount
+              : DEFAULTS.galleryCount,
+          galleryOriginalResolution:
+            typeof legacy.galleryOriginalResolution === "boolean"
+              ? legacy.galleryOriginalResolution
+              : DEFAULTS.galleryOriginalResolution,
+        } as SavedOptions,
+      ];
+    }),
+  ) as Presets;
+
+  return {
+    ...settings,
+    presets: {
+      ...settings.presets,
+      entries: migratedEntries,
+    },
+  };
+}
+
 /** - Migration registry - ordered from oldest to newest - END */
 
 /**
@@ -209,6 +268,7 @@ const migrations: Array<(data: unknown) => AppSettings> = [
   migrateV2toV3,
   migrateV3toV4,
   migrateV4toV5,
+  migrateV5toV6,
 ];
 
 /** - Public API */

@@ -338,7 +338,7 @@ export default function TaskActionsPanel({
               value={format}
               onValueChange={(v) => setFormat(v as FormatKey)}
             >
-              <SelectTrigger className="w-56 min-w-0 **:data-[slot=select-value]:inline-block **:data-[slot=select-value]:max-w-full **:data-[slot=select-value]:truncate">
+              <SelectTrigger className="w-auto min-w-0 **:data-[slot=select-value]:inline-block **:data-[slot=select-value]:max-w-full **:data-[slot=select-value]:truncate">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>

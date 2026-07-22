@@ -1,5 +1,9 @@
 import { useCallback, useRef } from "react";
-import { ANIMATED_COMPOSE_PCT, ANIMATED_ENCODE_PCT } from "../constants";
+import {
+  ANIMATED_COMPOSE_PCT,
+  ANIMATED_ENCODE_PCT,
+  DEFAULTS,
+} from "../constants";
 import type { IGridRenderer } from "../types/service";
 import type { IFFmpegService, IMediaInfoService } from "../types/service";
 import type { TaskItem, SavedOptions, AnimationEstimate } from "../types";
@@ -8,6 +12,7 @@ import {
   buildStaticGridOptions,
   buildAnimatedGridOptions,
   buildSequenceOptions,
+  buildGalleryOptions,
 } from "../gridOptions";
 import {
   errlog,
@@ -49,7 +54,7 @@ export function useBatchProcessor(
       useProcessingStore.getState().setIsProcessing(true);
       cancelRef.current = false;
 
-      const isAnimated = opts.animated ?? false;
+      const outputMode = opts.outputMode ?? DEFAULTS.outputMode;
 
       let succeeded = 0;
       let errored = 0;
@@ -151,9 +156,72 @@ export function useBatchProcessor(
             const gridOpts = buildStaticGridOptions(opts, item, meta);
             const animGridOpts = buildAnimatedGridOptions(opts, item, meta);
             const seqOpts = buildSequenceOptions(opts, item, meta);
+            const galleryOpts = buildGalleryOptions(opts, item, meta);
+
+            const isGallery = opts.outputMode === "gallery";
 
             let res;
-            if (opts.animSequence) {
+            if (isGallery) {
+              /* ---- Gallery Mode ---- */
+              const galleryBlobs = await gridRenderer.renderGallery(
+                item.file,
+                meta,
+                galleryOpts,
+                () => cancelRef.current || forceCancelCurrentRef.current,
+                (frameIdx, totalFrames, tSec) => {
+                  useProcessingStore.getState().setStatus((prev) => ({
+                    ...prev,
+                    text: `"${item.file.name}" — frame ${frameIdx}/${totalFrames} @ ${formatTime(tSec)}`,
+                    currentPct: ((frameIdx - 1) / totalFrames) * 100,
+                    batchDone: succeeded + errored,
+                    batchTotal: items.length,
+                  }));
+                  useProcessingStore.getState().touchProgress();
+                },
+                onWarning,
+              );
+
+              const totalSize = galleryBlobs.reduce(
+                (sum, b) => sum + b.blob.size,
+                0,
+              );
+
+              const ffmpegLogs = ffmpeg.getAndClearLogs(item.id);
+              const itemCancelledMidProcessing = cancelRef.current;
+
+              useTaskStore.getState().updateItem(item.id, {
+                outputName: `${item.file.name.replace(/\.[^.]+$/, "")}_gallery`,
+                outputSize: totalSize,
+                outputBlob: galleryBlobs[0]?.blob,
+                galleryImages: galleryBlobs.map((b) => b.blob),
+                galleryImageNames: galleryBlobs.map((b) => b.filename),
+                galleryCurrentIndex: 0,
+                completedOutputMode: opts.outputMode,
+                status: itemCancelledMidProcessing ? "cancelled" : "done",
+                error: undefined,
+                processingDurationMs: Date.now() - itemStartTime,
+                ffmpegLogs,
+              });
+
+              if (!itemCancelledMidProcessing) {
+                succeeded++;
+              } else {
+                cancelled++;
+              }
+
+              log(
+                `Finished "${item.file.name}" (${galleryBlobs.length} frames)`,
+              );
+              useProcessingStore.getState().setStatus((prev) => ({
+                ...prev,
+                currentPct: 100,
+                batchDone: succeeded + errored,
+              }));
+              idx++;
+              continue;
+            }
+
+            if (outputMode === "sequence") {
               /* ---- Sequence Mode ---- */
               const onSegmentDone = (
                 segIdx: number,
@@ -196,7 +264,7 @@ export function useBatchProcessor(
                 onEncodeProgress,
                 onWarning,
               );
-            } else if (isAnimated) {
+            } else if (outputMode === "animated") {
               const onAnimCellDone = (
                 composedCell: number,
                 totalCells: number,
@@ -269,7 +337,10 @@ export function useBatchProcessor(
             // Analyze the actual output blob to get real animation metrics
             // (frames, dimensions) from the generated file, not estimates.
             let outputAnimationInfo: AnimationEstimate | undefined;
-            if (isAnimated && res.outputBlob) {
+            if (
+              (outputMode === "animated" || outputMode === "sequence") &&
+              res.outputBlob
+            ) {
               try {
                 const outputMeta = await mediainfo.analyze(res.outputBlob);
                 if (
@@ -291,7 +362,22 @@ export function useBatchProcessor(
               } catch {
                 // If output analysis fails, fall back to estimate from settings
                 outputAnimationInfo = item.metadata
-                  ? (computeAnimationEstimate(item.metadata, opts) ?? undefined)
+                  ? (computeAnimationEstimate(item.metadata, {
+                      outputMode,
+                      animSegments: opts.animSegments ?? DEFAULTS.animSegments!,
+                      animDuration: opts.animDuration ?? DEFAULTS.animDuration!,
+                      animFps: opts.animFps ?? DEFAULTS.animFps!,
+                      width: opts.width ?? DEFAULTS.width!,
+                      cols: opts.cols ?? DEFAULTS.cols!,
+                      rows: opts.rows ?? DEFAULTS.rows!,
+                      spacing: opts.spacing ?? DEFAULTS.spacing!,
+                      header: Boolean(opts.header),
+                      vrMode: opts.vrMode ?? DEFAULTS.vrMode!,
+                      gridTemplate: opts.gridTemplate,
+                      headerFontSizeAuto: Boolean(opts.headerFontSizeAuto),
+                      headerFontSize:
+                        opts.headerFontSize ?? DEFAULTS.headerFontSize!,
+                    }) ?? undefined)
                   : undefined;
               }
             }
@@ -299,6 +385,7 @@ export function useBatchProcessor(
               outputName: res.outputName,
               outputSize: res.outputSize,
               outputBlob: res.outputBlob,
+              completedOutputMode: opts.outputMode,
               status: itemCancelledMidProcessing ? "cancelled" : "done",
               error: undefined,
               processingDurationMs: Date.now() - itemStartTime,
