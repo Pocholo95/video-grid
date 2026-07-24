@@ -7,6 +7,7 @@ import {
   Select,
   SelectContent,
   SelectItem,
+  SelectItemDescription,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
@@ -91,10 +92,50 @@ export default function OutputModesSection({
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="static">Static Grid</SelectItem>
-              <SelectItem value="animated">Animated Grid</SelectItem>
-              <SelectItem value="sequence">Sequence</SelectItem>
-              <SelectItem value="gallery">Gallery</SelectItem>
+              <SelectItem value="static">
+                <span className="flex items-center justify-between min-w-0 gap-2">
+                  <span className="shrink-0">Static Grid</span>
+                  <SelectItemDescription
+                    className="text-muted-foreground truncate text-right flex-1"
+                    title="Render a single static frame from the video"
+                  >
+                    Static grid of thumbnails (JPG)
+                  </SelectItemDescription>
+                </span>
+              </SelectItem>
+              <SelectItem value="animated">
+                <span className="flex items-center justify-between min-w-0 gap-2">
+                  <span className="shrink-0">Animated Grid</span>
+                  <SelectItemDescription
+                    className="text-muted-foreground truncate text-right flex-1"
+                    title="Animate through all segments as a grid"
+                  >
+                    Animated grid of thumbnails (WebP or MP4)
+                  </SelectItemDescription>
+                </span>
+              </SelectItem>
+              <SelectItem value="sequence">
+                <span className="flex items-center justify-between min-w-0 gap-2">
+                  <span className="shrink-0">Sequence</span>
+                  <SelectItemDescription
+                    className="text-muted-foreground truncate text-right flex-1"
+                    title="Render video segments sequentially"
+                  >
+                    Video segments (WebP, or MP4 with audio)
+                  </SelectItemDescription>
+                </span>
+              </SelectItem>
+              <SelectItem value="gallery">
+                <span className="flex items-center justify-between min-w-0 gap-2">
+                  <span className="shrink-0">Gallery</span>
+                  <SelectItemDescription
+                    className="text-muted-foreground truncate text-right flex-1"
+                    title="Export individual frames as image files"
+                  >
+                    Individual video frames as images (JPG)
+                  </SelectItemDescription>
+                </span>
+              </SelectItem>
             </SelectContent>
           </Select>
         </Field>
