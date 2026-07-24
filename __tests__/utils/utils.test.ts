@@ -239,17 +239,20 @@ describe("utils", () => {
       );
     });
 
-    it("uses outputName when available", () => {
+    it("ignores outputName and uses original file.name", () => {
       const item = makeItem({ outputName: "custom_output.webm" });
+      // Should use file.name ("video.mp4"), not outputName ("custom_output.webm")
       expect(buildBbcodeTitle(item)).toBe(
-        "[b]custom_output [COLOR=rgb(184, 49, 47)]1080p[/COLOR][/b]",
+        "[b]video [COLOR=rgb(184, 49, 47)]1080p[/COLOR][/b]",
       );
     });
 
-    it("strips multiple extensions", () => {
-      const item = makeItem({ outputName: "my.video.file.mkv" });
+    it("strips only the last extension (handles multiple dots)", () => {
+      const item = makeItem({
+        file: new File(["content"], "my.video.file.mp4", { type: "video/mp4" }),
+      });
       expect(buildBbcodeTitle(item)).toBe(
-        "[b]my.video [COLOR=rgb(184, 49, 47)]1080p[/COLOR][/b]",
+        "[b]my.video.file [COLOR=rgb(184, 49, 47)]1080p[/COLOR][/b]",
       );
     });
 

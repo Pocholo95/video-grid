@@ -18,7 +18,7 @@ import {
 import type { AnimationEstimate } from "@/types";
 import type { TaskItem } from "@/types";
 import type { UploadDestination } from "@/types";
-import { isUploadEligible } from "@/uploadUtils";
+import { isItemUploadEligible } from "@/uploadUtils";
 import { buildBbcodeTitle, humanPixels, humanSize } from "@/utils";
 
 interface Props {
@@ -64,16 +64,21 @@ export default function InfoPanel({
   const isDone = item.status === "done";
   const enabledDests = destinations.filter((d) => d.enabled);
 
+  // Helper: check if a destination truly has everything done
+  const isDestFullyDone = (d: UploadDestination): boolean => {
+    const state = item.uploads?.[d.id];
+    if (!state?.fileResults) return state?.status === "done";
+    return state.fileResults.every((f) => f.status === "done");
+  };
+
   // Filter enabled destinations to only those eligible for this task's output
+  // and not fully done (so deleted/errored files keep the destination visible)
   const eligibleDests = enabledDests.filter(
-    (d) =>
-      isUploadEligible(item.outputName, item.outputSize, d) &&
-      item.uploads?.[d.id]?.status !== "done",
+    (d) => isItemUploadEligible(item, d) && !isDestFullyDone(d),
   );
 
   const allDone =
-    enabledDests.length > 0 &&
-    enabledDests.every((d) => item.uploads?.[d.id]?.status === "done");
+    enabledDests.length > 0 && enabledDests.every((d) => isDestFullyDone(d));
 
   // BBCode video title
   const bbcodeVideoTitle = buildBbcodeTitle(item);
@@ -156,8 +161,8 @@ export default function InfoPanel({
                 </span>
               )}
             </div>
-            {/* Animation-specific details (only for animated output) */}
-            {estimate && (
+            {/* Animation-specific details (only for animated output, not gallery) */}
+            {estimate && item.completedOutputMode !== "gallery" && (
               <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
                 {/* Frames */}
                 <span className="flex items-center gap-1">
@@ -205,7 +210,9 @@ export default function InfoPanel({
       {item.outputName && (
         <p>
           <span className="text-muted-foreground">Output name: </span>
-          <span className="break-all">{item.outputName}</span>
+          <span className="break-all">
+            {galleryImageNames?.[galleryCurrentIndex ?? 0] ?? item.outputName}
+          </span>
         </p>
       )}
       <div className="flex flex-col gap-1 my-2">
@@ -302,10 +309,13 @@ export default function InfoPanel({
           </Button>
         )}
       </div>
-      {/* Per-destination upload progress */}
+      {/* Per-destination upload progress (only for legacy single-file mode;
+          gallery multi-file mode shows progress inside each frame row) */}
       {enabledDests.map((dest) => {
         const state = item.uploads?.[dest.id];
         if (!state || state.status === "idle") return null;
+        // Skip if fileResults exist (gallery multi-file mode - progress shown in UploadResultsSection)
+        if (state.fileResults) return null;
         if (state.status === "uploading") {
           return (
             <Field key={dest.id}>

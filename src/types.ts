@@ -195,6 +195,21 @@ export type UploadDestination = {
 };
 
 // - Per-destination upload state on a task item
+
+/** Result of uploading a single file to a destination. */
+export type FileUploadResult = {
+  /** Upload status for this individual file. */
+  status: "idle" | "uploading" | "done" | "error" | "deleted";
+  /** Upload progress as a percentage (0–100). */
+  progress: number;
+  /** Error message when status is "error". */
+  error?: string;
+  /** Populated with URLs and delete link when status is "done". */
+  result?: UploadResult;
+  /** Filename of the uploaded file (for gallery mode, the actual image name). */
+  filename?: string;
+};
+
 /** Upload state for a single destination on a task item. */
 export type DestinationUploadState = {
   /** Current upload lifecycle state. */
@@ -205,6 +220,11 @@ export type DestinationUploadState = {
   error?: string;
   /** Populated with URLs and delete link when status is "done". */
   result?: UploadResult;
+  /**
+   * Per-file upload results for multi-file uploads (e.g. gallery mode).
+   * Each entry tracks the upload state of an individual file.
+   */
+  fileResults?: FileUploadResult[];
 };
 
 // - Task items

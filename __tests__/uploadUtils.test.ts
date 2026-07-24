@@ -190,10 +190,10 @@ describe("buildFormats", () => {
     expect(md!.value).toBe("![my_video_output](https://example.com/image.png)");
   });
 
-  it("strips two extensions", () => {
+  it("strips only the last extension", () => {
     const formats = buildFormats(mockResult, "test.tar.gz.webp", true);
     const md = formats.find((f: LinkFormat) => f.key === "markdown");
-    expect(md!.value).toBe("![test.tar](https://example.com/image.png)");
+    expect(md!.value).toBe("![test.tar.gz](https://example.com/image.png)");
   });
 
   it("includes bbcodeMedium when mediumUrl exists", () => {

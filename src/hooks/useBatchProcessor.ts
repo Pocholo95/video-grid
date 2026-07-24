@@ -190,7 +190,7 @@ export function useBatchProcessor(
               const itemCancelledMidProcessing = cancelRef.current;
 
               useTaskStore.getState().updateItem(item.id, {
-                outputName: `${item.file.name.replace(/\.[^.]+$/, "")}_gallery`,
+                outputName: item.file.name.replace(/\.[^.]+$/, ""),
                 outputSize: totalSize,
                 outputBlob: galleryBlobs[0]?.blob,
                 galleryImages: galleryBlobs.map((b) => b.blob),

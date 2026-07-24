@@ -5,7 +5,7 @@ import { useUiStore, selectTotalCells } from "@/store/uiStore";
 import { useSettingsStore } from "@/store/settingsStore";
 import { DEFAULTS } from "@/constants";
 import { computeAnimationEstimate } from "@/gridUtils";
-import { isUploadEligible } from "@/uploadUtils";
+import { isItemUploadEligible } from "@/uploadUtils";
 import { formatElapsed } from "@/utils";
 import { useTick } from "@/lib/useTick";
 import { cn } from "@/lib/utils";
@@ -196,19 +196,25 @@ export default function TaskCard({
 
   // Filter to only destinations eligible for this task's output
   const eligibleDests = enabledDests.filter((d) =>
-    isUploadEligible(item.outputName, item.outputSize, d),
+    isItemUploadEligible(item, d),
   );
 
   const anyUploading = eligibleDests.some(
     (d) => item.uploads?.[d.id]?.status === "uploading",
   );
+  // allDone: every eligible destination has all files in "done" state.
+  // If any file is deleted, errored, or idle, the upload button stays available.
   const allDone =
     eligibleDests.length > 0 &&
-    eligibleDests.every((d) => item.uploads?.[d.id]?.status === "done");
+    eligibleDests.every((d) => {
+      const state = item.uploads?.[d.id];
+      if (!state?.fileResults) return state?.status === "done";
+      return state.fileResults.every((f) => f.status === "done");
+    });
 
   const canUpload =
     isDone &&
-    !!item.outputBlob &&
+    (!!item.outputBlob || (item.galleryImages?.length ?? 0) > 0) &&
     eligibleDests.length > 0 &&
     !anyUploading &&
     !allDone;

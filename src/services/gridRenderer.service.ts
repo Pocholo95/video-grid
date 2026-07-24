@@ -1464,7 +1464,7 @@ export class GridRenderer implements IGridRenderer {
 
       if (frameBlob) {
         const frameNum = String(i + 1).padStart(3, "0");
-        const filename = `${baseName}_frame_${frameNum}.jpg`;
+        const filename = `${baseName}_${frameNum}.jpg`;
         results.push({ blob: frameBlob, filename });
         onFrameDone(i, count, tSec);
       }

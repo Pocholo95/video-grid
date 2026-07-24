@@ -139,9 +139,7 @@ async function upload(
     const catboxUrl = (await response.text()).trim();
 
     if (!catboxUrl.includes("files.catbox.moe/")) {
-      throw new Error(
-        `Catbox returned an invalid URL: ${catboxUrl.slice(0, 120)}`,
-      );
+      throw new Error(`Catbox returned an invalid URL: ${catboxUrl}`);
     }
 
     onProgress(100);
@@ -225,7 +223,7 @@ async function deleteFile(
 
   const text = (await response.text()).trim();
   if (!text.includes("successfully deleted")) {
-    throw new Error(`Catbox delete failed: ${text.slice(0, 120)}`);
+    throw new Error(`Catbox delete failed: ${text}`);
   }
 }
 

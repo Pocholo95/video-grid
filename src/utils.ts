@@ -198,20 +198,49 @@ export function normalizeHex(color: unknown, fallback: string): string {
 }
 
 /**
+ * Strip the file extension from a filename (only the last one).
+ * Returns the filename unchanged if it contains no dot.
+ *
+ * @param filename - The filename to strip.
+ * @returns The filename without its extension.
+ */
+export function withoutExtension(filename: string): string {
+  return filename.includes(".")
+    ? filename.slice(0, filename.lastIndexOf("."))
+    : filename;
+}
+
+/**
+ * Build a BBCode "title + resolution" line from a filename and optional metadata.
+ * Uses `resolutionLabel` to derive a standard resolution tag (e.g. "1080p")
+ * from the video metadata when available. Falls back to title-only when
+ * metadata is missing.
+ *
+ * @param name - The filename (extension stripped by caller or here).
+ * @param metadata - Optional video metadata for resolution label.
+ * @returns The formatted BBCode string, e.g. `[b]MyVideo 1080p[/b]`.
+ */
+export function buildBbcodeTitleLine(
+  name: string,
+  metadata?: VideoMetadata,
+): string {
+  const res = metadata ? resolutionLabel(metadata) : "";
+  return `[b]${name}${res ? ` ${res}` : ""}[/b]`;
+}
+
+/**
  * Build a BBCode "title + resolution" string for a single task item.
  * Uses `resolutionLabel` to derive a standard resolution tag (e.g. "1080p")
  * from the video metadata when available. Falls back to title-only when
  * metadata is missing.
+ * Always uses the original video filename (`item.file.name`), never the
+ * generated output name, so the BBCode title reflects the source video.
  *
  * @param item - The TaskItem to build a title for.
  * @returns The formatted BBCode string.
  */
 export const buildBbcodeTitle = (item: TaskItem): string => {
-  const name = (item.outputName ?? item.file.name)
-    .replace(/\.[^.]+$/, "")
-    .replace(/\.[^.]+$/, "");
-  const res = item.metadata ? resolutionLabel(item.metadata) : "";
-  return `[b]${name}${res ? ` ${res}` : ""}[/b]`;
+  return buildBbcodeTitleLine(withoutExtension(item.file.name), item.metadata);
 };
 
 /**
