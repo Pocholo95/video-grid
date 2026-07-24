@@ -269,6 +269,16 @@ function DestinationFileSection({
   // Delete All handler: Chevereto shows popover, others show confirmation dialog
   const handleDeleteAll = () => {
     if (dest.type === "chevereto") {
+      // Single file: open delete link directly (no popover)
+      if (singleFile && doneFiles[0]?.result?.deleteUrl) {
+        window.open(
+          doneFiles[0].result.deleteUrl,
+          "_blank",
+          "noopener noreferrer",
+        );
+        return;
+      }
+      // Multiple files: show popover with delete links
       setShowDeletePopover(true);
     } else {
       onDeleteAll(dest);
@@ -317,93 +327,115 @@ function DestinationFileSection({
           </span>
 
           {/* Middle: Delete button (stops propagation so popover clicks don't toggle) */}
-          {doneFiles.length > 0 && (
-            <Popover
-              open={showDeletePopover}
-              onOpenChange={(open) => {
-                if (!open) setShowDeletePopover(false);
-                setShowDeletePopover(open);
-              }}
-            >
-              <PopoverTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  title={deleteButtonTitle}
-                  className="text-destructive hover:text-destructive shrink-0"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleDeleteAll();
-                  }}
-                  disabled={deletingDestId !== null}
-                >
-                  {deletingDestId === dest.id ? (
-                    <Loader2 className="size-4 animate-spin" />
-                  ) : (
-                    <Trash2 className="size-4" />
-                  )}
-                  {deleteButtonText}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent
-                className="w-64"
-                side="top"
-                align="start"
-                onClick={(e) => e.stopPropagation()}
+          {doneFiles.length > 0 &&
+            /* Only wrap in Popover for Chevereto with multiple files (needs delete links list).
+               Single Chevereto file opens delete URL directly. Non-Chevereto shows AlertDialog. */
+            (dest.type === "chevereto" && !singleFile ? (
+              <Popover
+                open={showDeletePopover}
+                onOpenChange={(open) => {
+                  if (!open) setShowDeletePopover(false);
+                  setShowDeletePopover(open);
+                }}
               >
-                <div className="flex flex-col gap-3">
-                  <p className="text-sm font-medium">
-                    {doneFiles.length === 1
-                      ? "Open delete link"
-                      : `Open delete links for ${doneFiles.length} file(s)`}
-                  </p>
-                  <div className="flex flex-col gap-1 max-h-60 overflow-y-auto">
-                    {doneFiles.map((f: FileUploadResult, idx: number) => (
-                      <a
-                        key={idx}
-                        href={f.result!.deleteUrl!}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex items-center gap-2 text-xs text-muted-foreground hover:text-foreground underline underline-offset-2"
-                      >
-                        <ExternalLink className="size-3 shrink-0" />
-                        {singleFile
-                          ? "Delete link"
-                          : `Frame ${idx + 1} delete link`}
-                      </a>
-                    ))}
-                  </div>
-                  <div className="flex justify-end gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setShowDeletePopover(false)}
-                    >
-                      Close
-                    </Button>
-                    <Button
-                      variant="destructive"
-                      size="sm"
-                      onClick={() => {
-                        doneFiles.forEach((f) => {
-                          window.open(
-                            f.result!.deleteUrl!,
-                            "_blank",
-                            "noopener noreferrer",
-                          );
-                        });
-                        setShowDeletePopover(false);
-                      }}
-                    >
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    title={deleteButtonTitle}
+                    className="text-destructive hover:text-destructive shrink-0"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDeleteAll();
+                    }}
+                    disabled={deletingDestId !== null}
+                  >
+                    {deletingDestId === dest.id ? (
+                      <Loader2 className="size-4 animate-spin" />
+                    ) : (
+                      <Trash2 className="size-4" />
+                    )}
+                    {deleteButtonText}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent
+                  className="w-64"
+                  side="top"
+                  align="start"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <div className="flex flex-col gap-3">
+                    <p className="text-sm font-medium">
                       {doneFiles.length === 1
-                        ? "Open Delete Link"
-                        : "Open All Delete Links"}
-                    </Button>
+                        ? "Open delete link"
+                        : `Open delete links for ${doneFiles.length} file(s)`}
+                    </p>
+                    <div className="flex flex-col gap-1 max-h-60 overflow-y-auto">
+                      {doneFiles.map((f: FileUploadResult, idx: number) => (
+                        <a
+                          key={idx}
+                          href={f.result!.deleteUrl!}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-2 text-xs text-muted-foreground hover:text-foreground underline underline-offset-2"
+                        >
+                          <ExternalLink className="size-3 shrink-0" />
+                          {singleFile
+                            ? "Delete link"
+                            : `Frame ${idx + 1} delete link`}
+                        </a>
+                      ))}
+                    </div>
+                    <div className="flex justify-end gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setShowDeletePopover(false)}
+                      >
+                        Close
+                      </Button>
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        onClick={() => {
+                          doneFiles.forEach((f) => {
+                            window.open(
+                              f.result!.deleteUrl!,
+                              "_blank",
+                              "noopener noreferrer",
+                            );
+                          });
+                          setShowDeletePopover(false);
+                        }}
+                      >
+                        {doneFiles.length === 1
+                          ? "Open Delete Link"
+                          : "Open All Delete Links"}
+                      </Button>
+                    </div>
                   </div>
-                </div>
-              </PopoverContent>
-            </Popover>
-          )}
+                </PopoverContent>
+              </Popover>
+            ) : (
+              <Button
+                variant="ghost"
+                size="sm"
+                title={deleteButtonTitle}
+                className="text-destructive hover:text-destructive shrink-0"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleDeleteAll();
+                }}
+                disabled={deletingDestId !== null}
+              >
+                {deletingDestId === dest.id ? (
+                  <Loader2 className="size-4 animate-spin" />
+                ) : (
+                  <Trash2 className="size-4" />
+                )}
+                {deleteButtonText}
+              </Button>
+            ))}
 
           {/* Right: Chevron (always on far right) */}
           <ChevronDown
