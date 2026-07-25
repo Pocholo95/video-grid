@@ -49,11 +49,10 @@ export default function OverlaysSection({
       expanded={expanded}
       onToggle={onToggle}
       groupKey={groupKey}
-      bodyClassName="grid grid-cols-1 gap-4 border-t p-4 sm:grid-cols-2 sm:items-start"
     >
-      {/* Left column: Header toggle */}
-      <div className="flex flex-col gap-3">
-        {!isGallery && (
+      {/* Left column: Header toggle (hidden in gallery mode) */}
+      {!isGallery && (
+        <div className="flex flex-col gap-3">
           <Field orientation="horizontal">
             <Switch
               id="cp-chk-header"
@@ -64,8 +63,8 @@ export default function OverlaysSection({
               }}
             />
           </Field>
-        )}
-      </div>
+        </div>
+      )}
 
       {/* Right column: Timecode position */}
       <div className="flex flex-col gap-3">

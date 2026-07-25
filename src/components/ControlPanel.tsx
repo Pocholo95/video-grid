@@ -21,22 +21,22 @@ export default function ControlPanel({
   presets,
   setPresets,
 }: Props) {
-  const sections: SectionStates = opts.sectionStates ?? {
-    grid: true,
-    style: true,
-    modes: true,
-    overlays: true,
+  const sections: SectionStates = {
+    grid: opts.sectionStates?.grid ?? true,
+    style: opts.sectionStates?.style ?? true,
+    modes: opts.sectionStates?.modes ?? true,
+    overlays: opts.sectionStates?.overlays ?? true,
   };
 
   // Function updater reads the latest store state, so multiple rapid toggles
   // (e.g. Shift+click syncing siblings) don't suffer from stale closures.
   const toggleSection = (key: keyof SectionStates) => {
     setOpts((prev) => {
-      const current = prev.sectionStates ?? {
-        grid: true,
-        style: true,
-        modes: true,
-        overlays: true,
+      const current = {
+        grid: prev.sectionStates?.grid ?? true,
+        style: prev.sectionStates?.style ?? true,
+        modes: prev.sectionStates?.modes ?? true,
+        overlays: prev.sectionStates?.overlays ?? true,
       };
       return {
         ...prev,
