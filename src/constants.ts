@@ -48,7 +48,7 @@ export const DEFAULTS: SavedOptions = {
   tcFontSize: 14,
   headerFontSizeAuto: true,
   headerFontSize: 24,
-  sectionStates: { grid: true, style: true, modes: true },
+  sectionStates: { grid: true, style: true, modes: true, overlays: true },
   gridTemplate: undefined,
   galleryCount: 8,
   galleryOriginalResolution: true,

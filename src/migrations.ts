@@ -195,12 +195,13 @@ function migrateV4toV5(data: unknown): AppSettings {
 }
 
 /**
- * v5 → v6: Add outputMode field, gallery defaults, and remove legacy booleans.
+ * v5 → v6: Add outputMode field, gallery defaults, sectionStates, and remove legacy booleans.
  *
- * Presets created before v6 lack the unified `outputMode` selector and
- * gallery-related fields. This migration derives `outputMode` from the
- * existing `animated`/`animSequence` booleans, removes those deprecated
- * fields, and adds gallery defaults.
+ * Presets created before v6 lack the unified `outputMode` selector,
+ * gallery-related fields, and the new `overlays` key in `sectionStates`.
+ * This migration derives `outputMode` from the existing `animated`/`animSequence`
+ * booleans, removes those deprecated fields, adds gallery defaults, and ensures
+ * `sectionStates` contains all four section keys (grid, style, modes, overlays).
  */
 function migrateV5toV6(data: unknown): AppSettings {
   const settings = data as AppSettings;
@@ -243,6 +244,24 @@ function migrateV5toV6(data: unknown): AppSettings {
             typeof legacy.galleryOriginalResolution === "boolean"
               ? legacy.galleryOriginalResolution
               : DEFAULTS.galleryOriginalResolution,
+          sectionStates: {
+            grid:
+              (legacy.sectionStates as Record<string, boolean>)?.grid ??
+              DEFAULTS.sectionStates?.grid ??
+              true,
+            style:
+              (legacy.sectionStates as Record<string, boolean>)?.style ??
+              DEFAULTS.sectionStates?.style ??
+              true,
+            modes:
+              (legacy.sectionStates as Record<string, boolean>)?.modes ??
+              DEFAULTS.sectionStates?.modes ??
+              true,
+            overlays:
+              (legacy.sectionStates as Record<string, boolean>)?.overlays ??
+              DEFAULTS.sectionStates?.overlays ??
+              true,
+          },
         } as SavedOptions,
       ];
     }),

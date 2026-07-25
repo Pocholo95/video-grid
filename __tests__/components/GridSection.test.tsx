@@ -169,7 +169,7 @@ function createDefaultOpts(overrides?: Partial<SavedOptions>): SavedOptions {
     tcFontSize: DEFAULTS.tcFontSize,
     headerFontSize: DEFAULTS.headerFontSize,
     headerFontSizeAuto: true,
-    sectionStates: { grid: true, style: true, modes: true },
+    sectionStates: { grid: true, style: true, modes: true, overlays: true },
     ...(overrides || {}),
   };
 }

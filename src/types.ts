@@ -330,11 +330,12 @@ export type AnimationEstimate = {
 
 // - Settings / Options
 
-/** Persisted expanded/collapsed state of the three Control Panel fieldsets. */
+/** Persisted expanded/collapsed state of the Control Panel fieldsets. */
 export type SectionStates = {
   grid: boolean;
   style: boolean;
   modes: boolean;
+  overlays: boolean;
 };
 
 /** Available theme options for the app. */

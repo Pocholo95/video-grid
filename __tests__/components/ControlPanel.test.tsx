@@ -59,6 +59,25 @@ vi.mock("@/components/control/OutputModesSection", () => ({
   },
 }));
 
+vi.mock("@/components/control/OverlaysSection", () => ({
+  default: function MockOverlaysSection({
+    expanded,
+    onToggle,
+  }: {
+    expanded: boolean;
+    onToggle: () => void;
+  }) {
+    return (
+      <div data-testid="overlays-section">
+        <span>OverlaysSection {expanded ? "expanded" : "collapsed"}</span>
+        <button data-testid="overlays-toggle" onClick={onToggle}>
+          Toggle Overlays
+        </button>
+      </div>
+    );
+  },
+}));
+
 vi.mock("@/components/control/StyleSection", () => ({
   default: function MockStyleSection({
     expanded,
@@ -93,7 +112,7 @@ vi.mock("@/components/ui/card", () => ({
 
 describe("ControlPanel", () => {
   const defaultOpts = createTestOpts({
-    sectionStates: { grid: true, style: true, modes: true },
+    sectionStates: { grid: true, style: true, modes: true, overlays: true },
   });
   const presets = createTestPresets();
 
@@ -109,6 +128,7 @@ describe("ControlPanel", () => {
     expect(screen.getByTestId("presets-row")).toBeDefined();
     expect(screen.getByTestId("grid-section")).toBeDefined();
     expect(screen.getByTestId("modes-section")).toBeDefined();
+    expect(screen.getByTestId("overlays-section")).toBeDefined();
     expect(screen.getByTestId("style-section")).toBeDefined();
   });
 
@@ -141,7 +161,12 @@ describe("ControlPanel", () => {
   it("uses collapsed section states from opts", () => {
     const collapsedOpts: SavedOptions = {
       ...defaultOpts,
-      sectionStates: { grid: false, style: false, modes: false },
+      sectionStates: {
+        grid: false,
+        style: false,
+        modes: false,
+        overlays: false,
+      },
     };
     render(
       <ControlPanel

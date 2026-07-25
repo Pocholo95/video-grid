@@ -70,7 +70,7 @@ export const BUILT_IN_PRESETS: BuiltInPreset[] = [
     },
   },
   {
-    name: "Gallery",
+    name: "8 Frames Gallery",
     opts: {
       outputMode: "gallery",
       galleryCount: 8,

@@ -2,6 +2,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import PresetsRow from "./control/PresetsRow";
 import GridSection from "./control/GridSection";
 import OutputModesSection from "./control/OutputModesSection";
+import OverlaysSection from "./control/OverlaysSection";
 import StyleSection from "./control/StyleSection";
 import type { AppSettings, SavedOptions, SectionStates } from "../types";
 
@@ -24,6 +25,7 @@ export default function ControlPanel({
     grid: true,
     style: true,
     modes: true,
+    overlays: true,
   };
 
   // Function updater reads the latest store state, so multiple rapid toggles
@@ -34,6 +36,7 @@ export default function ControlPanel({
         grid: true,
         style: true,
         modes: true,
+        overlays: true,
       };
       return {
         ...prev,
@@ -64,6 +67,13 @@ export default function ControlPanel({
           setOpts={setOpts}
           expanded={sections.grid}
           onToggle={() => toggleSection("grid")}
+          groupKey="control-panel"
+        />
+        <OverlaysSection
+          opts={opts}
+          setOpts={setOpts}
+          expanded={sections.overlays}
+          onToggle={() => toggleSection("overlays")}
           groupKey="control-panel"
         />
         <StyleSection

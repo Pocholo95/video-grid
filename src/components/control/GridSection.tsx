@@ -15,11 +15,18 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Field, FieldLabel } from "@/components/ui/field";
 import Section from "./Section";
 import RangeNumberInput from "./RangeNumberInput";
 import { DEFAULTS } from "../../constants";
-import type { GridTemplate, SavedOptions } from "../../types";
+import type { GridTemplate, SavedOptions, VrMode } from "../../types";
 
 interface Props {
   opts: SavedOptions;
@@ -96,7 +103,7 @@ export default function GridSection({
   return (
     <>
       <Section
-        label={isGridLocked ? "Output Dimensions" : "Grid"}
+        label="Layout & Dimensions"
         expanded={expanded}
         onToggle={onToggle}
         groupKey={groupKey}
@@ -200,6 +207,28 @@ export default function GridSection({
             )}
           </div>
         )}
+
+        {/* VR mode - moved from OutputModesSection */}
+        <Field>
+          <FieldLabel htmlFor="cp-vr">VR Video</FieldLabel>
+          <Select
+            value={opts.vrMode ?? DEFAULTS.vrMode}
+            onValueChange={(v) => setOpts({ ...opts, vrMode: v as VrMode })}
+          >
+            <SelectTrigger id="cp-vr" className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="disabled">Disabled</SelectItem>
+              <SelectItem value="sbs-left">SBS - Crop Left Eye</SelectItem>
+              <SelectItem value="sbs-right">SBS - Crop Right Eye</SelectItem>
+              <SelectItem value="tb-left">TB - Crop Top (Left Eye)</SelectItem>
+              <SelectItem value="tb-right">
+                TB - Crop Bottom (Right Eye)
+              </SelectItem>
+            </SelectContent>
+          </Select>
+        </Field>
       </Section>
 
       {showTemplateEditor && (
