@@ -1,6 +1,7 @@
 import type {
   AppSettings,
   GridCell,
+  OutputMode,
   Presets,
   SavedOptions,
   UploadDestination,
@@ -11,6 +12,7 @@ import {
   DEFAULTS,
   ESTIMATION_MAX_FRAMES,
   ESTIMATION_MAX_PIXELS,
+  OUTPUT_MODES,
 } from "./constants";
 
 // ---------------------------------------------------------------------------
@@ -294,23 +296,62 @@ export const persistAppSettings = (settings: AppSettings): void => {
   storage.save(settings);
 };
 
+// ---------------------------------------------------------------------------
+// Preset grouping helper
+// ---------------------------------------------------------------------------
+
+/**
+ * Group preset entries by their `outputMode`.
+ * Returns an array of `{ mode, label, names }` sorted by OUTPUT_MODES order,
+ * with preset names sorted alphabetically within each group.
+ */
+export function getPresetsGroupedByMode(
+  entries: Presets,
+): { mode: OutputMode; label: string; names: string[] }[] {
+  const groups = new Map<OutputMode, string[]>();
+  for (const m of OUTPUT_MODES) {
+    groups.set(m.value, []);
+  }
+
+  for (const name of Object.keys(entries)) {
+    const mode = (entries[name].outputMode ??
+      DEFAULTS.outputMode ??
+      "static") as OutputMode;
+    const group = groups.get(mode);
+    if (group) group.push(name);
+  }
+
+  for (const names of groups.values()) {
+    names.sort((a, b) => a.localeCompare(b));
+  }
+
+  return OUTPUT_MODES.map((m) => ({
+    mode: m.value,
+    label: m.title,
+    names: groups.get(m.value)!,
+  }));
+}
+
 // Preset display helpers
 
 /**
+ * Lookup the display title for an output mode from shared constants.
+ */
+function getModeTitle(mode: OutputMode): string {
+  return OUTPUT_MODES.find((m) => m.value === mode)?.title ?? "Static";
+}
+
+/**
  * Compute a human-readable summary string for a preset, e.g.
- * "Static, 1920px, 3×4" or "Animated, 1280px, Custom: 3 | 1 | 3 (SBS)".
+ * "Static Grid, 1920px, 3×4" or "Animated Grid, 1280px, Custom: 3 | 1 | 3 (SBS)".
  * Pure display concern — does not modify stored preset names.
  */
 export function getPresetSummary(opts: SavedOptions): string {
-  const outputMode = opts.outputMode ?? DEFAULTS.outputMode;
+  const outputMode = opts.outputMode ?? DEFAULTS.outputMode ?? "static";
   const isSequence = outputMode === "sequence";
   const isGallery = outputMode === "gallery";
 
-  let mode: string;
-  if (isSequence) mode = "Sequence";
-  else if (isGallery) mode = "Gallery";
-  else if (outputMode === "animated") mode = "Animated";
-  else mode = "Static";
+  const mode = getModeTitle(outputMode);
 
   const width = `${opts.width}px`;
 

@@ -82,6 +82,12 @@ vi.mock("@/components/ui/select", () => ({
   SelectContent: ({ children }: { children: React.ReactNode }) => (
     <div data-testid="select-content">{children}</div>
   ),
+  SelectGroup: ({ children }: { children: React.ReactNode }) => (
+    <div data-testid="select-group">{children}</div>
+  ),
+  SelectLabel: ({ children }: { children: React.ReactNode }) => (
+    <div data-testid="select-label">{children}</div>
+  ),
   SelectItem: ({
     children,
     value,
@@ -127,18 +133,36 @@ vi.mock("lucide-react", () => ({
   Check: () => <span data-testid="icon-check">Check</span>,
   X: () => <span data-testid="icon-x">X</span>,
   ListRestart: () => <span data-testid="icon-list-restart">ListRestart</span>,
+  Grid3x3: () => <span data-testid="icon-grid">Grid3x3</span>,
+  Clapperboard: () => <span data-testid="icon-clapperboard">Clapperboard</span>,
+  Scissors: () => <span data-testid="icon-scissors">Scissors</span>,
+  Images: () => <span data-testid="icon-images">Images</span>,
 }));
 
 // Mock presets module
 const mockSavePreset = vi.fn();
 const mockLoadPresets = vi.fn();
 const mockGetPresetSummary = vi.fn(() => "Static · 1920px · Grid: 3×4");
+const mockGetPresetsGroupedByMode = vi.fn(
+  (entries: Record<string, SavedOptions>) => {
+    // Group all presets under "static" mode for test simplicity
+    return [
+      {
+        mode: "static",
+        label: "Static",
+        names: Object.keys(entries).sort(),
+      },
+    ];
+  },
+);
 
 vi.mock("@/presets", () => ({
   savePreset: () => mockSavePreset(),
   deletePreset: vi.fn(),
   loadPresets: () => mockLoadPresets(),
   getPresetSummary: () => mockGetPresetSummary(),
+  getPresetsGroupedByMode: (entries: Record<string, SavedOptions>) =>
+    mockGetPresetsGroupedByMode(entries),
 }));
 
 // -- Helpers --

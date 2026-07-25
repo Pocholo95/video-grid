@@ -3,6 +3,7 @@ import { Save, Trash2, Check, X, ListRestart } from "lucide-react";
 import { DEFAULTS, PRESETS_DEFAULT_VALUE } from "../../constants";
 import {
   deletePreset,
+  getPresetsGroupedByMode,
   getPresetSummary,
   loadPresets,
   savePreset,
@@ -17,8 +18,10 @@ import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
   SelectItemDescription,
+  SelectLabel,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
@@ -148,24 +151,29 @@ export default function PresetsRow({
                 </SelectItemDescription>
               </span>
             </SelectItem>
-            {Object.keys(presets.entries)
-              .sort((a, b) => a.localeCompare(b))
-              .map((n) => {
-                const summary = getPresetSummary(presets.entries[n]);
-                return (
-                  <SelectItem key={n} value={n}>
-                    <span className="flex items-center justify-between min-w-0 gap-2">
-                      <span className="shrink-0">{n}</span>
-                      <SelectItemDescription
-                        className="text-muted-foreground truncate text-right flex-1"
-                        title={summary}
-                      >
-                        {summary}
-                      </SelectItemDescription>
-                    </span>
-                  </SelectItem>
-                );
-              })}
+            {getPresetsGroupedByMode(presets.entries).map(
+              ({ mode, label, names }) => (
+                <SelectGroup key={mode}>
+                  <SelectLabel>{label}</SelectLabel>
+                  {names.map((n) => {
+                    const summary = getPresetSummary(presets.entries[n]);
+                    return (
+                      <SelectItem key={n} value={n} className="pl-4">
+                        <span className="flex items-center justify-between min-w-0 gap-2">
+                          <span className="shrink-0">{n}</span>
+                          <SelectItemDescription
+                            className="text-muted-foreground truncate text-right flex-1"
+                            title={summary}
+                          >
+                            {summary}
+                          </SelectItemDescription>
+                        </span>
+                      </SelectItem>
+                    );
+                  })}
+                </SelectGroup>
+              ),
+            )}
           </SelectContent>
         </Select>
         <Button
