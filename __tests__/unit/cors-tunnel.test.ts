@@ -167,12 +167,7 @@ describe("proxyFetch body handling", () => {
     addEventListenerSpy = vi.spyOn(window, "addEventListener");
 
     addEventListenerSpy.mockImplementation(
-      (
-        type: string,
-        handler: EventListener,
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
-        _options?: boolean | AddEventListenerOptions,
-      ) => {
+      (type: string, handler: EventListener) => {
         if (type === "message")
           messageHandler = handler as (event: MessageEvent) => void;
       },
@@ -313,8 +308,7 @@ describe("CORS tunnel version mismatch", () => {
     resetBatchState();
 
     addEventListenerSpy.mockImplementation(
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      (type: string, handler: EventListener, _options?: boolean) => {
+      (type: string, handler: EventListener) => {
         if (type === "message")
           messageHandler = handler as (event: MessageEvent) => void;
       },
@@ -465,12 +459,7 @@ describe("proxyXHR", () => {
     addEventListenerSpy = vi.spyOn(window, "addEventListener");
 
     addEventListenerSpy.mockImplementation(
-      (
-        type: string,
-        handler: EventListener,
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
-        _options?: boolean | AddEventListenerOptions,
-      ) => {
+      (type: string, handler: EventListener) => {
         if (type === "message")
           messageHandler = handler as (event: MessageEvent) => void;
       },
@@ -595,12 +584,7 @@ describe("fetchWithCORSFallback", () => {
     resetBatchState();
 
     addEventListenerSpy.mockImplementation(
-      (
-        type: string,
-        handler: EventListener,
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
-        _options?: boolean | AddEventListenerOptions,
-      ) => {
+      (type: string, handler: EventListener) => {
         if (type === "message")
           messageHandler = handler as (event: MessageEvent) => void;
       },

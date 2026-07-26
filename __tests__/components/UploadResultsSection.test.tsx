@@ -7,7 +7,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render } from "@testing-library/react";
 import UploadResultsSection from "@/components/TaskCard/UploadResultsSection";
 import type { TaskItem, UploadDestination } from "@/types";
 
@@ -83,10 +83,8 @@ vi.mock("@/components/ui/progress", () => ({
 vi.mock("@/components/ui/collapsible", () => ({
   Collapsible: function MockCollapsible({
     children,
-    open,
   }: {
     children: React.ReactNode;
-    open?: boolean;
   }) {
     return <div data-testid="collapsible">{children}</div>;
   },
@@ -169,18 +167,28 @@ vi.mock("@/components/ui/popover", () => ({
 
 // Mock lucide-react icons
 vi.mock("lucide-react", () => ({
-  RefreshCw: (props: any) => <svg data-testid="icon-refresh" {...props} />,
-  Trash2: (props: any) => <svg data-testid="icon-trash" {...props} />,
-  Check: (props: any) => <svg data-testid="icon-check" {...props} />,
-  X: (props: any) => <svg data-testid="icon-x" {...props} />,
-  Loader2: (props: any) => <svg data-testid="icon-loader" {...props} />,
-  ChevronDown: (props: any) => (
+  RefreshCw: (props: React.SVGProps<SVGSVGElement>) => (
+    <svg data-testid="icon-refresh" {...props} />
+  ),
+  Trash2: (props: React.SVGProps<SVGSVGElement>) => (
+    <svg data-testid="icon-trash" {...props} />
+  ),
+  Check: (props: React.SVGProps<SVGSVGElement>) => (
+    <svg data-testid="icon-check" {...props} />
+  ),
+  X: (props: React.SVGProps<SVGSVGElement>) => (
+    <svg data-testid="icon-x" {...props} />
+  ),
+  Loader2: (props: React.SVGProps<SVGSVGElement>) => (
+    <svg data-testid="icon-loader" {...props} />
+  ),
+  ChevronDown: (props: React.SVGProps<SVGSVGElement>) => (
     <svg data-testid="icon-chevron" {...props} />
   ),
-  ExternalLink: (props: any) => (
+  ExternalLink: (props: React.SVGProps<SVGSVGElement>) => (
     <svg data-testid="icon-external" {...props} />
   ),
-  AlertCircle: (props: any) => (
+  AlertCircle: (props: React.SVGProps<SVGSVGElement>) => (
     <svg data-testid="icon-alert" {...props} />
   ),
 }));
@@ -263,9 +271,7 @@ describe("UploadResultsSection - Delete All loading state", () => {
       // The component renders with deletingDestId = null initially, so buttons are enabled
       // We need to verify the fix by checking the rendered output
       // Find the frame cards
-      const frameCards = container.querySelectorAll(
-        '[title^="Delete frame"]',
-      );
+      const frameCards = container.querySelectorAll('[title^="Delete frame"]');
       expect(frameCards.length).toBeGreaterThan(0);
 
       // Initial state: buttons should NOT be disabled (no deletion in progress)
@@ -337,7 +343,9 @@ describe("UploadResultsSection - Delete All loading state", () => {
       });
 
       // The trash icons should be present initially
-      const trashIcons = container.querySelectorAll('[data-testid="icon-trash"]');
+      const trashIcons = container.querySelectorAll(
+        '[data-testid="icon-trash"]',
+      );
       expect(trashIcons.length).toBeGreaterThan(0);
     });
   });

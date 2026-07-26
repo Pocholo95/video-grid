@@ -32,7 +32,7 @@ import {
   seekVideo,
   setupVideoDecoder,
 } from "../gridUtils";
-import { errlog, formatTime, log, warn } from "../utils";
+import { errlog, formatTime, log, warn, withoutExtension } from "../utils";
 import { isAbortError, isMemoryError } from "./ffmpeg.service";
 import { JPEG_QUALITY } from "@/constants";
 
@@ -1286,7 +1286,7 @@ export class GridRenderer implements IGridRenderer {
     const videoCleanup = decoder.videoCleanup;
     let canNativelyPlay = decoder.canNativelyPlay;
 
-    const baseName = file.name.replace(/\.[^.]+$/, "");
+    const baseName = withoutExtension(file.name);
     const results: { blob: Blob; filename: string }[] = [];
 
     let ffmpegFailedFrames = 0;

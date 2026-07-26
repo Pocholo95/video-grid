@@ -92,8 +92,9 @@ export const useUiStore = create<UiState>()(
 
         for (const item of done) {
           // For gallery tasks, include all gallery images
+          // outputName is already extension-stripped for gallery mode
           if (item.galleryImages && item.galleryImages.length > 0) {
-            const baseName = item.outputName!.replace(/\.[^.]+$/, "");
+            const baseName = item.outputName!;
             for (let i = 0; i < item.galleryImages.length; i++) {
               const fileName =
                 item.galleryImageNames?.[i] ??
@@ -138,7 +139,8 @@ export const useUiStore = create<UiState>()(
 
       try {
         const zip = new JSZip();
-        const baseName = (item.outputName ?? "gallery").replace(/\.[^.]+$/, "");
+        // outputName is already extension-stripped for gallery mode
+        const baseName = item.outputName ?? "gallery";
 
         for (let i = 0; i < item.galleryImages.length; i++) {
           const fileName =

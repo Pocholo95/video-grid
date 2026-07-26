@@ -21,6 +21,7 @@ import {
   hasUsableMetadata,
   log,
   warn,
+  withoutExtension,
 } from "../utils";
 import { useTaskStore } from "@/store/taskStore";
 import {
@@ -190,7 +191,7 @@ export function useBatchProcessor(
               const itemCancelledMidProcessing = cancelRef.current;
 
               useTaskStore.getState().updateItem(item.id, {
-                outputName: item.file.name.replace(/\.[^.]+$/, ""),
+                outputName: withoutExtension(item.file.name),
                 outputSize: totalSize,
                 outputBlob: galleryBlobs[0]?.blob,
                 galleryImages: galleryBlobs.map((b) => b.blob),

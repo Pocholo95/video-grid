@@ -37,10 +37,16 @@ let isFFmpegBusy = false;
 let loggingEnabled = true;
 
 /**
+ * Log data structure passed by FFmpeg WASM on "log" events.
+ */
+interface FFmpegLogData {
+  message: string;
+}
+
+/**
  * Stored reference to the log handler so we can attach/detach it.
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-let ffmpegLogHandler: ((data: any) => void) | null = null;
+let ffmpegLogHandler: ((data: FFmpegLogData) => void) | null = null;
 
 /**
  * Global flag indicating FFmpeg is in an unrecoverable broken state.
@@ -168,8 +174,7 @@ function withTimeoutWarning(
 
 /** Create the log handler callback (factory so we can recreate per instance). */
 function createLogHandler() {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const handler = (data: any) => {
+  const handler = (data: FFmpegLogData) => {
     appendTaskLog(`[FFmpeg WASM] ${data.message}`);
     isFFmpegBusy = true;
   };
@@ -286,8 +291,7 @@ export class FFmpegService implements IFFmpegService {
   /** List files in FFmpeg virtual filesystem. */
   public async listDir(path: string): Promise<unknown[]> {
     const ff = await this.getInstance();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    return (await ff.listDir(path)) as any;
+    return (await ff.listDir(path)) as unknown[];
   }
 
   /** Delete a file from virtual filesystem. */
