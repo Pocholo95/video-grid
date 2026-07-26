@@ -6,7 +6,7 @@ import { useProcessingStore } from "@/store/processingStore";
 import { useSettingsStore } from "@/store/settingsStore";
 import { useUploadStore } from "@/store/uploadStore";
 import { useUiStore } from "@/store/uiStore";
-import { isUploadEligible } from "@/uploadUtils";
+import { isItemUploadEligible, getUploadFiles } from "@/uploadUtils";
 import TaskCard from "./TaskCard";
 import { ErrorBoundary } from "./ErrorBoundary";
 import TaskActionsPanel from "./TaskActionsPanel";
@@ -80,7 +80,6 @@ export default function TaskList({
 
   // Upload state from uploadStore
   const isUploadingAll = useUploadStore((s) => s.isUploadingAll);
-  const uploadProgress = useUploadStore((s) => s.uploadProgress);
 
   // ZIP state from uiStore
   const isZipping = useUiStore((s) => s.isZipping);
@@ -114,36 +113,46 @@ export default function TaskList({
   const uploadEligibleItems = useMemo(
     () =>
       doneItems.filter((i) =>
-        enabledDests.some((d) =>
-          isUploadEligible(i.outputName, i.outputSize, d),
-        ),
+        enabledDests.some((d) => isItemUploadEligible(i, d)),
       ),
     [doneItems, enabledDests],
   );
 
-  // Compute total possible uploads per-destination eligibility
+  // Compute total possible uploads (fileCount * eligible destinations)
   const totalPossibleUploads = useMemo(
     () =>
       uploadEligibleItems.reduce((sum, item) => {
+        const fileCount = getUploadFiles(item).length;
         const eligible = enabledDests.filter((d) =>
-          isUploadEligible(item.outputName, item.outputSize, d),
+          isItemUploadEligible(item, d),
         );
-        return sum + eligible.length;
+        return sum + fileCount * eligible.length;
       }, 0),
     [uploadEligibleItems, enabledDests],
   );
 
-  // Count completed uploads (only for eligible destination pairs)
+  // Count completed uploads (per file, per eligible destination)
   const completedUploads = useMemo(
     () =>
       items.reduce((sum, item) => {
+        const files = getUploadFiles(item);
+        if (files.length === 0) return sum;
         const eligibleDests = enabledDests.filter((d) =>
-          isUploadEligible(item.outputName, item.outputSize, d),
+          isItemUploadEligible(item, d),
         );
-        const allEligibleDone = eligibleDests.every(
-          (dest) => item.uploads?.[dest.id]?.status === "done",
-        );
-        return sum + (allEligibleDone ? eligibleDests.length : 0);
+        for (const dest of eligibleDests) {
+          const destState = item.uploads?.[dest.id];
+          if (destState?.fileResults) {
+            // Gallery mode: count done files
+            sum += destState.fileResults.filter(
+              (fr) => fr.status === "done",
+            ).length;
+          } else if (destState?.status === "done") {
+            // Single upload mode: count files as done
+            sum += files.length;
+          }
+        }
+        return sum;
       }, 0),
     [items, enabledDests],
   );
@@ -271,7 +280,6 @@ export default function TaskList({
                   completedUploads={completedUploads}
                   hasPendingUploads={hasPendingUploads}
                   isUploadingAll={isUploadingAll}
-                  uploadProgress={uploadProgress}
                   isZipping={isZipping}
                   onUploadAll={onUploadAll}
                   onDownloadAll={onDownloadAll}

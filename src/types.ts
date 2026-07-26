@@ -195,6 +195,21 @@ export type UploadDestination = {
 };
 
 // - Per-destination upload state on a task item
+
+/** Result of uploading a single file to a destination. */
+export type FileUploadResult = {
+  /** Upload status for this individual file. */
+  status: "idle" | "uploading" | "done" | "error" | "deleted";
+  /** Upload progress as a percentage (0–100). */
+  progress: number;
+  /** Error message when status is "error". */
+  error?: string;
+  /** Populated with URLs and delete link when status is "done". */
+  result?: UploadResult;
+  /** Filename of the uploaded file (for gallery mode, the actual image name). */
+  filename?: string;
+};
+
 /** Upload state for a single destination on a task item. */
 export type DestinationUploadState = {
   /** Current upload lifecycle state. */
@@ -205,6 +220,11 @@ export type DestinationUploadState = {
   error?: string;
   /** Populated with URLs and delete link when status is "done". */
   result?: UploadResult;
+  /**
+   * Per-file upload results for multi-file uploads (e.g. gallery mode).
+   * Each entry tracks the upload state of an individual file.
+   */
+  fileResults?: FileUploadResult[];
 };
 
 // - Task items
@@ -271,6 +291,24 @@ export type TaskItem = {
    * element and observing the error event (same method as TimestampEditor).
    */
   canNativelyPlay?: boolean;
+  /**
+   * Array of individual JPEG blobs for Gallery mode output.
+   * Each blob corresponds to a frame captured at a specific timestamp.
+   */
+  galleryImages?: Blob[];
+  /**
+   * Filenames for each gallery image (e.g. "task_001.jpg").
+   */
+  galleryImageNames?: string[];
+  /**
+   * Current preview index for the gallery UI. Defaults to 0.
+   */
+  galleryCurrentIndex?: number;
+  /**
+   * The output mode that was used when this task completed processing.
+   * Stored so the preview doesn't change when the user modifies global options.
+   */
+  completedOutputMode?: OutputMode;
 };
 
 // - Animation Estimate
@@ -292,11 +330,12 @@ export type AnimationEstimate = {
 
 // - Settings / Options
 
-/** Persisted expanded/collapsed state of the three Control Panel fieldsets. */
+/** Persisted expanded/collapsed state of the Control Panel fieldsets. */
 export type SectionStates = {
   grid: boolean;
   style: boolean;
   modes: boolean;
+  overlays: boolean;
 };
 
 /** Available theme options for the app. */
@@ -304,6 +343,12 @@ export type Theme = "dark" | "light" | "dimmed" | "classic";
 
 /** Output format for animated modes. */
 export type AnimFormat = "webp" | "mp4";
+
+/**
+ * Unified output mode selector. Replaces the boolean-based mode toggles
+ * (animated/animSequence) with a single explicit mode choice.
+ */
+export type OutputMode = "static" | "animated" | "sequence" | "gallery";
 
 /** Grid rendering options persisted with presets. */
 export type SavedOptions = {
@@ -323,14 +368,10 @@ export type SavedOptions = {
   textColor: string;
   /** Whether to render a header row with the filename. */
   header: boolean;
-  /** Whether to produce animated output instead of static JPEG. */
-  animated: boolean;
   /**
-   * When true (and animated is true), uses 1-cell sequence mode where each
-   * segment plays sequentially instead of a grid layout. Grid controls are
-   * disabled but still visible.
+   * Unified output mode selector. Default: "static".
    */
-  animSequence: boolean;
+  outputMode?: OutputMode;
   /**
    * Number of sequential segments in sequence mode. Each segment is rendered
    * for the specified animDuration at the specified animFps.
@@ -369,6 +410,16 @@ export type SavedOptions = {
   sectionStates?: SectionStates;
   /** Custom grid layout; when set, overrides the uniform cols × rows grid. */
   gridTemplate?: GridTemplate;
+  /**
+   * Number of images to capture in Gallery mode. Each image is a single
+   * frame capture at an evenly-distributed (or custom) timestamp.
+   */
+  galleryCount?: number;
+  /**
+   * When true (default), Gallery mode captures frames at the full native
+   * video resolution instead of resizing to the configured output width.
+   */
+  galleryOriginalResolution?: boolean;
 };
 
 /** Named preset configurations, keyed by display name. */

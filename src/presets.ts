@@ -1,6 +1,7 @@
 import type {
   AppSettings,
   GridCell,
+  OutputMode,
   Presets,
   SavedOptions,
   UploadDestination,
@@ -11,6 +12,7 @@ import {
   DEFAULTS,
   ESTIMATION_MAX_FRAMES,
   ESTIMATION_MAX_PIXELS,
+  OUTPUT_MODES,
 } from "./constants";
 
 // ---------------------------------------------------------------------------
@@ -51,7 +53,7 @@ export const BUILT_IN_PRESETS: BuiltInPreset[] = [
     name: "Animated Hero Light",
     opts: {
       width: 1152,
-      animated: true,
+      outputMode: "animated",
       webpMethod: 6,
       webpQuality: 75,
       gridTemplate: {
@@ -70,14 +72,12 @@ export const BUILT_IN_PRESETS: BuiltInPreset[] = [
     },
   },
   {
-    name: "Gallery",
+    name: "8 Frames Gallery",
     opts: {
-      cols: 4,
-      rows: 6,
-      gridTemplate: {
-        cols: 60,
-        cells: [...row(0, 4), ...row(1, 2), ...row(2, 1), ...row(3, 4)],
-      },
+      outputMode: "gallery",
+      galleryCount: 8,
+      galleryOriginalResolution: true,
+      tcPosition: "disabled",
     },
   },
   {
@@ -159,8 +159,7 @@ export const BUILT_IN_PRESETS: BuiltInPreset[] = [
     name: "Sequence Static Frames WebP",
     opts: {
       width: 1280,
-      animated: true,
-      animSequence: true,
+      outputMode: "sequence",
       sequenceMode: "static",
       animSegments: 10,
       animFormat: "webp",
@@ -174,8 +173,7 @@ export const BUILT_IN_PRESETS: BuiltInPreset[] = [
     name: "Sequence Video WebP",
     opts: {
       width: 1024,
-      animated: true,
-      animSequence: true,
+      outputMode: "sequence",
       sequenceMode: "video",
       animSegments: 6,
       animFormat: "webp",
@@ -189,8 +187,7 @@ export const BUILT_IN_PRESETS: BuiltInPreset[] = [
     name: "Sequence Video MP4",
     opts: {
       width: 1024,
-      animated: true,
-      animSequence: true,
+      outputMode: "sequence",
       sequenceMode: "video",
       animSegments: 8,
       animFormat: "mp4",
@@ -202,8 +199,7 @@ export const BUILT_IN_PRESETS: BuiltInPreset[] = [
     name: "Sequence Video with audio MP4",
     opts: {
       width: 1024,
-      animated: true,
-      animSequence: true,
+      outputMode: "sequence",
       sequenceMode: "video_with_audio",
       animSegments: 5,
       animFormat: "mp4",
@@ -300,17 +296,73 @@ export const persistAppSettings = (settings: AppSettings): void => {
   storage.save(settings);
 };
 
+// ---------------------------------------------------------------------------
+// Preset grouping helper
+// ---------------------------------------------------------------------------
+
+/**
+ * Group preset entries by their `outputMode`.
+ * Returns an array of `{ mode, label, names }` sorted by OUTPUT_MODES order,
+ * with preset names sorted alphabetically within each group.
+ */
+export function getPresetsGroupedByMode(
+  entries: Presets,
+): { mode: OutputMode; label: string; names: string[] }[] {
+  const groups = new Map<OutputMode, string[]>();
+  for (const m of OUTPUT_MODES) {
+    groups.set(m.value, []);
+  }
+
+  for (const name of Object.keys(entries)) {
+    const mode = (entries[name].outputMode ??
+      DEFAULTS.outputMode ??
+      "static") as OutputMode;
+    const group = groups.get(mode);
+    if (group) group.push(name);
+  }
+
+  for (const names of groups.values()) {
+    names.sort((a, b) => a.localeCompare(b));
+  }
+
+  return OUTPUT_MODES.map((m) => ({
+    mode: m.value,
+    label: m.title,
+    names: groups.get(m.value)!,
+  }));
+}
+
 // Preset display helpers
 
 /**
+ * Lookup the display title for an output mode from shared constants.
+ */
+function getModeTitle(mode: OutputMode): string {
+  return OUTPUT_MODES.find((m) => m.value === mode)?.title ?? "Static";
+}
+
+/**
  * Compute a human-readable summary string for a preset, e.g.
- * "Static, 1920px, 3×4" or "Animated, 1280px, Custom: 3 | 1 | 3 (SBS)".
+ * "Static Grid, 1920px, 3×4" or "Animated Grid, 1280px, Custom: 3 | 1 | 3 (SBS)".
  * Pure display concern — does not modify stored preset names.
  */
 export function getPresetSummary(opts: SavedOptions): string {
-  const isSequence = opts.animated && opts.animSequence;
-  const mode = isSequence ? "Sequence" : opts.animated ? "Animated" : "Static";
+  const outputMode = opts.outputMode ?? DEFAULTS.outputMode ?? "static";
+  const isSequence = outputMode === "sequence";
+  const isGallery = outputMode === "gallery";
+
+  const mode = getModeTitle(outputMode);
+
   const width = `${opts.width}px`;
+
+  // Gallery mode shows frame count and resolution info
+  if (isGallery) {
+    const res =
+      (opts.galleryOriginalResolution ?? DEFAULTS.galleryOriginalResolution)
+        ? "Original"
+        : width;
+    return `${mode} · ${res} · ${opts.galleryCount ?? DEFAULTS.galleryCount ?? 6} frames`;
+  }
 
   // Sequence mode shows segments instead of grid
   if (isSequence) {

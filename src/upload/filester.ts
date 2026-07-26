@@ -109,7 +109,7 @@ async function upload(
 
     if (!response.ok) {
       throw new Error(
-        `Filester HTTP ${response.status}${bodyText ? ` — ${bodyText.slice(0, 120)}` : ""}`,
+        `Filester HTTP ${response.status}${bodyText ? ` — ${bodyText}` : ""}`,
       );
     }
 
@@ -118,9 +118,7 @@ async function upload(
     try {
       json = JSON.parse(bodyText) as FilesterUploadResponse;
     } catch {
-      throw new Error(
-        `Filester returned non-JSON response: ${bodyText.slice(0, 120)}`,
-      );
+      throw new Error(`Filester returned non-JSON response: ${bodyText}`);
     }
 
     // Validate that the response has the expected structure
@@ -129,9 +127,7 @@ async function upload(
       json === null ||
       "success" in json === false
     ) {
-      throw new Error(
-        `Filester returned an invalid response: ${bodyText.slice(0, 120)}`,
-      );
+      throw new Error(`Filester returned an invalid response: ${bodyText}`);
     }
 
     onProgress(100);
@@ -145,7 +141,7 @@ async function upload(
     const slug = json.slug;
     if (!slug) {
       throw new Error(
-        `Filester upload succeeded but no slug returned: ${bodyText.slice(0, 120)}`,
+        `Filester upload succeeded but no slug returned: ${bodyText}`,
       );
     }
 
@@ -251,7 +247,7 @@ async function deleteFile(
 
   if (!response.ok) {
     throw new Error(
-      `Filester delete failed: HTTP ${response.status}${bodyText ? ` — ${bodyText.slice(0, 120)}` : ""}`,
+      `Filester delete failed: HTTP ${response.status}${bodyText ? ` — ${bodyText}` : ""}`,
     );
   }
 
@@ -262,13 +258,13 @@ async function deleteFile(
       json = JSON.parse(bodyText);
     } catch {
       throw new Error(
-        `Filester delete returned non-JSON response: ${bodyText.slice(0, 120)}`,
+        `Filester delete returned non-JSON response: ${bodyText}`,
       );
     }
 
     if (typeof json !== "object" || json === null || !("success" in json)) {
       throw new Error(
-        `Filester delete returned an invalid response: ${bodyText.slice(0, 120)}`,
+        `Filester delete returned an invalid response: ${bodyText}`,
       );
     }
 

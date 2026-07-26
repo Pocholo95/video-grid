@@ -1,4 +1,5 @@
-import type { DestinationType, SavedOptions } from "./types";
+import { Grid3x3, Clapperboard, Scissors, Images } from "lucide-react";
+import type { DestinationType, OutputMode, SavedOptions } from "./types";
 
 export const PROJECT_NAME = import.meta.env.VITE_PROJECT_NAME || "VidGrid-HTML";
 export const PROJECT_URL =
@@ -34,8 +35,7 @@ export const DEFAULTS: SavedOptions = {
   bgColor: "#000000",
   textColor: "#ffffff",
   header: true,
-  animated: false,
-  animSequence: false,
+  outputMode: "static",
   animSegments: 6,
   sequenceMode: "video",
   animFormat: "webp",
@@ -49,8 +49,10 @@ export const DEFAULTS: SavedOptions = {
   tcFontSize: 14,
   headerFontSizeAuto: true,
   headerFontSize: 24,
-  sectionStates: { grid: true, style: true, modes: true },
+  sectionStates: { grid: true, style: true, modes: true, overlays: true },
   gridTemplate: undefined,
+  galleryCount: 8,
+  galleryOriginalResolution: true,
 };
 
 // Header layout
@@ -87,7 +89,7 @@ export const MIN_CELL_WIDTH = 240;
 export const JPEG_QUALITY = 0.95;
 
 /** Current schema version for stored settings (used by migration system) */
-export const STORAGE_SCHEMA_VERSION = 5;
+export const STORAGE_SCHEMA_VERSION = 6;
 
 /**
  * Default configuration per upload-destination provider type.
@@ -218,3 +220,39 @@ export const COLOR_SWATCHES = [
   "#a3a3a3",
   "#ffffff",
 ] as const;
+
+/**
+ * Shared output mode metadata — used by OutputModeCards, preset grouping,
+ * summaries, and any other UI that displays mode labels.
+ */
+export const OUTPUT_MODES: {
+  value: OutputMode;
+  title: string;
+  description: string;
+  icon: typeof Grid3x3;
+}[] = [
+  {
+    value: "static",
+    title: "Static Grid",
+    description: "Grid of thumbnails (JPG)",
+    icon: Grid3x3,
+  },
+  {
+    value: "animated",
+    title: "Animated Grid",
+    description: "Animated grid (WebP/MP4)",
+    icon: Clapperboard,
+  },
+  {
+    value: "sequence",
+    title: "Sequence",
+    description: "Video segments (WebP/MP4)",
+    icon: Scissors,
+  },
+  {
+    value: "gallery",
+    title: "Gallery",
+    description: "Individual frames (JPG)",
+    icon: Images,
+  },
+];

@@ -473,4 +473,85 @@ describe("uploadStore uploadAll (no fake timers)", () => {
     expect(progress.attempted).toBe(2);
     expect(progress.total).toBe(2);
   });
+
+  it("uploadAll preserves already-done count on second call so counter doesn't reset to 0", async () => {
+    // First call: upload both items
+    useTaskStore.getState().setItems(() => [createItem("a"), createItem("b")]);
+
+    await useUploadStore.getState().uploadAll([mockDest]);
+
+    // Both items should now be done
+    const itemsAfterFirst = useTaskStore.getState().items;
+    expect(itemsAfterFirst[0].uploads?.["dest1"]?.status).toBe("done");
+    expect(itemsAfterFirst[1].uploads?.["dest1"]?.status).toBe("done");
+
+    // Track progress state during the second uploadAll call
+    let progressDuringSecondCall: { attempted: number; total: number } | null =
+      null;
+
+    // Subscribe to state changes to capture progress during the second call
+    const unsubscribe = useUploadStore.subscribe((state) => {
+      if (state.isUploadingAll) {
+        progressDuringSecondCall = { ...state.uploadProgress };
+      }
+    });
+
+    try {
+      // Second call: all uploads already done, should skip all
+      await useUploadStore.getState().uploadAll([mockDest]);
+
+      // During the second call, progress should have started from alreadyDone=2
+      // not from 0
+      expect(progressDuringSecondCall).not.toBeNull();
+      expect(progressDuringSecondCall!.total).toBe(2);
+      // The initial progress should start with attempted=2 (already done)
+      expect(progressDuringSecondCall!.attempted).toBeGreaterThanOrEqual(2);
+    } finally {
+      unsubscribe();
+    }
+  });
+
+  it("uploadAll progress starts from alreadyDone when only some uploads complete", async () => {
+    // Set up: item "a" already uploaded to dest1, item "b" not yet uploaded
+    const itemA: TaskItem = {
+      ...createItem("a"),
+      uploads: {
+        dest1: { status: "done", progress: 100, result: mockResult },
+      },
+    };
+    const itemB = createItem("b");
+
+    useTaskStore.getState().setItems(() => [itemA, itemB]);
+
+    // Track progress at the start of uploadAll
+    let initialProgress: { attempted: number; total: number } | null = null;
+    let progressSnapshotCount = 0;
+
+    const unsubscribe = useUploadStore.subscribe((state) => {
+      if (state.isUploadingAll && progressSnapshotCount === 0) {
+        initialProgress = { ...state.uploadProgress };
+        progressSnapshotCount++;
+      }
+    });
+
+    try {
+      await useUploadStore.getState().uploadAll([mockDest]);
+
+      // Initial progress should reflect alreadyDone=1 (item a is done)
+      expect(initialProgress).not.toBeNull();
+      expect(initialProgress!.total).toBe(2); // 2 items * 1 dest * 1 file each
+      expect(initialProgress!.attempted).toBe(1); // item a already done
+    } finally {
+      unsubscribe();
+    }
+
+    // After completion, both should be done
+    const itemsAfter = useTaskStore.getState().items;
+    expect(itemsAfter[0].uploads?.["dest1"]?.status).toBe("done");
+    expect(itemsAfter[1].uploads?.["dest1"]?.status).toBe("done");
+
+    const finalProgress = useUploadStore.getState().uploadProgress;
+    expect(finalProgress.attempted).toBe(2);
+    expect(finalProgress.total).toBe(2);
+  });
 });

@@ -42,6 +42,9 @@ export default function App() {
   const previewUrl = useUiStore((s) => s.previewUrl);
   const setPreviewUrl = useUiStore((s) => s.setPreviewUrl);
   const downloadAll = useUiStore((s) => s.downloadAll);
+  const galleryPreviewTaskId = useUiStore((s) => s.galleryPreviewTaskId);
+  const galleryPreviewIndex = useUiStore((s) => s.galleryPreviewIndex);
+  const setGalleryPreview = useUiStore((s) => s.setGalleryPreview);
 
   const settings = useSettingsStore((s) => s.settings);
   const handleOpenSettingsDialog = useSettingsStore(
@@ -131,10 +134,16 @@ export default function App() {
   }, [setItems, processor.resetState, upload.resetUploadState]);
 
   // --- Preview ---
-  const handleClosePreview = useCallback(
-    () => setPreviewUrl(null),
-    [setPreviewUrl],
-  );
+  const handleClosePreview = useCallback(() => {
+    setPreviewUrl(null);
+    setGalleryPreview(null);
+  }, [setPreviewUrl, setGalleryPreview]);
+
+  // --- Derived gallery images from task store ---
+  const galleryTask = galleryPreviewTaskId
+    ? items.find((i) => i.id === galleryPreviewTaskId)
+    : null;
+  const galleryImages = galleryTask?.galleryImages;
 
   return (
     <div ref={mainRef} className="mx-auto flex max-w-6xl flex-col gap-3 p-4">
@@ -192,7 +201,15 @@ export default function App() {
       />
 
       {previewUrl && (
-        <PreviewModal url={previewUrl} onClose={handleClosePreview} />
+        <PreviewModal
+          url={previewUrl}
+          onClose={handleClosePreview}
+          galleryImages={galleryImages}
+          galleryIndex={galleryPreviewIndex}
+          onGalleryIndexChange={(idx) =>
+            setGalleryPreview(galleryPreviewTaskId, idx)
+          }
+        />
       )}
 
       <CORSHelpModal

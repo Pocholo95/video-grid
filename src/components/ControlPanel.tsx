@@ -2,6 +2,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import PresetsRow from "./control/PresetsRow";
 import GridSection from "./control/GridSection";
 import OutputModesSection from "./control/OutputModesSection";
+import OverlaysSection from "./control/OverlaysSection";
 import StyleSection from "./control/StyleSection";
 import type { AppSettings, SavedOptions, SectionStates } from "../types";
 
@@ -20,20 +21,22 @@ export default function ControlPanel({
   presets,
   setPresets,
 }: Props) {
-  const sections: SectionStates = opts.sectionStates ?? {
-    grid: true,
-    style: true,
-    modes: true,
+  const sections: SectionStates = {
+    grid: opts.sectionStates?.grid ?? true,
+    style: opts.sectionStates?.style ?? true,
+    modes: opts.sectionStates?.modes ?? true,
+    overlays: opts.sectionStates?.overlays ?? true,
   };
 
   // Function updater reads the latest store state, so multiple rapid toggles
   // (e.g. Shift+click syncing siblings) don't suffer from stale closures.
   const toggleSection = (key: keyof SectionStates) => {
     setOpts((prev) => {
-      const current = prev.sectionStates ?? {
-        grid: true,
-        style: true,
-        modes: true,
+      const current = {
+        grid: prev.sectionStates?.grid ?? true,
+        style: prev.sectionStates?.style ?? true,
+        modes: prev.sectionStates?.modes ?? true,
+        overlays: prev.sectionStates?.overlays ?? true,
       };
       return {
         ...prev,
@@ -52,6 +55,13 @@ export default function ControlPanel({
           presets={presets}
           setPresets={setPresets}
         />
+        <OutputModesSection
+          opts={opts}
+          setOpts={setOpts}
+          expanded={sections.modes}
+          onToggle={() => toggleSection("modes")}
+          groupKey="control-panel"
+        />
         <GridSection
           opts={opts}
           setOpts={setOpts}
@@ -59,11 +69,11 @@ export default function ControlPanel({
           onToggle={() => toggleSection("grid")}
           groupKey="control-panel"
         />
-        <OutputModesSection
+        <OverlaysSection
           opts={opts}
           setOpts={setOpts}
-          expanded={sections.modes}
-          onToggle={() => toggleSection("modes")}
+          expanded={sections.overlays}
+          onToggle={() => toggleSection("overlays")}
           groupKey="control-panel"
         />
         <StyleSection

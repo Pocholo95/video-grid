@@ -1,4 +1,11 @@
-import { Cloud, Download, RotateCcw, AlertTriangle, Check } from "lucide-react";
+import {
+  Cloud,
+  Download,
+  RotateCcw,
+  AlertTriangle,
+  Check,
+  Archive,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { CopyField } from "@/components/CopyField";
 import { Field, FieldLabel } from "@/components/ui/field";
@@ -11,7 +18,7 @@ import {
 import type { AnimationEstimate } from "@/types";
 import type { TaskItem } from "@/types";
 import type { UploadDestination } from "@/types";
-import { isUploadEligible } from "@/uploadUtils";
+import { isItemUploadEligible } from "@/uploadUtils";
 import { buildBbcodeTitle, humanPixels, humanSize } from "@/utils";
 
 interface Props {
@@ -27,6 +34,13 @@ interface Props {
   estimationMaxPixels: number;
   onUpload: () => void;
   onRequeue: () => void;
+  onDownloadGallery?: () => void;
+  /** Gallery: blob URLs for each frame (populated when outputMode === "gallery") */
+  galleryBlobUrls?: string[];
+  /** Gallery: current index being previewed */
+  galleryCurrentIndex?: number;
+  /** Gallery: filenames for each frame */
+  galleryImageNames?: string[];
 }
 
 export default function InfoPanel({
@@ -42,20 +56,29 @@ export default function InfoPanel({
   estimationMaxPixels,
   onUpload,
   onRequeue,
+  onDownloadGallery,
+  galleryBlobUrls,
+  galleryCurrentIndex,
+  galleryImageNames,
 }: Props) {
   const isDone = item.status === "done";
   const enabledDests = destinations.filter((d) => d.enabled);
 
+  // Helper: check if a destination truly has everything done
+  const isDestFullyDone = (d: UploadDestination): boolean => {
+    const state = item.uploads?.[d.id];
+    if (!state?.fileResults) return state?.status === "done";
+    return state.fileResults.every((f) => f.status === "done");
+  };
+
   // Filter enabled destinations to only those eligible for this task's output
+  // and not fully done (so deleted/errored files keep the destination visible)
   const eligibleDests = enabledDests.filter(
-    (d) =>
-      isUploadEligible(item.outputName, item.outputSize, d) &&
-      item.uploads?.[d.id]?.status !== "done",
+    (d) => isItemUploadEligible(item, d) && !isDestFullyDone(d),
   );
 
   const allDone =
-    enabledDests.length > 0 &&
-    enabledDests.every((d) => item.uploads?.[d.id]?.status === "done");
+    enabledDests.length > 0 && enabledDests.every((d) => isDestFullyDone(d));
 
   // BBCode video title
   const bbcodeVideoTitle = buildBbcodeTitle(item);
@@ -126,7 +149,11 @@ export default function InfoPanel({
             {/* File size + dimensions */}
             <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
               {item.outputSize && (
-                <span>File size: {humanSize(item.outputSize)}</span>
+                <span>
+                  {item.galleryImages && item.galleryImages.length > 0
+                    ? `Total gallery size: ${humanSize(item.outputSize)} (${item.galleryImages.length} images)`
+                    : `File size: ${humanSize(item.outputSize)}`}
+                </span>
               )}
               {outputDimensions && (
                 <span className="text-muted-foreground">
@@ -134,8 +161,8 @@ export default function InfoPanel({
                 </span>
               )}
             </div>
-            {/* Animation-specific details (only for animated output) */}
-            {estimate && (
+            {/* Animation-specific details (only for animated output, not gallery) */}
+            {estimate && item.completedOutputMode !== "gallery" && (
               <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
                 {/* Frames */}
                 <span className="flex items-center gap-1">
@@ -183,25 +210,56 @@ export default function InfoPanel({
       {item.outputName && (
         <p>
           <span className="text-muted-foreground">Output name: </span>
-          <span className="break-all">{item.outputName}</span>
+          <span className="break-all">
+            {galleryImageNames?.[galleryCurrentIndex ?? 0] ?? item.outputName}
+          </span>
         </p>
       )}
       <div className="flex flex-col gap-1 my-2">
         <span className="text-xs font-medium">
-          BBCode – video title + resolution
+          BBCode — video title + resolution
         </span>
         <CopyField value={bbcodeVideoTitle} fieldType="input" />
       </div>
       <div className="mt-1 flex flex-wrap gap-2">
         {isDone && item.outputBlob && item.outputName && (
           <Button asChild variant="outline" size="sm">
-            <a href={blobUrl || "#"} download={item.outputName}>
+            <a
+              href={
+                galleryBlobUrls?.[galleryCurrentIndex ?? 0] ?? blobUrl ?? "#"
+              }
+              download={
+                galleryImageNames?.[galleryCurrentIndex ?? 0] ?? item.outputName
+              }
+            >
               <Download className="size-4" />
               Download{" "}
-              {item.outputName.split(".").pop()?.toUpperCase() ?? "File"}
+              {(
+                galleryImageNames?.[galleryCurrentIndex ?? 0] ?? item.outputName
+              )
+                .split(".")
+                .pop()
+                ?.toUpperCase() ?? "File"}
+              {galleryBlobUrls && galleryBlobUrls.length > 1
+                ? ` (Frame ${galleryCurrentIndex != null ? galleryCurrentIndex + 1 : 1})`
+                : ""}
             </a>
           </Button>
         )}
+        {isDone &&
+          item.galleryImages &&
+          item.galleryImages.length > 1 &&
+          onDownloadGallery && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={onDownloadGallery}
+              title={`Download all ${item.galleryImages.length} gallery frames as ZIP`}
+            >
+              <Archive className="size-4" />
+              Download Gallery (ZIP)
+            </Button>
+          )}
         {isDone && eligibleDests.length > 0 && !allDone && (
           <Button
             variant="default"
@@ -251,10 +309,13 @@ export default function InfoPanel({
           </Button>
         )}
       </div>
-      {/* Per-destination upload progress */}
+      {/* Per-destination upload progress (only for legacy single-file mode;
+          gallery multi-file mode shows progress inside each frame row) */}
       {enabledDests.map((dest) => {
         const state = item.uploads?.[dest.id];
         if (!state || state.status === "idle") return null;
+        // Skip if fileResults exist (gallery multi-file mode - progress shown in UploadResultsSection)
+        if (state.fileResults) return null;
         if (state.status === "uploading") {
           return (
             <Field key={dest.id}>

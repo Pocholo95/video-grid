@@ -10,27 +10,46 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { renderHook, act } from "@testing-library/react";
 import { useUpload } from "@/hooks/useUpload";
-import { useUploadStore } from "@/store/uploadStore";
-import { useSettingsStore } from "@/store/settingsStore";
 import type { UploadDestination } from "@/types";
 
-// Mock stores
-vi.mock("@/store/uploadStore", () => ({
-  useUploadStore: vi.fn(),
-}));
+const mockUploadItemToDest = vi.fn().mockResolvedValue(undefined);
+const mockStoreUploadItem = vi.fn().mockResolvedValue(undefined);
+const mockUploadAll = vi.fn().mockResolvedValue(undefined);
+const mockResetUploadState = vi.fn();
+
+let mockSettingsDestinations: UploadDestination[];
+let mockState: ReturnType<typeof createMockState>;
+let mockSettingsState: { settings: { destinations: UploadDestination[] } };
+
+function createMockState() {
+  return {
+    isUploadingAll: false,
+    uploadProgress: { total: 0, attempted: 0 },
+    resetUploadState: mockResetUploadState,
+    uploadItemToDest: mockUploadItemToDest,
+    uploadItem: mockStoreUploadItem,
+    uploadAll: mockUploadAll,
+  };
+}
+
+// Mock stores inline (same pattern as useProcessorStatus.test.ts)
+vi.mock("@/store/uploadStore", () => {
+  const mockFn = vi.fn((selector: (state: unknown) => unknown) => {
+    return selector(mockState);
+  }) as unknown as typeof vi.fn & {
+    getState: () => ReturnType<typeof createMockState>;
+  };
+  mockFn.getState = () => mockState;
+  return { useUploadStore: mockFn };
+});
 
 vi.mock("@/store/settingsStore", () => ({
-  useSettingsStore: vi.fn(),
+  useSettingsStore: vi.fn((selector: (state: unknown) => unknown) => {
+    return selector(mockSettingsState);
+  }),
 }));
 
 describe("useUpload", () => {
-  const mockUploadItemToDest = vi.fn().mockResolvedValue(undefined);
-  const mockStoreUploadItem = vi.fn().mockResolvedValue(undefined);
-  const mockUploadAll = vi.fn().mockResolvedValue(undefined);
-  const mockResetUploadState = vi.fn();
-
-  let mockSettingsDestinations: UploadDestination[];
-
   beforeEach(() => {
     vi.clearAllMocks();
 
@@ -47,39 +66,12 @@ describe("useUpload", () => {
       },
     ];
 
-    const mockState = {
-      isUploadingAll: false,
-      uploadProgress: { total: 0, attempted: 0 },
-      resetUploadState: mockResetUploadState,
-      uploadItemToDest: mockUploadItemToDest,
-      uploadItem: mockStoreUploadItem,
-      uploadAll: mockUploadAll,
+    mockState = createMockState();
+    mockSettingsState = {
+      settings: {
+        destinations: mockSettingsDestinations,
+      },
     };
-
-    vi.mocked(useUploadStore).mockImplementation(
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (selector: any) => {
-        if (typeof selector === "function") return selector(mockState);
-        return mockState[selector as keyof typeof mockState];
-      },
-    );
-
-    // uploadAll calls useUploadStore.getState() directly
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (vi.mocked(useUploadStore).getState as any) = () => mockState;
-
-    vi.mocked(useSettingsStore).mockImplementation(
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (selector: any) => {
-        const state = {
-          settings: {
-            destinations: mockSettingsDestinations,
-          },
-        };
-        if (typeof selector === "function") return selector(state);
-        return state;
-      },
-    );
   });
 
   describe("state exposure", () => {

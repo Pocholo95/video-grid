@@ -15,8 +15,8 @@ describe("getPresetSummary", () => {
     expect(summary).toContain("3×4");
   });
 
-  it("shows Animated mode when animated is true", () => {
-    const opts = { ...DEFAULTS, animated: true };
+  it("shows Animated mode when outputMode is animated", () => {
+    const opts = { ...DEFAULTS, outputMode: "animated" as const };
     const summary = getPresetSummary(opts);
     expect(summary).toContain("Animated");
   });

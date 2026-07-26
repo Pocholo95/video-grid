@@ -128,7 +128,7 @@ async function upload(
     if (!response.ok) {
       const errorText = await response.text().catch(() => "");
       throw new Error(
-        `im.ge HTTP ${response.status}${errorText ? ` — ${errorText.slice(0, 120)}` : ""}`,
+        `im.ge HTTP ${response.status}${errorText ? ` — ${errorText}` : ""}`,
       );
     }
 
@@ -217,7 +217,7 @@ async function deleteFile(
   if (!response.ok) {
     const errorText = await response.text().catch(() => "");
     throw new Error(
-      `im.ge delete failed: HTTP ${response.status}${errorText ? ` — ${errorText.slice(0, 120)}` : ""}`,
+      `im.ge delete failed: HTTP ${response.status}${errorText ? ` — ${errorText}` : ""}`,
     );
   }
 }

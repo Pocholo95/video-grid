@@ -98,8 +98,7 @@ export function createMockFFmpegService(
     reinit: async () => {
       ready = true;
     },
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    onLog: (_cb) => {
+    onLog: () => {
       // no-op, callbacks tracked via taskLogs
     },
     onProgress: (cb) => {
@@ -165,6 +164,12 @@ export function createMockGridRenderer(
       outputName: "test.webp",
       outputBlob: new Blob(["mock"], { type: "image/webp" }),
     }),
+    renderGallery: async () => [
+      {
+        blob: new Blob(["mock"], { type: "image/jpeg" }),
+        filename: "test_001.jpg",
+      },
+    ],
     destroy: async () => {},
     ...overrides,
   };

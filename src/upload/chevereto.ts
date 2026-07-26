@@ -1,4 +1,5 @@
 import { PROJECT_NAME, UPLOAD_TIMEOUT_MS } from "@/constants";
+import { withoutExtension } from "@/utils";
 import type { UploadDestination, UploadResult } from "@/types";
 import type { UploadProvider } from "./providers";
 import {
@@ -91,7 +92,7 @@ async function upload(
 
   const formData = new FormData();
   formData.append("image", b64);
-  formData.append("name", filename.replace(/\.[^.]+$/, ""));
+  formData.append("name", withoutExtension(filename));
 
   let status: number;
   let responseText: string;

@@ -1,4 +1,30 @@
-import type { UploadDestination, UploadResult, VideoMetadata } from "./types";
+import type {
+  TaskItem,
+  UploadDestination,
+  UploadResult,
+  VideoMetadata,
+} from "./types";
+import { buildBbcodeTitleLine, withoutExtension } from "./utils";
+
+/**
+ * Get files to upload for a task (gallery images or single output file).
+ */
+export function getUploadFiles(
+  item: TaskItem,
+): Array<{ blob: Blob; name: string }> {
+  // Gallery mode: return all frame images
+  if (item.galleryImages && item.galleryImages.length > 0) {
+    return item.galleryImages.map((blob, i) => ({
+      blob,
+      name: item.galleryImageNames?.[i] ?? `${item.outputName}_${i}.jpg`,
+    }));
+  }
+  // Single file mode (video, image, etc.): return the output blob
+  if (item.outputBlob && item.outputName) {
+    return [{ blob: item.outputBlob, name: item.outputName }];
+  }
+  return [];
+}
 
 /**
  * Parse a comma-separated extensions string into a normalized set of
@@ -66,6 +92,28 @@ export function isUploadEligible(
   return true;
 }
 
+/**
+ * Check whether a TaskItem is eligible for upload to a given destination.
+ * For gallery tasks, checks gallery image extensions instead of outputName
+ * (which is the original video filename, e.g. .mp4, not .jpg).
+ */
+export function isItemUploadEligible(
+  item: {
+    outputName?: string;
+    outputSize?: number;
+    galleryImageNames?: string[];
+  },
+  destination: UploadDestination,
+): boolean {
+  // Gallery mode: check gallery image names, not the video outputName
+  if (item.galleryImageNames && item.galleryImageNames.length > 0) {
+    return item.galleryImageNames.some((name) =>
+      isUploadEligible(name, undefined, destination),
+    );
+  }
+  return isUploadEligible(item.outputName, item.outputSize, destination);
+}
+
 export type LinkFormat = {
   key: string;
   label: string;
@@ -110,10 +158,7 @@ export const buildFormats = (
   canHotlink: boolean,
   metadata?: VideoMetadata,
 ): LinkFormat[] => {
-  const filenameNoExt = filename
-    .replace(/\.[^.]+$/, "") // Remove thumbnail image file extension
-    .replace(/\.[^.]+$/, ""); // Remove video file extension
-  const resolution = resolutionLabel(metadata);
+  const filenameNoExt = withoutExtension(filename);
 
   // When thumbUrl equals pageUrl, it means no real thumbnail image is available
   // (e.g. Filester .webp uploads where thumbnail_url points to a 404).
@@ -177,13 +222,15 @@ export const buildFormats = (
   // Post Template: for webp files, use directUrl to preserve animation.
   // But when canHotlink is false, directUrl is a viewer page URL (not embeddable),
   // so use a plain text link instead.
+  // Use buildBbcodeTitleLine to unify title+resolution formatting.
+  const titleLine = buildBbcodeTitleLine(filenameNoExt, metadata);
   let postTemplateValue: string;
   if (canHotlink) {
-    postTemplateValue = `[b]${filenameNoExt}${resolution ? ` ${resolution}` : ""}[/b]\n[url=${r.pageUrl}][img]${(filename.endsWith(".webp") ? r.directUrl : r.mediumUrl) ?? r.thumbUrl}[/img][/url]`;
+    postTemplateValue = `${titleLine}\n[url=${r.pageUrl}][img]${(filename.endsWith(".webp") ? r.directUrl : r.mediumUrl) ?? r.thumbUrl}[/img][/url]`;
   } else if (hasRealThumbnail) {
-    postTemplateValue = `[b]${filenameNoExt}${resolution ? ` ${resolution}` : ""}[/b]\n[url=${r.pageUrl}][img]${r.mediumUrl ?? r.thumbUrl}[/img][/url]`;
+    postTemplateValue = `${titleLine}\n[url=${r.pageUrl}][img]${r.mediumUrl ?? r.thumbUrl}[/img][/url]`;
   } else {
-    postTemplateValue = `[b]${filenameNoExt}${resolution ? ` ${resolution}` : ""}[/b]\n[url=${r.pageUrl}]${filenameNoExt}[/url]`;
+    postTemplateValue = `${titleLine}\n[url=${r.pageUrl}]${filenameNoExt}[/url]`;
   }
 
   const formats: LinkFormat[] = [

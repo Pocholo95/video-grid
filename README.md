@@ -37,6 +37,7 @@ trigger an upload.
 - [Custom Timestamps](#custom-timestamps)
 - [Animated output](#animated-output)
 - [Sequence mode - Video with audio](#sequence-mode---video-with-audio)
+- [Gallery mode](#gallery-mode)
 - [VR Video](#vr-video)
 - [Presets](#presets)
 - [Uploading](#uploading)
@@ -147,28 +148,45 @@ the completed tasks.
 
 ## Generation Options
 
-The controls are grouped into three collapsible fieldsets: **Grid**, **Output Modes**, and **Style**.
+The controls are grouped into three collapsible fieldsets: **Output Modes**, **Grid** (or **Dimensions** in sequence/gallery modes), and **Style**.
+
+### Output Mode Selector
+
+At the top of the options panel, an **Output mode** dropdown lets you choose between:
+
+| Mode         | Description                                                                                               |
+| ------------ | --------------------------------------------------------------------------------------------------------- |
+| **Static**   | Generate a single static JPEG contact sheet with frames arranged in a grid                                |
+| **Animated** | Generate an animated WebP or MP4 with moving frames in a grid                                             |
+| **Sequence** | Single-cell sequential playback instead of a grid, see [Sequence mode](#sequence-mode---video-with-audio) |
+| **Gallery**  | Generate individual JPEG images at specified timestamps, see [Gallery mode](#gallery-mode)                |
 
 > **Tip:** Hold **Shift** while clicking any section header to expand or
-> collapse all sections in the same group at once — useful when you want to
-> quickly scan or adjust multiple settings. This works on Tasks sections too.
+> collapse all sections at once — useful when you want to quickly scan or
+> adjust multiple settings. This works on Tasks sections too.
 
-### Grid
+### Grid / Dimensions
 
-| Option                   | Description                                                                            | Default |
-| ------------------------ | -------------------------------------------------------------------------------------- | ------- |
-| **Output width**         | Total pixel width of the generated image.                                              | 1920 px |
-| **Cell spacing**         | Gap in pixels between cells.                                                           | 0       |
-| **Grid columns**         | Number of columns in the uniform grid. Hidden when a custom template is active.        | 3       |
-| **Grid rows**            | Number of rows in the uniform grid. Hidden when a custom template is active.           | 4       |
-| **Custom grid template** | Enable a free-form layout editor. See [Custom Grid Templates](#custom-grid-templates). | Off     |
+| Option                   | Description                                                                                                              | Default |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------ | ------- |
+| **Output width**         | Total pixel width of the generated image. Hidden in gallery mode when original resolution is enabled.                    | 1920 px |
+| **Image width**          | Width of each individual gallery image. Shown instead of "Output width" in gallery mode.                                 | 1920 px |
+| **Cell spacing**         | Gap in pixels between cells. Hidden in sequence and gallery modes.                                                       | 0       |
+| **Grid columns**         | Number of columns in the uniform grid. Hidden when a custom template is active or in sequence/gallery modes.             | 3       |
+| **Grid rows**            | Number of rows in the uniform grid. Hidden when a custom template is active or in sequence/gallery modes.                | 4       |
+| **Custom grid template** | Enable a free-form layout editor. See [Custom Grid Templates](#custom-grid-templates). Hidden in sequence/gallery modes. | Off     |
+
+In **Sequence** and **Gallery** modes, this section is labeled **Dimensions**
+instead of **Grid** since grid layout is not applicable. In Gallery mode with
+original resolution enabled, the entire section is hidden as the video's native
+resolution is used.
 
 ### Output Modes
 
 | Option                   | Description                                                                                                             | Default  |
 | ------------------------ | ----------------------------------------------------------------------------------------------------------------------- | -------- |
 | **Timecode position**    | Corner where the timestamp overlay appears, or **Disabled** to omit it.                                                 | Top-left |
-| **Show header metadata** | Toggle the filename/info header row.                                                                                    | On       |
+| **Show metadata header** | Toggle the filename/info header row.                                                                                    | On       |
 | **VR Video**             | Crop one part of a stereo VR frame (SBS or TB layout), see [VR Video options](#vr-video-options)                        | Disabled |
 | **Animated output**      | Generate an animated WebP instead of a static JPEG. Reveals more options, see [Animation settings](#animation-settings) | Off      |
 | **Sequence mode**        | Single-cell sequential playback instead of a grid. See [Sequence mode](#animation-settings)                             | Off      |
@@ -192,7 +210,7 @@ By default VidGrid-HTML arranges frames in a uniform columns × rows grid. The
 **Custom grid template** checkbox in the Grid section replaces that with a
 free-form layout: any number of rows, each with any number of cells.
 
-### How it works
+**How it works:**
 
 The template editor opens as a modal. Rows stack vertically on screen; within
 each row, cells share the full output width equally; there is no manual width
@@ -397,12 +415,55 @@ Limitations:
 
 ### Important notes
 
-- **Disabled options**: Grid size/Custom grid, Cell spacing, Header metadata,
+- **Disabled options**: Grid size/Custom grid, Cell spacing, Metadata header,
   and Timecode position are not available in this mode because FFmpeg cuts the
   raw video directly; there is no canvas to draw text on.
 - **Output is always MP4.** WebP is not available for this mode.
 - **Custom timestamps work:** if you've set custom markers in the Timestamp
   Editor, those positions are used as segment start points.
+
+---
+
+## Gallery mode
+
+When **Gallery** is selected as the output mode, VidGrid-HTML generates individual
+JPEG images instead of a single grid or animation. Each image captures a single
+frame from the video at the timestamps you specify (auto-generated or custom).
+
+**How it works:**
+
+- **Frame count:** choose how many individual images to generate (default: 8).
+  Timestamps are evenly distributed across the video duration, or you can set
+  custom timestamps using the [Timestamp Editor](#custom-timestamps).
+- **Original resolution:** by default, each image is captured at the video's
+  native resolution for maximum quality. Disable this option to specify a custom
+  image width instead.
+- **Timecode overlay:** optionally add a timecode overlay to each image by
+  enabling a timecode position in the Output Modes section.
+
+### Gallery preview
+
+After processing, the task card shows the first generated image as a preview.
+Use the **Previous** and **Next** buttons to navigate through the gallery images.
+You can also click any image to open the full-size preview modal in which you can
+use **Arrow keys** (`←` / `→`) on your keyboard to navigate between images
+or **Swipe left/right** on mobile devices.
+
+### Downloading gallery images
+
+- **Download JPG** button downloads the currently previewed image individually
+- **Download Gallery** button generates a ZIP archive of all gallery images for
+  that task and offers it for download
+- **Download All** in the Tasks Actions panel includes gallery images from all
+  completed tasks in the ZIP archive
+
+### Gallery settings
+
+| Setting                 | Description                                                        | Default |
+| ----------------------- | ------------------------------------------------------------------ | ------- |
+| **Number of frames**    | How many individual images to generate per video                   | 8       |
+| **Original resolution** | Capture each image at the video's native resolution                | On      |
+| **Image width**         | Custom width for each image (when original resolution is disabled) | 1920 px |
 
 ---
 

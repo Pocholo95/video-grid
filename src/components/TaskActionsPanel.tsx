@@ -1,13 +1,23 @@
-import { useState } from "react";
-import { Check, Copy, Download, Loader2, Upload } from "lucide-react";
+import { useState, useMemo } from "react";
+import {
+  AlertTriangle,
+  Check,
+  Copy,
+  Download,
+  Info,
+  Loader2,
+  Upload,
+} from "lucide-react";
 import type {
   DestinationType,
   DestinationUploadState,
+  FileUploadResult,
   TaskItem,
   UploadResult,
 } from "../types";
-import { resolutionLabel, buildFormats } from "../uploadUtils";
+import { buildFormats } from "../uploadUtils";
 import { resolveCanHotlink } from "../upload/providers";
+import { buildBbcodeTitle, withoutExtension } from "../utils";
 
 /**
  * Determine which image URL to use for a post template [img] tag.
@@ -32,10 +42,14 @@ function getPostTemplateImage(
     return result.mediumUrl ?? result.thumbUrl;
   }
 }
-import { buildBbcodeTitle } from "../utils";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import {
   Select,
   SelectContent,
@@ -61,14 +75,40 @@ interface Props {
   hasPendingUploads: boolean;
   /** True while a bulk-upload batch is in progress. */
   isUploadingAll: boolean;
-  /** Upload progress for bulk upload. */
-  uploadProgress: { attempted: number; total: number };
   /** True while ZIP archive is being generated. */
   isZipping: boolean;
   /** Callback to upload all completed items. */
   onUploadAll: () => void;
   /** Callback to download all completed items as ZIP. */
   onDownloadAll: () => void;
+}
+
+/**
+ * Collect tasks that have at least one incomplete upload destination
+ * (error or deleted file results).
+ * Excludes items that currently have active uploads in progress,
+ * so the error popover doesn't flash during retries.
+ */
+function getIncompleteUploads(items: TaskItem[]): TaskItem[] {
+  return items.filter((item) => {
+    if (!item.uploads) return false;
+    return Object.values(item.uploads).some((state) => {
+      // Skip destinations with active uploads (retries in progress)
+      if (
+        state.fileResults?.some(
+          (fr) => fr.status === "uploading" || fr.status === "idle",
+        )
+      ) {
+        return false;
+      }
+      return (
+        state.status === "error" ||
+        state.fileResults?.some(
+          (fr) => fr.status === "error" || fr.status === "deleted",
+        )
+      );
+    });
+  });
 }
 
 type FormatKey =
@@ -83,7 +123,7 @@ type FormatKey =
   | "htmlImg";
 
 const FORMAT_LABELS: Record<FormatKey, string> = {
-  bbcodeTitleRes: "BBCode – video title + resolution",
+  bbcodeTitleRes: "BBCode — video title + resolution",
   bbcodePostTemplate: "BBCode — post template",
   bbcodeFull: "BBCode — full image",
   bbcodeMedium: "BBCode — medium",
@@ -96,6 +136,7 @@ const FORMAT_LABELS: Record<FormatKey, string> = {
 
 /**
  * Pick the first successful upload result for an item, across all destinations.
+ * For gallery mode (fileResults), checks if any file result is done.
  *
  * @param item - The TaskItem to inspect.
  * @returns The first completed upload result, or null if none exists.
@@ -103,6 +144,16 @@ const FORMAT_LABELS: Record<FormatKey, string> = {
 function firstResult(item: TaskItem) {
   if (!item.uploads) return null;
   for (const state of Object.values(item.uploads)) {
+    // Gallery mode: check if any file result is done
+    // Don't require state.status === "done" — a destination can have mixed results
+    // (some done, some error) which sets state.status to "error" even though
+    // individual file results are complete and have valid links to copy.
+    if (state.fileResults?.some((fr) => fr.status === "done")) {
+      return (
+        state.fileResults.find((fr) => fr.status === "done")?.result ?? null
+      );
+    }
+    // Single upload mode: check state.result
     if (state.status === "done" && state.result) return state.result;
   }
   return null;
@@ -127,37 +178,78 @@ function buildPostBlock(
 ): string | null {
   if (!item.uploads) return null;
 
-  const entries = Object.entries(item.uploads)
-    .filter(([, state]) => state.status === "done" && !!state.result)
-    .map(([destId, state]) => ({
-      destId,
-      result: state.result as UploadResult,
-    }));
-
-  if (!entries.length) return null;
-  const baseName = item.file.name.replace(/\.[^.]+$/, "");
-  const res = resolutionLabel(item.metadata);
-  const titleLine = `[b]${baseName}${res ? ` ${res}` : ""}[/b]`;
+  const titleLine = buildBbcodeTitle(item);
+  const baseName = withoutExtension(item.file.name);
   const isWebp = item.outputName?.endsWith(".webp") ?? false;
-  const imgLine = entries
-    .map(({ destId, result }) => {
-      const destType = (destIdToType[destId] ?? "imge") as DestinationType;
-      const canHotlink = resolveCanHotlink(destType);
-      const imageUrl = getPostTemplateImage(result, canHotlink, isWebp);
-      if (imageUrl) {
-        return `[url=${result.pageUrl}][img]${imageUrl}[/img][/url]`;
-      } else {
-        return `[url=${result.pageUrl}]${baseName}[/url]`;
-      }
-    })
-    .join(" ");
 
-  return `${titleLine}\n${imgLine}\n\n`;
+  // Collect all done file results per destination (gallery mode or single upload)
+  const destLines: string[] = [];
+  for (const [destId, state] of Object.entries(item.uploads)) {
+    // Process any destination that has uploads attempted (don't skip error/deleted)
+    const destType = (destIdToType[destId] ?? "imge") as DestinationType;
+    const canHotlink = resolveCanHotlink(destType);
+
+    // Get done file results (gallery mode) or fall back to single result
+    const doneResults: FileUploadResult[] = [];
+    if (state.fileResults && state.fileResults.length > 0) {
+      doneResults.push(
+        ...state.fileResults.filter(
+          (fr) => fr.status === "done" && !!fr.result,
+        ),
+      );
+    } else if (state.result) {
+      doneResults.push({ status: "done", progress: 100, result: state.result });
+    }
+
+    if (doneResults.length === 0) continue;
+
+    // Build image tags for all done files in this destination
+    const imgTags = doneResults
+      .map((fr) => {
+        const result = fr.result!;
+        const imageUrl = getPostTemplateImage(result, canHotlink, isWebp);
+        if (imageUrl) {
+          return `[url=${result.pageUrl}][img]${imageUrl}[/img][/url]`;
+        } else {
+          return `[url=${result.pageUrl}]${baseName}[/url]`;
+        }
+      })
+      .join(" ");
+
+    destLines.push(imgTags);
+  }
+
+  if (destLines.length === 0) return null;
+
+  // Multiple destinations: each on its own line; single destination: one line
+  const imgLine = destLines.join("\n");
+  return `${titleLine}\n${imgLine}\n`;
+}
+
+/**
+ * Collect all done file results from a destination upload state.
+ * If fileResults exists (gallery mode), return done entries.
+ * Otherwise fall back to the single result.
+ */
+function getDoneFileResults(
+  state: DestinationUploadState,
+): FileUploadResult[] | null {
+  if (state.fileResults && state.fileResults.length > 0) {
+    return state.fileResults.filter(
+      (fr): fr is FileUploadResult => fr.status === "done" && !!fr.result,
+    );
+  }
+  if (state.result) {
+    return [{ status: "done", progress: 100, result: state.result }];
+  }
+  return null;
 }
 
 /**
  * Build the copyable text for a given format key, one line per item.
  * For "bbcodePostTemplate", items are separated by blank lines instead.
+ * For gallery mode (fileResults), aggregates all frame URLs per destination
+ * separated by spaces, then joins destinations with double newlines.
  *
  * @param items - The TaskItems to include (should each have at least one upload).
  * @param format - The FormatKey identifying which named link format to emit.
@@ -186,39 +278,41 @@ function buildCopyText(
 
   return items
     .map((item) => {
-      const uploads = item.uploads
-        ? Object.values(item.uploads).filter(
-            (
-              state,
-            ): state is DestinationUploadState & { result: UploadResult } =>
-              state.status === "done" && !!state.result,
-          )
-        : [];
-
-      if (!uploads.length) return null;
+      if (!item.uploads) return null;
 
       const filename = item.outputName ?? item.file.name;
+      const destValues: string[] = [];
 
-      const values = uploads.map((state, idx) => {
-        const result = state.result;
-        const destId = Object.keys(item.uploads ?? {})[idx];
-        const destType = destId
-          ? (destIdToType[destId] as DestinationType)
-          : ("imge" as DestinationType);
-        const formats = buildFormats(
-          result,
-          filename,
-          resolveCanHotlink(destType),
-          item.metadata,
-        );
-        const selected = formats.find((f) => f.key === format);
-        return selected?.value ?? "";
-      });
+      for (const [destId, state] of Object.entries(item.uploads)) {
+        const doneResults = getDoneFileResults(state);
+        if (!doneResults || doneResults.length === 0) continue;
 
-      return values.filter(Boolean).join(" ");
+        const destType = (destIdToType[destId] ?? "imge") as DestinationType;
+        const canHotlink = resolveCanHotlink(destType);
+
+        // Aggregate all file results for this destination, separated by spaces
+        const fileValues = doneResults
+          .map((fr) => {
+            const formats = buildFormats(
+              fr.result!,
+              fr.filename ?? filename,
+              canHotlink,
+              item.metadata,
+            );
+            const selected = formats.find((f) => f.key === format);
+            return selected?.value ?? "";
+          })
+          .filter(Boolean);
+
+        if (fileValues.length > 0) {
+          destValues.push(fileValues.join(" "));
+        }
+      }
+
+      return destValues.length > 0 ? destValues.join("\n") : null;
     })
     .filter((value): value is string => Boolean(value))
-    .join("\n");
+    .join("\n\n");
 }
 
 function CopyButton({ text, disabled }: { text: string; disabled?: boolean }) {
@@ -263,6 +357,92 @@ function CopyButton({ text, disabled }: { text: string; disabled?: boolean }) {
 }
 
 /**
+ * Info popover shown when no tasks have uploaded outputs yet.
+ * Explains that link-copy formats require uploads and guides users to Settings.
+ * Only shows the "To get started" steps when no upload destinations are configured.
+ */
+function NoUploadsInfoPopover({
+  hasDestinations,
+}: {
+  hasDestinations: boolean;
+}) {
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button
+          variant="outline"
+          size="icon"
+          className="text-muted-foreground hover:text-foreground"
+          title="Link formats require uploaded outputs"
+        >
+          <Info className="size-4" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent align="start" className="w-80">
+        <p className="text-sm font-medium mb-2">No uploaded outputs yet</p>
+        <p className="text-sm text-muted-foreground mb-3">
+          The link format options are disabled because no tasks have generated
+          and uploaded outputs yet. Once you generate images/animations and
+          upload them to a destination, all link formats will become available.
+        </p>
+        {!hasDestinations && (
+          <>
+            <p className="text-sm font-medium mb-1">To get started:</p>
+            <ol className="text-sm text-muted-foreground list-decimal list-inside space-y-1">
+              <li>
+                Go to{" "}
+                <span className="font-medium text-foreground">Settings</span>{" "}
+                and configure and enable at least one upload destination
+              </li>
+              <li>Add video files and generate outputs</li>
+              <li>Upload the outputs – link formats will become available</li>
+            </ol>
+          </>
+        )}
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+/**
+ * Popover that lists tasks with upload errors.
+ * Shown as a warning icon next to the Copy All button so the user
+ * understands why upload-dependent formats are greyed out.
+ */
+function ErrorPopover({ errorItems }: { errorItems: TaskItem[] }) {
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button
+          variant="outline"
+          size="icon"
+          className="text-amber-400"
+          title={`${errorItems.length} task(s) have upload errors`}
+        >
+          <AlertTriangle className="size-4" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent align="start">
+        <p className="text-sm font-medium mb-2">
+          These tasks have incomplete uploads (only successful uploads are
+          included):
+        </p>
+        <ul className="list-disc list-inside space-y-1">
+          {errorItems.map((item) => (
+            <li
+              key={item.id}
+              className="text-sm text-muted-foreground break-all"
+            >
+              {item.file.name}
+            </li>
+          ))}
+        </ul>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+/**
  * Panel that groups completed-task actions: CopyAll links toolbar,
  * Upload All, and Download All buttons.
  *
@@ -277,21 +457,18 @@ function CopyButton({ text, disabled }: { text: string; disabled?: boolean }) {
  * @param completedUploads - Number of uploads that have completed.
  * @param hasPendingUploads - True when completedUploads < totalPossibleUploads.
  * @param isUploadingAll - True while bulk-upload is in progress.
- * @param uploadProgress - { attempted, total } for current bulk run.
  * @param isZipping - True while ZIP archive is being generated.
  * @param onUploadAll - Starts uploading all completed items.
  * @param onDownloadAll - Downloads all completed items as ZIP.
  */
 export default function TaskActionsPanel({
   items,
-  allDone,
   enabledDests,
   doneItems,
   totalPossibleUploads,
   completedUploads,
   hasPendingUploads,
   isUploadingAll,
-  uploadProgress,
   isZipping,
   onUploadAll,
   onDownloadAll,
@@ -306,19 +483,27 @@ export default function TaskActionsPanel({
   const uploadedItems = analyzedItems.filter((i) => firstResult(i) !== null);
 
   // Determine which formats are available given current state.
+  // Upload formats are available as long as at least one item has a successful upload
+  // (incomplete uploads on other items don't block copying the successful ones).
   const titleResAvailable = analyzedItems.length > 0;
-  const uploadFormatsAvailable = allDone && uploadedItems.length > 0;
+  const uploadFormatsAvailable = uploadedItems.length > 0;
   const anyAvailable = titleResAvailable || uploadFormatsAvailable;
+
+  // Collect items with incomplete uploads for the warning popover
+  const incompleteItems = useMemo(
+    () => getIncompleteUploads(analyzedItems),
+    [analyzedItems],
+  );
 
   const destIdToType: Record<string, string> = {};
   for (const d of enabledDests) {
     destIdToType[d.id] = d.type;
   }
-  const copyText = buildCopyText(
-    uploadFormatsAvailable ? uploadedItems : analyzedItems,
-    format,
-    destIdToType,
-  );
+
+  // Determine if any item has at least one successful upload
+  const hasAnyUploads = uploadedItems.length > 0;
+
+  const copyText = buildCopyText(analyzedItems, format, destIdToType);
 
   // Show panel only when there are done items or items with metadata
   const hasActions = doneItems.length > 0 || analyzedItems.length > 0;
@@ -338,7 +523,7 @@ export default function TaskActionsPanel({
               value={format}
               onValueChange={(v) => setFormat(v as FormatKey)}
             >
-              <SelectTrigger className="w-56 min-w-0 **:data-[slot=select-value]:inline-block **:data-[slot=select-value]:max-w-full **:data-[slot=select-value]:truncate">
+              <SelectTrigger className="w-auto min-w-1/2 **:data-[slot=select-value]:inline-block **:data-[slot=select-value]:max-w-full **:data-[slot=select-value]:truncate">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -358,6 +543,12 @@ export default function TaskActionsPanel({
               </SelectContent>
             </Select>
             <CopyButton text={copyText} disabled={!anyAvailable} />
+            {incompleteItems.length > 0 && (
+              <ErrorPopover errorItems={incompleteItems} />
+            )}
+            {!hasAnyUploads && (
+              <NoUploadsInfoPopover hasDestinations={enabledDests.length > 0} />
+            )}
           </div>
 
           {/* Column 2 - Action Buttons (right-aligned) */}
@@ -367,15 +558,21 @@ export default function TaskActionsPanel({
                 variant="default"
                 disabled={isUploadingAll || !hasPendingUploads}
                 onClick={onUploadAll}
-                title={`Upload all to ${enabledDests.map((d) => d.name).join(", ")} ${
-                  hasPendingUploads ? "" : "(All uploads complete)"
-                }`}
+                title={
+                  hasPendingUploads
+                    ? `Upload remaining files to ${enabledDests.map((d) => d.name).join(", ")}`
+                    : `All ${totalPossibleUploads} upload(s) to ${enabledDests.map((d) => d.name).join(", ")} are complete`
+                }
               >
                 {isUploadingAll ? (
                   <>
                     <Loader2 className="size-4 animate-spin" />
-                    Uploading… ({uploadProgress.attempted}/
-                    {uploadProgress.total})
+                    Uploading… ({completedUploads}/{totalPossibleUploads})
+                  </>
+                ) : !hasPendingUploads ? (
+                  <>
+                    <Check className="size-4" />
+                    All Uploaded
                   </>
                 ) : (
                   <>

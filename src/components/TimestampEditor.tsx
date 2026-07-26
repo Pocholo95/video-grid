@@ -24,6 +24,7 @@ import { Kbd } from "@/components/ui/kbd";
 import { cn } from "@/lib/utils";
 import { getOrCreateUrl } from "@/lib/blobCache";
 import type { TaskItem } from "../types";
+import { DEFAULTS } from "../constants";
 import { calculateSampleTimes } from "../gridUtils";
 import { formatTimeExact } from "../utils";
 import { useLongPress } from "../hooks/useLongPress";
@@ -552,7 +553,12 @@ export default function TimestampEditor({
   const storeGridTpl = useUiStore((s) => s.opts?.gridTemplate);
   const storeCols = useUiStore((s) => s.opts?.cols);
   const storeRows = useUiStore((s) => s.opts?.rows);
-  const isSequenceMode = useUiStore((s) => s.opts?.animSequence ?? false);
+  const isSequenceMode = useUiStore(
+    (s) => (s.opts?.outputMode ?? DEFAULTS.outputMode) === "sequence",
+  );
+  const isGalleryMode = useUiStore(
+    (s) => (s.opts?.outputMode ?? DEFAULTS.outputMode) === "gallery",
+  );
   const gridTemplate = storeGridTpl?.cells?.length
     ? storeGridTpl
     : templateFromUniform(storeCols ?? 4, storeRows ?? 3);
@@ -1102,7 +1108,7 @@ export default function TimestampEditor({
             {/* Right column on Desktop / Flex on Mobile */}
             <div className="flex min-h-0 flex-col gap-2 md:overflow-auto">
               {/* Grid Layout Section */}
-              {!isSequenceMode && (
+              {!isSequenceMode && !isGalleryMode && (
                 <CollapsiblePanel
                   label="Grid Layout"
                   expanded={gridExpanded}
