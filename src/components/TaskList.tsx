@@ -80,7 +80,6 @@ export default function TaskList({
 
   // Upload state from uploadStore
   const isUploadingAll = useUploadStore((s) => s.isUploadingAll);
-  const uploadProgress = useUploadStore((s) => s.uploadProgress);
 
   // ZIP state from uiStore
   const isZipping = useUiStore((s) => s.isZipping);
@@ -281,7 +280,6 @@ export default function TaskList({
                   completedUploads={completedUploads}
                   hasPendingUploads={hasPendingUploads}
                   isUploadingAll={isUploadingAll}
-                  uploadProgress={uploadProgress}
                   isZipping={isZipping}
                   onUploadAll={onUploadAll}
                   onDownloadAll={onDownloadAll}

@@ -65,10 +65,23 @@ vi.mock("@/components/ui/select", () => {
   const SelectItem = ({
     children,
     value,
+    disabled,
   }: {
     children?: React.ReactNode;
     value?: string;
-  }) => <option value={value}>{children}</option>;
+    disabled?: boolean;
+  }) => (
+    <option value={value} disabled={disabled ?? false} data-disabled={disabled}>
+      {children}
+    </option>
+  );
+
+  // Typed SelectItem props for the mock
+  interface SelectItemProps {
+    children?: React.ReactNode;
+    value?: string;
+    disabled?: boolean;
+  }
 
   return {
     SelectTrigger,
@@ -78,15 +91,15 @@ vi.mock("@/components/ui/select", () => {
     Select: ({ value, onValueChange, children }: SelectProps) => {
       // children[0] = SelectTrigger, children[1] = SelectContent
       // children[1].children = SelectItem[]
-      const selectContent = (
-        Array.isArray(children) ? children[1] : null
-      ) as React.ReactElement<React.HTMLAttributes<HTMLElement>> | null;
-      const items: React.ReactElement<React.HTMLAttributes<HTMLElement>>[] =
-        Array.isArray(selectContent?.props?.children)
-          ? (selectContent.props.children as React.ReactElement<
-              React.HTMLAttributes<HTMLElement>
-            >[])
-          : [];
+      const selectContent = Array.isArray(children)
+        ? (children[1] as React.ReactElement<{
+            children?: React.ReactNode;
+          }> | null)
+        : null;
+      const items = Array.isArray(selectContent?.props?.children)
+        ? (selectContent.props
+            .children as React.ReactElement<SelectItemProps>[])
+        : [];
       return (
         <select
           value={value}
@@ -95,13 +108,12 @@ vi.mock("@/components/ui/select", () => {
         >
           {items.map((item) => (
             <option
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              key={(item.props as any).value}
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              value={(item.props as any).value}
+              key={String(item.props.value)}
+              value={String(item.props.value)}
+              disabled={!!item.props.disabled}
+              data-disabled={String(!!item.props.disabled)}
             >
-              {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-              {(item.props as any).children}
+              {item.props.children}
             </option>
           ))}
         </select>
@@ -252,7 +264,6 @@ describe("buildCopyText (via component)", () => {
         completedUploads={1}
         hasPendingUploads={false}
         isUploadingAll={false}
-        uploadProgress={{ attempted: 1, total: 1 }}
         isZipping={false}
         onUploadAll={() => {}}
         onDownloadAll={() => {}}
@@ -311,7 +322,6 @@ describe("buildCopyText (via component)", () => {
         completedUploads={3}
         hasPendingUploads={false}
         isUploadingAll={false}
-        uploadProgress={{ attempted: 3, total: 3 }}
         isZipping={false}
         onUploadAll={() => {}}
         onDownloadAll={() => {}}
@@ -401,7 +411,6 @@ describe("buildCopyText (via component)", () => {
         completedUploads={4}
         hasPendingUploads={false}
         isUploadingAll={false}
-        uploadProgress={{ attempted: 4, total: 4 }}
         isZipping={false}
         onUploadAll={() => {}}
         onDownloadAll={() => {}}
@@ -478,7 +487,6 @@ describe("buildCopyText (via component)", () => {
         completedUploads={4}
         hasPendingUploads={false}
         isUploadingAll={false}
-        uploadProgress={{ attempted: 4, total: 4 }}
         isZipping={false}
         onUploadAll={() => {}}
         onDownloadAll={() => {}}
@@ -549,7 +557,6 @@ describe("buildCopyText (via component)", () => {
         completedUploads={1}
         hasPendingUploads={false}
         isUploadingAll={false}
-        uploadProgress={{ attempted: 1, total: 2 }}
         isZipping={false}
         onUploadAll={() => {}}
         onDownloadAll={() => {}}
@@ -589,7 +596,6 @@ describe("buildCopyText (via component)", () => {
         completedUploads={2}
         hasPendingUploads={false}
         isUploadingAll={false}
-        uploadProgress={{ attempted: 2, total: 2 }}
         isZipping={false}
         onUploadAll={() => {}}
         onDownloadAll={() => {}}
@@ -645,7 +651,6 @@ describe("buildCopyText (via component)", () => {
         completedUploads={2}
         hasPendingUploads={false}
         isUploadingAll={false}
-        uploadProgress={{ attempted: 2, total: 2 }}
         isZipping={false}
         onUploadAll={() => {}}
         onDownloadAll={() => {}}
@@ -712,7 +717,6 @@ describe("buildCopyText (via component)", () => {
         completedUploads={2}
         hasPendingUploads={false}
         isUploadingAll={false}
-        uploadProgress={{ attempted: 2, total: 2 }}
         isZipping={false}
         onUploadAll={() => {}}
         onDownloadAll={() => {}}
@@ -771,7 +775,6 @@ describe("CopyButton feedback", () => {
         completedUploads={1}
         hasPendingUploads={false}
         isUploadingAll={false}
-        uploadProgress={{ attempted: 1, total: 1 }}
         isZipping={false}
         onUploadAll={() => {}}
         onDownloadAll={() => {}}
@@ -813,7 +816,6 @@ describe("ErrorPopover", () => {
         completedUploads={1}
         hasPendingUploads={false}
         isUploadingAll={false}
-        uploadProgress={{ attempted: 1, total: 1 }}
         isZipping={false}
         onUploadAll={() => {}}
         onDownloadAll={() => {}}
@@ -848,7 +850,6 @@ describe("ErrorPopover", () => {
         completedUploads={1}
         hasPendingUploads={true}
         isUploadingAll={false}
-        uploadProgress={{ attempted: 1, total: 2 }}
         isZipping={false}
         onUploadAll={() => {}}
         onDownloadAll={() => {}}
@@ -891,7 +892,6 @@ describe("ErrorPopover", () => {
         completedUploads={1}
         hasPendingUploads={true}
         isUploadingAll={false}
-        uploadProgress={{ attempted: 1, total: 2 }}
         isZipping={false}
         onUploadAll={() => {}}
         onDownloadAll={() => {}}
@@ -933,7 +933,6 @@ describe("ErrorPopover", () => {
         completedUploads={2}
         hasPendingUploads={false}
         isUploadingAll={false}
-        uploadProgress={{ attempted: 2, total: 2 }}
         isZipping={false}
         onUploadAll={() => {}}
         onDownloadAll={() => {}}
@@ -968,7 +967,6 @@ describe("ErrorPopover", () => {
         completedUploads={0}
         hasPendingUploads={true}
         isUploadingAll={false}
-        uploadProgress={{ attempted: 0, total: 1 }}
         isZipping={false}
         onUploadAll={() => {}}
         onDownloadAll={() => {}}
@@ -1005,7 +1003,6 @@ describe("Upload All button states", () => {
         completedUploads={1}
         hasPendingUploads={true}
         isUploadingAll={false}
-        uploadProgress={{ attempted: 1, total: 3 }}
         isZipping={false}
         onUploadAll={() => {}}
         onDownloadAll={() => {}}
@@ -1034,7 +1031,6 @@ describe("Upload All button states", () => {
         completedUploads={2}
         hasPendingUploads={false}
         isUploadingAll={false}
-        uploadProgress={{ attempted: 2, total: 2 }}
         isZipping={false}
         onUploadAll={() => {}}
         onDownloadAll={() => {}}
@@ -1066,7 +1062,6 @@ describe("Upload All button states", () => {
         completedUploads={2}
         hasPendingUploads={true}
         isUploadingAll={true}
-        uploadProgress={{ attempted: 2, total: 5 }}
         isZipping={false}
         onUploadAll={() => {}}
         onDownloadAll={() => {}}
@@ -1093,7 +1088,6 @@ describe("TaskActionsPanel visibility", () => {
         completedUploads={0}
         hasPendingUploads={false}
         isUploadingAll={false}
-        uploadProgress={{ attempted: 0, total: 0 }}
         isZipping={false}
         onUploadAll={() => {}}
         onDownloadAll={() => {}}
@@ -1120,7 +1114,6 @@ describe("TaskActionsPanel visibility", () => {
         completedUploads={0}
         hasPendingUploads={false}
         isUploadingAll={false}
-        uploadProgress={{ attempted: 0, total: 0 }}
         isZipping={false}
         onUploadAll={() => {}}
         onDownloadAll={() => {}}
@@ -1128,5 +1121,514 @@ describe("TaskActionsPanel visibility", () => {
     );
 
     expect(screen.getByText("Tasks Actions")).toBeTruthy();
+  });
+});
+
+// ---- Tests for Copy All dropdown enabling with partial upload success ----
+
+describe("Copy All dropdown enabling with partial upload success", () => {
+  /**
+   * Helper to check whether a specific format option is enabled or disabled
+   * in the select dropdown. Uses data-disabled attribute passed through
+   * from the SelectItem mock.
+   */
+  function isFormatDisabled(formatKey: string): boolean {
+    const options = screen.getAllByRole("option");
+    const labels = {
+      bbcodeTitleRes: "BBCode — video title + resolution",
+      bbcodePostTemplate: "BBCode — post template",
+      bbcodeFull: "BBCode — full image",
+      bbcodeMedium: "BBCode — medium",
+      bbcodeThumb: "BBCode — thumbnail",
+      directUrl: "Direct URL",
+      pageUrl: "Viewer page",
+      markdown: "Markdown",
+      htmlImg: "HTML img",
+    };
+    const target = options.find(
+      (opt) => opt.textContent === labels[formatKey as keyof typeof labels],
+    );
+    if (!target) return true; // treat missing as disabled
+    return (
+      target.hasAttribute("data-disabled") && target.dataset.disabled === "true"
+    );
+  }
+
+  const enabledDests = [
+    { id: "dest-a", name: "TestHost", type: "imge" },
+    { id: "dest-b", name: "ErrorHost", type: "imge" },
+  ];
+
+  // ---- Dropdown Enabling Logic ----
+
+  it("enables upload formats when one task has success and another has all errors", () => {
+    // Task A: successful upload
+    const taskA = makeTaskWithUploads({
+      "dest-a": {
+        status: "done",
+        progress: 100,
+        result: makeUploadResult(),
+      },
+    });
+
+    // Task B: all errors, no success
+    const taskB = makeTaskWithUploads(
+      {
+        "dest-a": {
+          status: "error",
+          progress: 0,
+          error: "Network failure",
+        },
+        "dest-b": {
+          status: "error",
+          progress: 0,
+          error: "Timeout",
+        },
+      },
+      {
+        file: new File(["x"], "failed_video.mp4", { type: "video/mp4" }),
+      },
+    );
+
+    render(
+      <TaskActionsPanel
+        items={[taskA, taskB]}
+        allDone={false}
+        enabledDests={enabledDests}
+        doneItems={[taskA, taskB]}
+        totalPossibleUploads={3}
+        completedUploads={1}
+        hasPendingUploads={true}
+        isUploadingAll={false}
+        isZipping={false}
+        onUploadAll={() => {}}
+        onDownloadAll={() => {}}
+      />,
+    );
+
+    // bbcodeTitleRes always enabled (tasks have metadata)
+    expect(isFormatDisabled("bbcodeTitleRes")).toBe(false);
+
+    // Upload formats enabled because taskA has at least one success
+    expect(isFormatDisabled("bbcodePostTemplate")).toBe(false);
+    expect(isFormatDisabled("directUrl")).toBe(false);
+  });
+
+  it("disables upload formats when all tasks have all-error uploads but keeps bbcodeTitleRes enabled", () => {
+    const taskA = makeTaskWithUploads({
+      "dest-a": {
+        status: "error",
+        progress: 0,
+        error: "Failed",
+      },
+    });
+
+    const taskB = makeTaskWithUploads(
+      {
+        "dest-b": {
+          status: "error",
+          progress: 0,
+          error: "Failed too",
+        },
+      },
+      {
+        file: new File(["x"], "other_video.mp4", { type: "video/mp4" }),
+      },
+    );
+
+    render(
+      <TaskActionsPanel
+        items={[taskA, taskB]}
+        allDone={false}
+        enabledDests={enabledDests}
+        doneItems={[taskA, taskB]}
+        totalPossibleUploads={2}
+        completedUploads={0}
+        hasPendingUploads={true}
+        isUploadingAll={false}
+        isZipping={false}
+        onUploadAll={() => {}}
+        onDownloadAll={() => {}}
+      />,
+    );
+
+    // bbcodeTitleRes stays enabled (tasks have metadata)
+    expect(isFormatDisabled("bbcodeTitleRes")).toBe(false);
+
+    // Upload formats disabled (no successful uploads at all)
+    expect(isFormatDisabled("bbcodePostTemplate")).toBe(true);
+    expect(isFormatDisabled("directUrl")).toBe(true);
+    expect(isFormatDisabled("bbcodeFull")).toBe(true);
+  });
+
+  it("enables upload formats when gallery destination has mixed fileResults (state.status='error' but some done)", () => {
+    // Critical case: state.status is "error" because some files failed,
+    // but fileResults contains done entries that have valid links.
+    const task = makeTaskWithUploads({
+      "dest-a": {
+        status: "error", // set to error because some files failed
+        progress: 50,
+        fileResults: [
+          makeFileResult({
+            result: makeUploadResult({
+              directUrl: "https://cdn.example.com/frame_0.jpg",
+            }),
+          }),
+          {
+            status: "error" as const,
+            progress: 0,
+            error: "Upload failed",
+          },
+          makeFileResult({
+            result: makeUploadResult({
+              directUrl: "https://cdn.example.com/frame_2.jpg",
+            }),
+          }),
+        ],
+      },
+    });
+
+    render(
+      <TaskActionsPanel
+        items={[task]}
+        allDone={false}
+        enabledDests={enabledDests}
+        doneItems={[task]}
+        totalPossibleUploads={3}
+        completedUploads={2}
+        hasPendingUploads={true}
+        isUploadingAll={false}
+        isZipping={false}
+        onUploadAll={() => {}}
+        onDownloadAll={() => {}}
+      />,
+    );
+
+    // Upload formats should be enabled because firstResult() finds done fileResults
+    // even though state.status === "error"
+    expect(isFormatDisabled("bbcodePostTemplate")).toBe(false);
+    expect(isFormatDisabled("directUrl")).toBe(false);
+    expect(isFormatDisabled("bbcodeFull")).toBe(false);
+  });
+
+  it("enables upload formats when one destination succeeds and another fails", () => {
+    const task = makeTaskWithUploads({
+      "dest-a": {
+        status: "done",
+        progress: 100,
+        result: makeUploadResult(),
+      },
+      "dest-b": {
+        status: "error",
+        progress: 0,
+        error: "Network error",
+      },
+    });
+
+    render(
+      <TaskActionsPanel
+        items={[task]}
+        allDone={false}
+        enabledDests={enabledDests}
+        doneItems={[task]}
+        totalPossibleUploads={2}
+        completedUploads={1}
+        hasPendingUploads={true}
+        isUploadingAll={false}
+        isZipping={false}
+        onUploadAll={() => {}}
+        onDownloadAll={() => {}}
+      />,
+    );
+
+    // Upload formats enabled because dest-a succeeded
+    expect(isFormatDisabled("bbcodePostTemplate")).toBe(false);
+    expect(isFormatDisabled("directUrl")).toBe(false);
+  });
+
+  it("disables upload formats when no uploads exist but keeps bbcodeTitleRes enabled", () => {
+    // Tasks have metadata (analyzed) but no uploads at all
+    const taskA = createTestTaskItem({
+      status: "done",
+      metadata: createTestMeta(),
+      outputName: "test_output.jpg",
+      // no uploads property
+    });
+
+    const taskB = createTestTaskItem({
+      status: "done",
+      metadata: createTestMeta(),
+      outputName: "other_output.jpg",
+      file: new File(["x"], "other_video.mp4", { type: "video/mp4" }),
+      // no uploads property
+    });
+
+    render(
+      <TaskActionsPanel
+        items={[taskA, taskB]}
+        allDone={true}
+        enabledDests={enabledDests}
+        doneItems={[]}
+        totalPossibleUploads={0}
+        completedUploads={0}
+        hasPendingUploads={false}
+        isUploadingAll={false}
+        isZipping={false}
+        onUploadAll={() => {}}
+        onDownloadAll={() => {}}
+      />,
+    );
+
+    // bbcodeTitleRes enabled (tasks have metadata)
+    expect(isFormatDisabled("bbcodeTitleRes")).toBe(false);
+
+    // Upload formats disabled (no uploads at all)
+    expect(isFormatDisabled("bbcodePostTemplate")).toBe(true);
+    expect(isFormatDisabled("directUrl")).toBe(true);
+  });
+
+  it("enables upload formats when only one fileResult across all tasks is done", () => {
+    // Task 1: all errors
+    const task1 = makeTaskWithUploads(
+      {
+        "dest-a": {
+          status: "error",
+          progress: 0,
+          error: "Failed",
+        },
+      },
+      {
+        file: new File(["x"], "video1.mp4", { type: "video/mp4" }),
+      },
+    );
+
+    // Task 2: all errors
+    const task2 = makeTaskWithUploads(
+      {
+        "dest-a": {
+          status: "error",
+          progress: 0,
+          error: "Failed",
+        },
+      },
+      {
+        file: new File(["x"], "video2.mp4", { type: "video/mp4" }),
+      },
+    );
+
+    // Task 3: gallery with only ONE successful fileResult among many errors
+    const task3 = makeTaskWithUploads(
+      {
+        "dest-a": {
+          status: "error",
+          progress: 25,
+          fileResults: [
+            { status: "error" as const, progress: 0, error: "fail" },
+            { status: "error" as const, progress: 0, error: "fail" },
+            makeFileResult({
+              result: makeUploadResult({
+                directUrl: "https://cdn.example.com/the_one_done.jpg",
+              }),
+            }),
+            { status: "error" as const, progress: 0, error: "fail" },
+          ],
+        },
+      },
+      {
+        file: new File(["x"], "video3.mp4", { type: "video/mp4" }),
+      },
+    );
+
+    render(
+      <TaskActionsPanel
+        items={[task1, task2, task3]}
+        allDone={false}
+        enabledDests={enabledDests}
+        doneItems={[task1, task2, task3]}
+        totalPossibleUploads={6}
+        completedUploads={1}
+        hasPendingUploads={true}
+        isUploadingAll={false}
+        isZipping={false}
+        onUploadAll={() => {}}
+        onDownloadAll={() => {}}
+      />,
+    );
+
+    // Upload formats enabled because exactly one fileResult is done
+    expect(isFormatDisabled("bbcodePostTemplate")).toBe(false);
+    expect(isFormatDisabled("directUrl")).toBe(false);
+  });
+
+  // ---- Copy Text Content ----
+
+  it("excludes tasks with all-error uploads from copy text", async () => {
+    const mockWriteText = vi.fn().mockResolvedValue(undefined);
+    vi.stubGlobal("navigator", {
+      clipboard: { writeText: mockWriteText },
+    });
+
+    const successTask = makeTaskWithUploads({
+      "dest-a": {
+        status: "done",
+        progress: 100,
+        result: makeUploadResult({
+          directUrl: "https://cdn.example.com/success.jpg",
+          pageUrl: "https://example.com/success",
+        }),
+      },
+    });
+
+    const errorTask = makeTaskWithUploads(
+      {
+        "dest-a": {
+          status: "error",
+          progress: 0,
+          error: "Failed",
+        },
+      },
+      {
+        file: new File(["x"], "error_video.mp4", { type: "video/mp4" }),
+      },
+    );
+
+    render(
+      <TaskActionsPanel
+        items={[successTask, errorTask]}
+        allDone={false}
+        enabledDests={enabledDests}
+        doneItems={[successTask, errorTask]}
+        totalPossibleUploads={2}
+        completedUploads={1}
+        hasPendingUploads={true}
+        isUploadingAll={false}
+        isZipping={false}
+        onUploadAll={() => {}}
+        onDownloadAll={() => {}}
+      />,
+    );
+
+    // Select directUrl format
+    fireEvent.change(screen.getByRole("combobox"), {
+      target: { value: "directUrl" },
+    });
+
+    fireEvent.click(screen.getByText("Copy All"));
+
+    await waitFor(() => {
+      expect(mockWriteText).toHaveBeenCalled();
+    });
+
+    const copiedText = mockWriteText.mock.calls[0][0] as string;
+    // Only the success task's URL should appear
+    expect(copiedText).toContain("https://cdn.example.com/success.jpg");
+    // Error task contributes nothing
+    expect(copiedText).not.toContain("error");
+  });
+
+  it("includes only done fileResults from gallery mode in copy text", async () => {
+    const mockWriteText = vi.fn().mockResolvedValue(undefined);
+    vi.stubGlobal("navigator", {
+      clipboard: { writeText: mockWriteText },
+    });
+
+    const galleryTask = makeTaskWithUploads({
+      "dest-a": {
+        status: "error", // mixed results so state is error
+        progress: 66,
+        fileResults: [
+          makeFileResult({
+            result: makeUploadResult({
+              directUrl: "https://cdn.example.com/done_0.jpg",
+            }),
+          }),
+          {
+            status: "error" as const,
+            progress: 0,
+            error: "Failed",
+          },
+          makeFileResult({
+            result: makeUploadResult({
+              directUrl: "https://cdn.example.com/done_2.jpg",
+            }),
+          }),
+        ],
+      },
+    });
+
+    render(
+      <TaskActionsPanel
+        items={[galleryTask]}
+        allDone={false}
+        enabledDests={enabledDests}
+        doneItems={[galleryTask]}
+        totalPossibleUploads={3}
+        completedUploads={2}
+        hasPendingUploads={true}
+        isUploadingAll={false}
+        isZipping={false}
+        onUploadAll={() => {}}
+        onDownloadAll={() => {}}
+      />,
+    );
+
+    fireEvent.change(screen.getByRole("combobox"), {
+      target: { value: "directUrl" },
+    });
+
+    fireEvent.click(screen.getByText("Copy All"));
+
+    await waitFor(() => {
+      expect(mockWriteText).toHaveBeenCalled();
+    });
+
+    const copiedText = mockWriteText.mock.calls[0][0] as string;
+    // Only done fileResults appear
+    expect(copiedText).toContain("https://cdn.example.com/done_0.jpg");
+    expect(copiedText).toContain("https://cdn.example.com/done_2.jpg");
+    // Error fileResult does not contribute a URL
+    expect(copiedText).not.toContain("Failed");
+  });
+
+  // ---- Error Popover ----
+
+  it("does NOT show error popover for items with active uploads in progress", () => {
+    // Item has fileResults with "uploading" status — should be excluded
+    // from the error popover so it doesn't flash during retries.
+    const uploadingTask = makeTaskWithUploads({
+      "dest-a": {
+        status: "uploading",
+        progress: 50,
+        fileResults: [
+          { status: "uploading" as const, progress: 50 },
+          { status: "idle" as const, progress: 0 },
+          makeFileResult({
+            result: makeUploadResult({
+              directUrl: "https://cdn.example.com/done.jpg",
+            }),
+          }),
+        ],
+      },
+    });
+
+    render(
+      <TaskActionsPanel
+        items={[uploadingTask]}
+        allDone={false}
+        enabledDests={enabledDests}
+        doneItems={[uploadingTask]}
+        totalPossibleUploads={3}
+        completedUploads={1}
+        hasPendingUploads={true}
+        isUploadingAll={true}
+        isZipping={false}
+        onUploadAll={() => {}}
+        onDownloadAll={() => {}}
+      />,
+    );
+
+    // ErrorPopover should NOT appear because the only incomplete results
+    // are actively uploading (not errors)
+    expect(screen.queryByTitle(/task\(s\) have upload errors/)).toBeNull();
   });
 });

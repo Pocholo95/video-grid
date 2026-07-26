@@ -217,7 +217,7 @@ export default function InfoPanel({
       )}
       <div className="flex flex-col gap-1 my-2">
         <span className="text-xs font-medium">
-          BBCode – video title + resolution
+          BBCode — video title + resolution
         </span>
         <CopyField value={bbcodeVideoTitle} fieldType="input" />
       </div>

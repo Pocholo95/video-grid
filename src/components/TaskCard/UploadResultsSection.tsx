@@ -309,142 +309,139 @@ function DestinationFileSection({
       onOpenChange={handleOpenChange}
       data-group={groupKey}
     >
-      {/* Entire header row is clickable to toggle; delete button stops propagation */}
-      <CollapsibleTrigger asChild>
-        <button
-          type="button"
-          className="w-full flex items-center gap-2 px-3 py-2 text-left"
-          onPointerDown={handlePointerDown}
-        >
-          {/* Left: Name + progress */}
-          <span className="flex flex-1 items-center gap-2 text-sm font-medium">
+      {/* Header row: CollapsibleTrigger only wraps the label+chevron; delete button is outside to avoid nested <button> */}
+      <div
+        className="w-full flex items-center gap-2 px-3 py-2 text-left"
+        onPointerDown={handlePointerDown}
+      >
+        {/* Left: Name + progress (clickable to toggle) — use <div> to avoid nested <button> when PopoverTrigger<Button> is a sibling */}
+        <CollapsibleTrigger asChild>
+          <div className="flex flex-1 items-center gap-2 text-sm font-medium text-left cursor-pointer">
             <span>{dest.name}</span>
             {doneFiles.length > 0 && (
               <span className="text-xs text-muted-foreground">
                 {doneFiles.length}/{fileResults.length} done
               </span>
             )}
-          </span>
+            <ChevronDown
+              className={`size-4 shrink-0 transition-transform duration-200 ml-auto ${
+                sectionExpanded ? "rotate-180" : ""
+              }`}
+            />
+          </div>
+        </CollapsibleTrigger>
 
-          {/* Middle: Delete button (stops propagation so popover clicks don't toggle) */}
-          {doneFiles.length > 0 &&
-            /* Only wrap in Popover for Chevereto with multiple files (needs delete links list).
-               Single Chevereto file opens delete URL directly. Non-Chevereto shows AlertDialog. */
-            (dest.type === "chevereto" && !singleFile ? (
-              <Popover
-                open={showDeletePopover}
-                onOpenChange={(open) => {
-                  if (!open) setShowDeletePopover(false);
-                  setShowDeletePopover(open);
-                }}
-              >
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    title={deleteButtonTitle}
-                    className="text-destructive hover:text-destructive shrink-0"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleDeleteAll();
-                    }}
-                    disabled={deletingDestId !== null}
-                  >
-                    {deletingDestId === dest.id ? (
-                      <Loader2 className="size-4 animate-spin" />
-                    ) : (
-                      <Trash2 className="size-4" />
-                    )}
-                    {deleteButtonText}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent
-                  className="w-64"
-                  side="top"
-                  align="start"
-                  onClick={(e) => e.stopPropagation()}
+        {/* Middle: Delete button (outside CollapsibleTrigger to avoid nested <button>) */}
+        {doneFiles.length > 0 &&
+          /* Only wrap in Popover for Chevereto with multiple files (needs delete links list).
+             Single Chevereto file opens delete URL directly. Non-Chevereto shows AlertDialog. */
+          (dest.type === "chevereto" && !singleFile ? (
+            <Popover
+              open={showDeletePopover}
+              onOpenChange={(open) => {
+                if (!open) setShowDeletePopover(false);
+                setShowDeletePopover(open);
+              }}
+            >
+              <PopoverTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  title={deleteButtonTitle}
+                  className="text-destructive hover:text-destructive shrink-0"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleDeleteAll();
+                  }}
+                  disabled={deletingDestId !== null}
                 >
-                  <div className="flex flex-col gap-3">
-                    <p className="text-sm font-medium">
-                      {doneFiles.length === 1
-                        ? "Open delete link"
-                        : `Open delete links for ${doneFiles.length} file(s)`}
-                    </p>
-                    <div className="flex flex-col gap-1 max-h-60 overflow-y-auto">
-                      {doneFiles.map((f: FileUploadResult, idx: number) => (
-                        <a
-                          key={idx}
-                          href={f.result!.deleteUrl!}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="flex items-center gap-2 text-xs text-muted-foreground hover:text-foreground underline underline-offset-2"
-                        >
-                          <ExternalLink className="size-3 shrink-0" />
-                          {singleFile
-                            ? "Delete link"
-                            : `Frame ${idx + 1} delete link`}
-                        </a>
-                      ))}
-                    </div>
-                    <div className="flex justify-end gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setShowDeletePopover(false)}
-                      >
-                        Close
-                      </Button>
-                      <Button
-                        variant="destructive"
-                        size="sm"
-                        onClick={() => {
-                          doneFiles.forEach((f) => {
-                            window.open(
-                              f.result!.deleteUrl!,
-                              "_blank",
-                              "noopener noreferrer",
-                            );
-                          });
-                          setShowDeletePopover(false);
-                        }}
-                      >
-                        {doneFiles.length === 1
-                          ? "Open Delete Link"
-                          : "Open All Delete Links"}
-                      </Button>
-                    </div>
-                  </div>
-                </PopoverContent>
-              </Popover>
-            ) : (
-              <Button
-                variant="ghost"
-                size="sm"
-                title={deleteButtonTitle}
-                className="text-destructive hover:text-destructive shrink-0"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleDeleteAll();
-                }}
-                disabled={deletingDestId !== null}
+                  {deletingDestId === dest.id ? (
+                    <Loader2 className="size-4 animate-spin" />
+                  ) : (
+                    <Trash2 className="size-4" />
+                  )}
+                  {deleteButtonText}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent
+                className="w-64"
+                side="top"
+                align="start"
+                onClick={(e) => e.stopPropagation()}
               >
-                {deletingDestId === dest.id ? (
-                  <Loader2 className="size-4 animate-spin" />
-                ) : (
-                  <Trash2 className="size-4" />
-                )}
-                {deleteButtonText}
-              </Button>
-            ))}
-
-          {/* Right: Chevron (always on far right) */}
-          <ChevronDown
-            className={`size-4 shrink-0 transition-transform duration-200 ${
-              sectionExpanded ? "rotate-180" : ""
-            }`}
-          />
-        </button>
-      </CollapsibleTrigger>
+                <div className="flex flex-col gap-3">
+                  <p className="text-sm font-medium">
+                    {doneFiles.length === 1
+                      ? "Open delete link"
+                      : `Open delete links for ${doneFiles.length} file(s)`}
+                  </p>
+                  <div className="flex flex-col gap-1 max-h-60 overflow-y-auto">
+                    {doneFiles.map((f: FileUploadResult, idx: number) => (
+                      <a
+                        key={idx}
+                        href={f.result!.deleteUrl!}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-2 text-xs text-muted-foreground hover:text-foreground underline underline-offset-2"
+                      >
+                        <ExternalLink className="size-3 shrink-0" />
+                        {singleFile
+                          ? "Delete link"
+                          : `Frame ${idx + 1} delete link`}
+                      </a>
+                    ))}
+                  </div>
+                  <div className="flex justify-end gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setShowDeletePopover(false)}
+                    >
+                      Close
+                    </Button>
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      onClick={() => {
+                        doneFiles.forEach((f) => {
+                          window.open(
+                            f.result!.deleteUrl!,
+                            "_blank",
+                            "noopener noreferrer",
+                          );
+                        });
+                        setShowDeletePopover(false);
+                      }}
+                    >
+                      {doneFiles.length === 1
+                        ? "Open Delete Link"
+                        : "Open All Delete Links"}
+                    </Button>
+                  </div>
+                </div>
+              </PopoverContent>
+            </Popover>
+          ) : (
+            <Button
+              variant="ghost"
+              size="sm"
+              title={deleteButtonTitle}
+              className="text-destructive hover:text-destructive shrink-0"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleDeleteAll();
+              }}
+              disabled={deletingDestId !== null}
+            >
+              {deletingDestId === dest.id ? (
+                <Loader2 className="size-4 animate-spin" />
+              ) : (
+                <Trash2 className="size-4" />
+              )}
+              {deleteButtonText}
+            </Button>
+          ))}
+      </div>
 
       <CollapsibleContent>
         <div className="flex flex-col gap-3 border-t p-3">
@@ -562,10 +559,16 @@ function DestinationFileSection({
                               size="sm"
                               onClick={() => handleDeleteSingleFile(idx)}
                               title={`Delete frame ${idx + 1} from ${dest.name}`}
-                              disabled={deletingFileIdx !== null}
+                              disabled={
+                                deletingFileIdx !== null ||
+                                (dest.type !== "chevereto" &&
+                                  deletingDestId === dest.id)
+                              }
                               className="text-destructive hover:text-destructive shrink-0 w-full"
                             >
-                              {deletingFileIdx === idx ? (
+                              {deletingFileIdx === idx ||
+                              (dest.type !== "chevereto" &&
+                                deletingDestId === dest.id) ? (
                                 <Loader2 className="size-3 animate-spin" />
                               ) : (
                                 <Trash2 className="size-3" />
@@ -710,16 +713,14 @@ function SingleFileUploadLinks({
         className="rounded-md border"
         data-group={groupKey}
       >
+        {/* Header row: CollapsibleTrigger only wraps the label+chevron; delete button is outside to avoid nested <button> */}
         <div
-          className="flex items-center justify-between gap-2 px-3 py-2"
+          className="flex items-center gap-2 px-3 py-2"
           onPointerDown={handleSinglePointerDown}
         >
+          {/* Left: Name + chevron (clickable to toggle) — use <div> to avoid nested <button> when delete Button is a sibling */}
           <CollapsibleTrigger asChild>
-            <button
-              type="button"
-              aria-expanded={expanded}
-              className="flex flex-1 items-center justify-between gap-2 rounded-md text-sm font-medium"
-            >
+            <div className="flex flex-1 items-center justify-between gap-2 text-sm font-medium cursor-pointer">
               <span className="flex items-center gap-2">
                 <span>{dest.name}</span>
               </span>
@@ -728,8 +729,9 @@ function SingleFileUploadLinks({
                   expanded ? "rotate-180" : ""
                 }`}
               />
-            </button>
+            </div>
           </CollapsibleTrigger>
+          {/* Right: Delete button (outside CollapsibleTrigger to avoid nested <button>) */}
           {result.deleteUrl && canDeleteFromDestination(result, dest) && (
             <Button
               variant="ghost"
