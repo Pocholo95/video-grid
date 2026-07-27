@@ -1,15 +1,10 @@
 import { DEFAULTS } from "../../constants";
+import { Ban } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Field, FieldLabel } from "@/components/ui/field";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import Section from "./Section";
-import type { SavedOptions } from "../../types";
+import type { Position, SavedOptions } from "../../types";
 
 interface Props {
   opts: SavedOptions;
@@ -70,28 +65,119 @@ export default function OverlaysSection({
       <div className="flex flex-col gap-3">
         <Field>
           <FieldLabel htmlFor="cp-tc-pos">Timecode position</FieldLabel>
-          <Select
+          <TimecodePositionGrid
+            id="cp-tc-pos"
             value={opts.tcPosition}
-            onValueChange={(v) =>
-              setOpts({
-                ...opts,
-                tcPosition: v as SavedOptions["tcPosition"],
-              })
-            }
-          >
-            <SelectTrigger id="cp-tc-pos" className="w-full">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="disabled">Disabled</SelectItem>
-              <SelectItem value="top-left">Top-Left</SelectItem>
-              <SelectItem value="top-right">Top-Right</SelectItem>
-              <SelectItem value="bottom-left">Bottom-Left</SelectItem>
-              <SelectItem value="bottom-right">Bottom-Right</SelectItem>
-            </SelectContent>
-          </Select>
+            onChange={(v) => setOpts({ ...opts, tcPosition: v })}
+            textColor={opts.textColor}
+            bgColor={opts.bgColor}
+            fontFamily={opts.fontFamily}
+            fontSize={opts.tcFontSize}
+          />
         </Field>
       </div>
     </Section>
+  );
+}
+
+/**
+ * Props for the TimecodePositionGrid component.
+ */
+interface TimecodePositionGridProps {
+  id: string;
+  value: Position;
+  onChange: (position: Position) => void;
+  textColor: string;
+  bgColor: string;
+  fontFamily: string;
+  fontSize: number;
+}
+
+/**
+ * Visual frame selector for timecode overlay position.
+ *
+ * Renders a frame-like preview with 4 corner buttons absolutely positioned
+ * at the edges, each showing a timecode pill. Center button disables the overlay.
+ */
+function TimecodePositionGrid({
+  id,
+  value,
+  onChange,
+  textColor,
+  bgColor,
+  fontFamily,
+  fontSize,
+}: TimecodePositionGridProps) {
+  const isDisabled = value === "disabled";
+
+  // Clamp preview font size to fit within small pills
+  const previewFontSize = Math.min(Math.max(fontSize, 8), 12);
+
+  // The four corner positions with their CSS corner classes
+  const corners: { pos: Position; corner: string }[] = [
+    { pos: "top-left", corner: "top-1 left-1" },
+    { pos: "top-right", corner: "top-1 right-1" },
+    { pos: "bottom-left", corner: "bottom-1 left-1" },
+    { pos: "bottom-right", corner: "bottom-1 right-1" },
+  ];
+
+  return (
+    <div
+      id={id}
+      role="radiogroup"
+      aria-label="Timecode position"
+      className="mx-auto mt-2 w-64"
+    >
+      {/* Frame container - represents a single video cell */}
+      <div className="relative aspect-video rounded-lg border-2 border-input bg-muted">
+        {/* Center disable button */}
+        <Button
+          variant="ghost"
+          size="icon"
+          role="radio"
+          aria-checked={isDisabled}
+          aria-label="Disable timecode"
+          onClick={() => onChange("disabled")}
+          className={`absolute inset-0 m-auto size-9 ${
+            isDisabled ? "text-ring" : "text-muted-foreground/50"
+          }`}
+        >
+          <Ban className="size-3.5" />
+        </Button>
+
+        {/* Corner position buttons */}
+        {corners.map(({ pos, corner }) => {
+          const isActive = value === pos;
+          return (
+            <Button
+              key={pos}
+              variant="ghost"
+              role="radio"
+              aria-checked={isActive}
+              aria-label={`${pos.replace("-", " ")} position`}
+              onClick={() => onChange(pos)}
+              className={`absolute ${corner} p-1`}
+            >
+              <span
+                className={`rounded px-1.5 py-0.5 text-center select-none transition-all ${
+                  isActive
+                    ? "shadow-sm opacity-100"
+                    : "opacity-20 hover:opacity-30"
+                }`}
+                style={{
+                  backgroundColor: `${bgColor}99`,
+                  color: textColor,
+                  fontFamily: fontFamily,
+                  fontSize: `${previewFontSize}px`,
+                  lineHeight: 1.2,
+                }}
+              >
+                00:00:00
+              </span>
+            </Button>
+          );
+        })}
+      </div>
+    </div>
   );
 }
