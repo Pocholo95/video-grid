@@ -275,7 +275,10 @@ describe("useBatchProcessor", () => {
 
     let processPromise!: Promise<void>;
     await act(async () => {
-      processPromise = result.current.processAll([item], defaultOpts);
+      processPromise = result.current.processAll([item], {
+        ...defaultOpts,
+        outputMode: "static",
+      });
       // Let the microtask queue advance so the worker starts and registers
       // its NativeFfmpegService instance before we force-cancel.
       await Promise.resolve();

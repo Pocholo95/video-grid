@@ -8,8 +8,9 @@ import { DEFAULTS } from "@/constants";
 import type { SavedOptions, VrMode } from "@/types";
 
 describe("getPresetSummary", () => {
-  it("shows Static mode for default options", () => {
-    const summary = getPresetSummary(DEFAULTS);
+  it("shows Static mode when outputMode is static", () => {
+    const opts = { ...DEFAULTS, outputMode: "static" as const };
+    const summary = getPresetSummary(opts);
     expect(summary).toContain("Static");
     expect(summary).toContain("1920px");
     expect(summary).toContain("3×4");

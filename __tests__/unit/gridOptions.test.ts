@@ -138,7 +138,10 @@ describe("buildAnimatedGridOptions", () => {
   });
 
   it("extends static grid options", () => {
-    const result = buildAnimatedGridOptions(mockOpts, mockItem, mockMeta);
+    // limitFitEnabled off here so the width assertion below checks plain
+    // pass-through from static options, not the fit-to-upload-limits clamp.
+    const opts = { ...mockOpts, limitFitEnabled: false };
+    const result = buildAnimatedGridOptions(opts, mockItem, mockMeta);
     expect(result.duration).toBe(120);
     expect(result.width).toBe(DEFAULTS.width);
     expect(result.cols).toBe(DEFAULTS.cols);

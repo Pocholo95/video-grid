@@ -380,19 +380,94 @@ export class GridRenderer implements IGridRenderer {
         ? resolveTimestamps(opts.customTimestamps, totalCells, duration)
         : calculateSampleTimes(totalCells, duration);
 
-    const decoder = await setupVideoDecoder(file, meta, onWarning);
-    const video = decoder.video;
-    const videoCleanup = decoder.videoCleanup;
+    await this._ensureInputFileInFs(file);
+    const maxTime = Math.max(0, duration - 0.001);
 
-    if (!decoder.canNativelyPlay) {
-      videoCleanup();
-      throw new Error(
-        "Animated WebP mode requires native browser video support. " +
-          "This format is not natively decodable — " +
-          "FFmpeg fallback is unavailable for animated output. " +
-          "Disable animated mode to use the FFmpeg fallback " +
-          "for static JPEG generation.",
+    /*
+     * Phase 1: extract each cell's own frame sequence via real ffmpeg --
+     * one decode pass per cell (CPU only), instead of the old
+     * totalAnimFrames x totalCells browser <video> seeks. A cell whose
+     * window runs past the clip's end comes back with fewer frames than
+     * totalAnimFrames; framesAvailable[i] records how many actually
+     * landed so phase 2 can freeze on the last one, matching the old
+     * per-frame seek clamp (`Math.min(base + f*step, duration - 0.001)`).
+     */
+    const framesAvailable: number[] = new Array(totalCells).fill(0);
+    const cellExtractFailed: boolean[] = new Array(totalCells).fill(false);
+    const cellFramePath = (i: number, n: number): string =>
+      `animcell${i}_${String(n).padStart(5, "0")}.png`;
+
+    for (let i = 0; i < totalCells; i++) {
+      if (isCancelled()) {
+        throw new DOMException("Processing cancelled", "AbortError");
+      }
+
+      const { cellW, cellH } = cellSlots[i];
+      const cellStart = Math.min(baseTimes[i], maxTime);
+      const framesAvail = Math.max(
+        1,
+        Math.min(
+          totalAnimFrames,
+          Math.floor((maxTime - cellStart) / frameDuration) + 1,
+        ),
       );
+
+      const vfFilters: string[] = [];
+      if (meta.rotation === 90) vfFilters.push("transpose=1");
+      else if (meta.rotation === 270) vfFilters.push("transpose=2");
+      else if (meta.rotation === 180) vfFilters.push("transpose=1");
+      if (vrActive) {
+        const { width: effW, height: effH } = getEffectiveDimensions(meta);
+        const { sx, sy, sw, sh } = getVrCropRect(
+          effW,
+          effH,
+          opts.vrMode as Exclude<VrMode, "disabled">,
+        );
+        vfFilters.push(`crop=${sw}:${sh}:${sx}:${sy}`);
+      }
+      vfFilters.push(`scale=${cellW}:${cellH}`);
+
+      log(
+        `  [AnimGrid] Extracting cell ${i + 1}/${totalCells}: ` +
+          `${framesAvail} frame(s) from t=${formatTime(cellStart)}s ` +
+          `@ ${opts.animFps}fps`,
+      );
+
+      try {
+        await this.ffmpeg.setAbortController();
+        await this.ffmpeg.exec([
+          "-loglevel",
+          "warning",
+          "-ss",
+          String(cellStart),
+          "-i",
+          "input.mp4",
+          "-t",
+          String(framesAvail * frameDuration + frameDuration),
+          "-vf",
+          vfFilters.join(","),
+          "-r",
+          String(opts.animFps),
+          "-fps_mode",
+          "cfr",
+          "-frames:v",
+          String(framesAvail),
+          "-start_number",
+          "0",
+          "-an",
+          "-f",
+          "image2",
+          `animcell${i}_%05d.png`,
+        ]);
+        framesAvailable[i] = framesAvail;
+      } catch (extractErr) {
+        const msg =
+          extractErr instanceof Error ? extractErr.message : String(extractErr);
+        errlog(`  [AnimGrid] Cell ${i + 1} extraction failed:`, msg);
+        onWarning(`Frame extraction failed for cell ${i + 1}: ${msg}`);
+        cellExtractFailed[i] = true;
+        framesAvailable[i] = 0;
+      }
     }
 
     const canvas = document.createElement("canvas");
@@ -423,37 +498,38 @@ export class GridRenderer implements IGridRenderer {
           const { x, y, cellW, cellH } = cellSlots[i];
 
           log(
-            `  [AnimWebP] Anim frame ${f + 1}/${totalAnimFrames}, ` +
+            `  [AnimGrid] Anim frame ${f + 1}/${totalAnimFrames}, ` +
               `cell ${i + 1}/${totalCells} @ t=${formatTime(tSec)}s`,
           );
 
-          try {
-            await seekVideo(video, tSec);
-            if (vrActive) {
-              const vw = video.videoWidth || meta.width;
-              const vh = video.videoHeight || meta.height;
-              const { sx, sy, sw, sh } = getVrCropRect(
-                vw,
-                vh,
-                opts.vrMode as Exclude<VrMode, "disabled">,
-              );
-              ctx.drawImage(video, sx, sy, sw, sh, x, y, cellW, cellH);
-            } else {
-              ctx.drawImage(video, x, y, cellW, cellH);
-            }
-          } catch (seekErr) {
-            const msg =
-              seekErr instanceof Error ? seekErr.message : String(seekErr);
-            errlog(
-              `  [AnimWebP] seek failed — ` +
-                `anim frame ${f + 1}, cell ${i + 1}:`,
-              msg,
-            );
-            onWarning(
-              `Seek failed at animation frame ${f + 1}, ` +
-                `cell ${i + 1}: ${msg}`,
-            );
+          if (cellExtractFailed[i]) {
             drawErrorPlaceholder(ctx, x, y, cellW, cellH, opts.bgColor);
+          } else {
+            const srcIdx = Math.min(f, framesAvailable[i] - 1);
+            let bitmap: ImageBitmap | null = null;
+            try {
+              const data = await this.ffmpeg.readData(cellFramePath(i, srcIdx));
+              const blob = new Blob([new Uint8Array(data)], {
+                type: "image/png",
+              });
+              bitmap = await createImageBitmap(blob);
+              ctx.drawImage(bitmap, x, y, cellW, cellH);
+            } catch (readErr) {
+              const msg =
+                readErr instanceof Error ? readErr.message : String(readErr);
+              errlog(
+                `  [AnimGrid] Frame read failed — ` +
+                  `anim frame ${f + 1}, cell ${i + 1}:`,
+                msg,
+              );
+              onWarning(
+                `Frame read failed at animation frame ${f + 1}, ` +
+                  `cell ${i + 1}: ${msg}`,
+              );
+              drawErrorPlaceholder(ctx, x, y, cellW, cellH, opts.bgColor);
+            } finally {
+              bitmap?.close();
+            }
           }
 
           drawTimecodeOverlay(
@@ -491,7 +567,15 @@ export class GridRenderer implements IGridRenderer {
         await new Promise<void>((r) => setTimeout(r, 0));
       }
     } finally {
-      videoCleanup();
+      for (let i = 0; i < totalCells; i++) {
+        for (let n = 0; n < framesAvailable[i]; n++) {
+          try {
+            await this.ffmpeg.deleteFile(cellFramePath(i, n));
+          } catch {
+            /* best-effort cleanup */
+          }
+        }
+      }
     }
 
     if (isCancelled() || framesWritten === 0) {
