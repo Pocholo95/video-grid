@@ -1,0 +1,14 @@
+node_modules
+dist
+dist-ssr
+.git
+__pycache__
+*.pyc
+__tests__
+coverage
+web-ext-artifacts
+.vscode
+.idea
+*.log
+cert.pem
+key.pem

@@ -1,0 +1,14 @@
+services:
+  vidgrid:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      VIDGRID_IDLE_MINUTES: "60"
+      VIDGRID_SWEEP_INTERVAL_MINUTES: "10"
+      # VIDGRID_SHARED_DIR: /shared   # uncomment together with the volume
+      #                                 below to offer a one-click "scan
+      #                                 this folder" shortcut in the UI
+    # volumes:
+    #   - ./shared:/shared:ro
+    restart: unless-stopped
