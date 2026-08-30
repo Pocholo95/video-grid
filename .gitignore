@@ -31,14 +31,6 @@ coverage
 cert.pem
 key.pem
 
-# Desktop (pywebview) build
-.venv
-bin/*.exe
-bin/ffmpeg
-bin/ffprobe
-build/
-*.spec.bak
+# Python
 __pycache__/
 *.pyc
-pyinstaller_dist/
-pyinstaller_build/
