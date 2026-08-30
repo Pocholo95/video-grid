@@ -1,0 +1,5 @@
+pyinstaller>=6.0
+
+# No other dependencies: the app runs as a local HTTP server (stdlib only)
+# opened in the user's regular browser (see desktop/app.py) -- no pywebview,
+# no GUI toolkit, no system packages beyond Python itself.
