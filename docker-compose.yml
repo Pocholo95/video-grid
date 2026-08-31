@@ -1,14 +1,40 @@
 services:
   vidgrid:
     build: .
+    image: vidgrid-webui
+    container_name: vidgrid
     ports:
-      - "8000:8000"
+      - "${WEB_PORT:-8000}:8000"
     environment:
-      VIDGRID_IDLE_MINUTES: "60"
-      VIDGRID_SWEEP_INTERVAL_MINUTES: "10"
-      # VIDGRID_SHARED_DIR: /shared   # uncomment together with the volume
-      #                                 below to offer a one-click "scan
-      #                                 this folder" shortcut in the UI
-    # volumes:
-    #   - ./shared:/shared:ro
+      VIDGRID_IDLE_MINUTES: "${VIDGRID_IDLE_MINUTES:-60}"
+      VIDGRID_SWEEP_INTERVAL_MINUTES: "${VIDGRID_SWEEP_INTERVAL_MINUTES:-10}"
+      # Empty by default (feature off). Set to /shared here (and point
+      # SHARED_PATH below at a real folder) to offer a one-click "scan
+      # this folder" shortcut in the UI.
+      VIDGRID_SHARED_DIR: "${VIDGRID_SHARED_DIR:-}"
+    volumes:
+      - ${SHARED_PATH:-./shared}:/shared:ro
+    networks:
+      - proxy
+    labels:
+      # No-op unless TRAEFIK_ENABLE=true is set (stack manager env vars, or
+      # a local .env) — safe default for anyone running this without
+      # Traefik. Requires an external Docker network named "proxy" that
+      # your Traefik is also attached to (create one with
+      # `docker network create proxy` if you don't have it yet).
+      - "traefik.enable=${TRAEFIK_ENABLE:-false}"
+      - "traefik.http.routers.vidgrid.rule=Host(`${TRAEFIK_HOST:-vidgrid.localhost}`)"
+      - "traefik.http.routers.vidgrid.entrypoints=${TRAEFIK_ENTRYPOINTS:-websecure}"
+      - "traefik.http.routers.vidgrid.tls.certresolver=${TRAEFIK_CERTRESOLVER:-letsencrypt}"
+      - "traefik.http.services.vidgrid.loadbalancer.server.port=8000"
+      # This app has no login — anyone who can reach it can process
+      # videos and, if VIDGRID_SHARED_DIR is set, browse that shared
+      # folder. Uncomment to restrict it to your LAN/VPN, same pattern
+      # as Arcane's own ipallowlist middleware:
+      # - "traefik.http.middlewares.vidgrid-ipallowlist.ipallowlist.sourcerange=10.42.0.0/24"
+      # - "traefik.http.routers.vidgrid.middlewares=vidgrid-ipallowlist"
     restart: unless-stopped
+
+networks:
+  proxy:
+    external: true
