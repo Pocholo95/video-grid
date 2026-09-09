@@ -26,6 +26,7 @@ services:
       - "traefik.http.routers.vidgrid.rule=Host(`${TRAEFIK_HOST:-vidgrid.localhost}`)"
       - "traefik.http.routers.vidgrid.entrypoints=${TRAEFIK_ENTRYPOINTS:-websecure}"
       - "traefik.http.routers.vidgrid.tls.certresolver=${TRAEFIK_CERTRESOLVER:-letsencrypt}"
+      - "traefik.http.routers.vidgrid.service=vidgrid"
       - "traefik.http.services.vidgrid.loadbalancer.server.port=8000"
       # This app has no login — anyone who can reach it can process
       # videos and, if VIDGRID_SHARED_DIR is set, browse that shared
